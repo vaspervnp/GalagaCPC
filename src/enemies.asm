@@ -151,12 +151,8 @@ DrawEnemyIX:
 
 
 .do_draw:
-    push hl
     ld b, (ix+2)
     ld c, (ix+3)
-    call GetScreenAddr
-    ex de, hl
-    pop hl
     call DrawSprite16x16
     ret
 
@@ -264,8 +260,6 @@ UpdateEnemies:
     push bc
     ld b, (ix+4)
     ld c, (ix+5)
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
     pop bc
 
@@ -368,20 +362,18 @@ UpdateEnemies:
     push bc
     ld b, (ix+4)
     ld c, (ix+5)
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
     pop bc
 
     ;; 2. Move Y down by 2 scanlines
     ld a, (ix+3)
     add a, 2
-    cp 175
+    cp 224
     jr nc, .loop_to_top     ; Reached bottom -> loop to top
 
     ld (ix+3), a
 
-    ;; 3. Steer X toward player_x with boundary clamping (2 <= X <= 70)
+    ;; 3. Steer X toward player_x with boundary clamping (PLAY_X_MIN <= X <= PLAY_X_MAX)
     ld a, (player_x)
     ld c, (ix+2)
     cp c
@@ -389,25 +381,25 @@ UpdateEnemies:
     jr c, .dive_steer_left
     inc c                   ; move right
     ld a, c
-    cp 71
+    cp PLAY_X_MAX + 1
     jr c, .dive_store_x
-    ld c, 70
+    ld c, PLAY_X_MAX
     jr .dive_store_x
 .dive_steer_left:
     dec c                   ; move left
     ld a, c
-    cp 2
+    cp PLAY_X_MIN
     jr nc, .dive_store_x
-    ld c, 2
+    ld c, PLAY_X_MIN
 .dive_store_x:
     ld (ix+2), c
 .dive_x_done:
 
-    ;; 4. Drop bullet at Y == 90 or Y == 120
+    ;; 4. Drop bullet at Y == 110 or Y == 150
     ld a, (ix+3)
-    cp 90
+    cp 110
     jr z, .dive_drop_bomb
-    cp 120
+    cp 150
     jr nz, .dive_skip_drop
 .dive_drop_bomb:
     push bc
@@ -431,10 +423,10 @@ UpdateEnemies:
     jp .next_dive_slot
 
 .loop_to_top:
-    ;; Wrap around to top safely below HUD (scanline 24, HUD ends at 15)
-    ld a, 24
+    ;; Wrap around to top safely below HUD (scanline 36, HUD ends at 31)
+    ld a, 36
     ld (ix+3), a
-    ld (ix+5), a            ; old_y = 24
+    ld (ix+5), a            ; old_y = 36
     ld a, (ix+2)
     ld (ix+4), a            ; old_x = x
     ld (ix+8), 2            ; state = 2 (returning)
@@ -450,8 +442,6 @@ UpdateEnemies:
     push bc
     ld b, (ix+4)
     ld c, (ix+5)
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
     pop bc
 
@@ -466,17 +456,17 @@ UpdateEnemies:
     jr z, .ret_chk_y
     jr c, .ret_inc_x
     dec a                   ; X > target X: move left
-    cp 2
+    cp PLAY_X_MIN
     jr nc, .ret_x_ok
-    ld a, 2
+    ld a, PLAY_X_MIN
 .ret_x_ok:
     ld (ix+2), a
     jr .ret_chk_y
 .ret_inc_x:
     inc a                   ; X < target X: move right
-    cp 71
+    cp PLAY_X_MAX + 1
     jr c, .ret_x_ok2
-    ld a, 70
+    ld a, PLAY_X_MAX
 .ret_x_ok2:
     ld (ix+2), a
 
@@ -489,9 +479,9 @@ UpdateEnemies:
     jr z, .ret_at_target_y
     jr c, .ret_inc_y
     dec a                   ; Y > base_y: move up
-    cp 24
+    cp 36
     jr nc, .ret_y_ok
-    ld a, 24
+    ld a, 36
 .ret_y_ok:
     ld (ix+3), a
     jr .ret_draw

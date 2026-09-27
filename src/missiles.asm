@@ -1,5 +1,6 @@
 ;; ============================================================================
 ;; Galaga CPC - Player Missiles Management
+;; Overscan Geometry (Playfield Y=32..231, Player Y=210)
 ;; ============================================================================
 
 SpawnMissile:
@@ -30,7 +31,7 @@ SpawnMissile:
     ld a, (player_x)
     add a, 3
     ld (ix+1), a            ; x
-    ld (ix+2), 154          ; y
+    ld (ix+2), 204          ; y (player_y 210 - 6)
     ld (ix+5), 0            ; has_old = 0
     call PlaySoundShot
     pop bc
@@ -64,7 +65,7 @@ SpawnDualMissiles:
     ld a, (player_x)
     add a, 3                ; Left fighter barrel
     ld (ix+1), a
-    ld (ix+2), 154
+    ld (ix+2), 204
     ld (ix+5), 0
 
     ;; Find 2nd free slot (Right fighter)
@@ -84,7 +85,7 @@ SpawnDualMissiles:
     ld a, (player_x)
     add a, 11               ; Right fighter barrel
     ld (ix+1), a
-    ld (ix+2), 154
+    ld (ix+2), 204
     ld (ix+5), 0
 
 .dual_fired_one:
@@ -115,10 +116,10 @@ UpdateMissiles:
 
 .skip_erase:
     ;; 2. Move missile up
-    ;; Safety top boundary: scanlines 0..15 are HUD.
-    ;; If Y < 23, kill before entering scanlines <= 16!
+    ;; Safety top boundary: scanlines 0..31 are Upper Border HUD.
+    ;; If Y < 34, kill before entering HUD!
     ld a, (ix+2)
-    cp 23
+    cp 34
     jr c, .kill_missile
 
     sub 5                   ; 5 scanlines per frame
@@ -149,35 +150,41 @@ UpdateMissiles:
     djnz .missile_loop
     ret
 
+;; ----------------------------------------------------------------------------
+;; DrawMissile: Draw 4-scanline missile at B=X, C=Y
+;; Uses line_tab directly for overscan buffer safety
+;; ----------------------------------------------------------------------------
 DrawMissile:
+    push bc
     call GetScreenAddr
-    ex de, hl
-
-    ld a, #FF               ; White tip
-    ld (de), a
-    call NextScanlineDE
-    ld a, #CC               ; Yellow body
-    ld (de), a
-    call NextScanlineDE
-    ld a, #CC               ; Yellow body
-    ld (de), a
-    call NextScanlineDE
-    ld a, #0C               ; Red thruster
-    ld (de), a
+    ld (hl), #FF            ; White tip
+    inc c
+    call GetScreenAddr
+    ld (hl), #CC            ; Yellow body
+    inc c
+    call GetScreenAddr
+    ld (hl), #CC            ; Yellow body
+    inc c
+    call GetScreenAddr
+    ld (hl), #0C            ; Red thruster
+    pop bc
     ret
 
+;; ----------------------------------------------------------------------------
+;; EraseMissile: Erase 4-scanline missile at B=X, C=Y
+;; ----------------------------------------------------------------------------
 EraseMissile:
+    push bc
     call GetScreenAddr
-    ex de, hl
-    xor a
-    ld (de), a
-    call NextScanlineDE
-    xor a
-    ld (de), a
-    call NextScanlineDE
-    xor a
-    ld (de), a
-    call NextScanlineDE
-    xor a
-    ld (de), a
+    ld (hl), 0
+    inc c
+    call GetScreenAddr
+    ld (hl), 0
+    inc c
+    call GetScreenAddr
+    ld (hl), 0
+    inc c
+    call GetScreenAddr
+    ld (hl), 0
+    pop bc
     ret

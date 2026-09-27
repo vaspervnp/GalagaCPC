@@ -61,8 +61,6 @@ CheckCollisions:
     push de
     ld b, (iy+2)
     ld c, (iy+3)
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
     pop de
 
@@ -222,8 +220,10 @@ CheckCollisions:
     jr nc, .next_eb_chk
 
 .check_bullet_y:
+    ld a, (player_y)
+    ld c, a
     ld a, (ix+2)
-    sub 160
+    sub c
     cp 16
     jr nc, .next_eb_chk
 
@@ -268,8 +268,10 @@ CheckCollisions:
     jr nc, .next_crash
 
 .check_crash_y:
+    ld a, (player_y)
+    ld c, a
     ld a, (ix+3)
-    sub 160
+    sub c
     add a, 8
     cp 20
     jr nc, .next_crash
@@ -280,8 +282,6 @@ CheckCollisions:
     push bc
     ld b, (ix+4)
     ld c, (ix+5)
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
     pop bc
     pop ix

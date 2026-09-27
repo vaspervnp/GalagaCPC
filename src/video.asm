@@ -1,131 +1,187 @@
 ;; ============================================================================
-;; Galaga CPC - Video & Screen Memory Management
+;; video.asm - Overscan Screen Address Table & Sprite Blitters
+;; Mode 0 (96 bytes wide x 272 scanlines)
+;; Based on LoukoumasCPC architecture
 ;; ============================================================================
 
-;; ----------------------------------------------------------------------------
-;; GetScreenAddr: Screen Address Calculator for Amstrad CPC Mode 0
-;; Input:  B = X (byte column, 0..79)
-;;         C = Y (scanline, 0..199)
-;; Output: HL = Screen Memory Address (#C000 - #FFFF)
-;; Preserves: IX, IY, BC
-;; ----------------------------------------------------------------------------
-GetScreenAddr:
-    ;; Defensive clamp X: B <= 72 (mode 0 byte column, sprite width is 8 bytes: 72+8=80)
-    ld a, b
-    cp 73
-    jr c, .x_clamp_ok
-    ld b, 72
-.x_clamp_ok:
+line_tab:       defs DISPLAY_LINES * 2, 0
 
-    ;; Defensive clamp Y: C <= 184 (screen height 200 scanlines, sprite height 16: 184+16=200)
-    ld a, c
-    cp 185
-    jr c, .y_clamp_ok
-    ld c, 184
-.y_clamp_ok:
+;; ---------------------------------------------------------------------------
+;; build_line_tab - Fill line_tab with start address of all 272 scanlines
+;; Page 2 (#8020): Rows 0..20 (21 rows = 168 lines)
+;; Page 3 (#C000): Rows 21..33 (13 rows = 104 lines)
+;; Destroys AF, BC, DE, HL
+;; ---------------------------------------------------------------------------
+build_line_tab:
+    ld hl, line_tab
+    ld de, PAGE2_BASE           ; #8020
+    ld c, PAGE2_ROWS            ; 21 rows
+.p2_loop:
+    call .build_row
+    dec c
+    jr nz, .p2_loop
 
-    ;; Calculate base line offset within character row (scanline % 8)
-    ld a, c
-    and 7
-    rlca
-    rlca
-    rlca
-    add a, #C0
-    ld h, a
-    ld l, 0
+    ld de, PAGE3_BASE           ; #C000
+    ld c, DISPLAY_ROWS - PAGE2_ROWS ; 13 rows
+.p3_loop:
+    call .build_row
+    dec c
+    jr nz, .p3_loop
+    ret
 
-    ;; Calculate character line offset (scanline / 8) via row_table
-    ld a, c
-    rrca
-    rrca
-    rrca
-    and %00011111           ; a = scanline / 8 (0..23)
-    add a, a                ; Word offset (0..46)
-    ld e, a
-    ld d, 0
-
-    ;; Lookup in row_table without clobbering IX or IY
-    push hl
-    ld hl, row_table
-    add hl, de
-    ld e, (hl)
+.build_row:
+    push de
+    ld b, 8
+.raster_loop:
+    ld (hl), e
     inc hl
-    ld d, (hl)
-    pop hl
-    add hl, de
-
-    ;; Add horizontal byte offset X
-    ld e, b
-    ld d, 0
-    add hl, de
-    ret
-
-;; ----------------------------------------------------------------------------
-;; DrawSprite16x16: Draw 16x16 Mode 0 sprite (8 bytes wide x 16 scanlines)
-;; Input:  HL = Pointer to sprite data
-;;         DE = Screen destination address
-;; ----------------------------------------------------------------------------
-DrawSprite16x16:
-    ld b, 16
-.row_loop:
-    push bc
-    push de
-    ld bc, 8
-    ldir
-    pop de
-    call NextScanlineDE
-    pop bc
-    djnz .row_loop
-    ret
-
-;; ----------------------------------------------------------------------------
-;; ClearSprite16x16: Erase 16x16 sprite area with black (Pen 0)
-;; Input:  DE = Screen destination address
-;; ----------------------------------------------------------------------------
-ClearSprite16x16:
-    ld b, 16
-.clear_loop:
-    push bc
-    push de
-    xor a
-    ld h, d
-    ld l, e
-    ld (hl), a
-    inc de
-    ld bc, 7
-    ldir
-    pop de
-    call NextScanlineDE
-    pop bc
-    djnz .clear_loop
-    ret
-
-;; ----------------------------------------------------------------------------
-;; NextScanlineDE: Move DE down by 1 scanline in standard CPC screen memory
-;; Input:  DE = Current screen address
-;; Output: DE = Screen address of next scanline down
-;; ----------------------------------------------------------------------------
-NextScanlineDE:
+    ld (hl), d
+    inc hl
     ld a, d
-    add a, 8
+    add a, 8                    ; +2048 bytes (next raster of same row)
     ld d, a
-    ret nc
-    ld a, d
-    add a, #C0
-    ld d, a
+    djnz .raster_loop
+    pop de
     ld a, e
-    add a, #50
+    add a, BYTES_PER_LINE       ; +96 bytes
     ld e, a
     ret nc
     inc d
     ret
 
-;; ----------------------------------------------------------------------------
-;; Row Table for Scanline / 8 (25 lines of 80 bytes each, padded to 32 entries)
-;; ----------------------------------------------------------------------------
-row_table:
-    defw 0, 80, 160, 240, 320, 400, 480, 560, 640, 720
-    defw 800, 880, 960, 1040, 1120, 1200, 1280, 1360, 1440, 1520
-    defw 1600, 1680, 1760, 1840, 1920
-    ;; Safety padding: 7 entries so any 5-bit index (0..31) never reads out-of-bounds
-    defw 1920, 1920, 1920, 1920, 1920, 1920, 1920
+;; ---------------------------------------------------------------------------
+;; ClearScreenOverscan - Clear all 272 scanlines across 96 bytes to Pen 0 (#00)
+;; Destroys AF, BC, DE, HL
+;; ---------------------------------------------------------------------------
+ClearScreenOverscan:
+    ld hl, line_tab
+    ld de, DISPLAY_LINES        ; 272 scanlines in 16-bit DE
+.clr_loop:
+    push de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    push hl
+    ex de, hl                   ; HL = screen scanline start
+    xor a
+    ld (hl), a
+    ld d, h
+    ld e, l
+    inc de
+    ld bc, BYTES_PER_LINE - 1
+    ldir
+    pop hl
+    pop de
+    dec de
+    ld a, d
+    or e
+    jr nz, .clr_loop
+    ret
+
+;; ---------------------------------------------------------------------------
+;; GetScreenAddr - Screen Address Calculator for 96x272 Overscan
+;; Input:  B = X (byte column, 0..95)
+;;         C = Y (scanline, 0..271)
+;; Output: HL = Screen Memory Address
+;; Preserves: BC, IX, IY
+;; ---------------------------------------------------------------------------
+GetScreenAddr:
+    push de
+    ld l, c
+    ld h, 0
+    add hl, hl                  ; Y * 2
+    ld de, line_tab
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                  ; DE = scanline base
+    ld l, b
+    ld h, 0
+    add hl, de                  ; HL = base + X
+    pop de
+    ret
+
+;; ---------------------------------------------------------------------------
+;; DrawSprite16x16: Draw 16x16 sprite (8 bytes wide x 16 scanlines)
+;; Input:  B = X (0..88)
+;;         C = Y (0..255)
+;;         HL = Pointer to sprite data (128 bytes)
+;; Preserves: IX, IY, BC
+;; ---------------------------------------------------------------------------
+DrawSprite16x16:
+    push ix
+    push bc
+    push hl
+    ld e, c
+    ld d, 0
+    sla e
+    rl d                        ; DE = Y * 2 (16-bit safe for Y up to 271)
+    ld ix, line_tab
+    add ix, de                  ; IX = pointer to line_tab[Y]
+    pop hl                      ; HL = sprite data
+    ld c, 16                    ; 16 lines
+.draw_loop:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b                     ; X byte offset
+    add a, e
+    ld e, a
+    jr nc, .draw_no_c
+    inc d
+.draw_no_c:
+    ;; Transfer 8 bytes from HL (sprite) to DE (screen) without touching BC
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    dec c
+    jr nz, .draw_loop
+    pop bc
+    pop ix
+    ret
+
+;; ---------------------------------------------------------------------------
+;; ClearSprite16x16: Erase 16x16 sprite area with black (Pen 0 = #00)
+;; Input:  B = X (0..88)
+;;         C = Y (0..255)
+;; Preserves: IX, IY, BC
+;; ---------------------------------------------------------------------------
+ClearSprite16x16:
+    push ix
+    push bc
+    ld e, c
+    ld d, 0
+    sla e
+    rl d                        ; DE = Y * 2 (16-bit safe for Y up to 271)
+    ld ix, line_tab
+    add ix, de
+    ld c, 16
+.clr_loop:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b
+    add a, e
+    ld e, a
+    jr nc, .clr_no_c
+    inc d
+.clr_no_c:
+    ex de, hl
+    xor a
+    ld (hl), a : inc hl : ld (hl), a : inc hl
+    ld (hl), a : inc hl : ld (hl), a : inc hl
+    ld (hl), a : inc hl : ld (hl), a : inc hl
+    ld (hl), a : inc hl : ld (hl), a
+    dec c
+    jr nz, .clr_loop
+    pop bc
+    pop ix
+    ret

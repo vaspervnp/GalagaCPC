@@ -1,171 +1,1488 @@
 ;; ============================================================================
-;; Galaga CPC - HUD & Score Display
+;; Galaga CPC - HUD, Upper Border Scoring, Lower Border Lives & Badges
+;; Amstrad CPC 464 / 6128 Overscan Mode
 ;; ============================================================================
 
+;; ----------------------------------------------------------------------------
+;; InitHUD - Draw Upper Border HUD headers and initial scores
+;; ----------------------------------------------------------------------------
 InitHUD:
-    ;; "1UP" in Red (Pen 2) at column 2, row 1
-    ld h, 2
-    ld l, 1
-    call #BB75              ; TXT SET CURSOR
-    ld a, 2
-    call #BB90              ; TXT SET PEN
-    ld hl, txt_1up
-    call PrintString
+    ;; 1. Draw '1UP' in Red at X=16, Y=6
+    ld b, 16
+    ld c, 6
+    ld hl, f_r_1
+    call DrawGlyph
+    ld b, 19
+    ld c, 6
+    ld hl, f_r_U
+    call DrawGlyph
+    ld b, 22
+    ld c, 6
+    ld hl, f_r_P
+    call DrawGlyph
 
-    ;; "HIGH" in Red (Pen 2) at column 12, row 1
-    ld h, 12
-    ld l, 1
-    call #BB75
-    ld hl, txt_high
-    call PrintString
+    ;; 2. Draw 'HIGH SCORE' in Red at X=46, Y=6
+    ld b, 46
+    ld c, 6
+    ld hl, f_r_H : call DrawGlyph : ld b, 49 : ld c, 6
+    ld hl, f_r_I : call DrawGlyph : ld b, 52 : ld c, 6
+    ld hl, f_r_G : call DrawGlyph : ld b, 55 : ld c, 6
+    ld hl, f_r_H : call DrawGlyph : ld b, 58 : ld c, 6
+    ld hl, f_r_SPACE : call DrawGlyph : ld b, 61 : ld c, 6
+    ld hl, f_r_S : call DrawGlyph : ld b, 64 : ld c, 6
+    ld hl, f_r_C : call DrawGlyph : ld b, 67 : ld c, 6
+    ld hl, f_r_O : call DrawGlyph : ld b, 70 : ld c, 6
+    ld hl, f_r_R : call DrawGlyph : ld b, 73 : ld c, 6
+    ld hl, f_r_E : call DrawGlyph
 
-    ;; High Score at column 12, row 2
-    call PrintHighScore
-
-    ;; Initial Player Score "00000"
+    ;; 3. Initial Scores in White at Y=16
     call PrintScore
-    call DrawStageHUD
+    call PrintHighScore
     ret
 
-PrintString:
-.p_loop:
-    ld a, (hl)
-    or a
-    ret z
-    call #BB5A              ; TXT OUTPUT
-    inc hl
-    jr .p_loop
-
+;; ----------------------------------------------------------------------------
+;; PrintScore - Print player_score at X=16, Y=16 in White
+;; ----------------------------------------------------------------------------
 PrintScore:
-    ld h, 2
-    ld l, 2
-    call #BB75
-    ld a, 15                ; White
-    call #BB90
     ld hl, (player_score)
-    jr PrintHL5Digits
+    ld b, 16
+    ld c, 16
+    jp Print5Digits
 
+;; ----------------------------------------------------------------------------
+;; PrintHighScore - Print high_score at X=52, Y=16 in White
+;; ----------------------------------------------------------------------------
 PrintHighScore:
-    ld h, 12
-    ld l, 2
-    call #BB75
-    ld a, 15                ; White
-    call #BB90
     ld hl, (high_score)
+    ld b, 52
+    ld c, 16
+    jp Print5Digits
 
-PrintHL5Digits:
-    ld bc, -10000
-    call .digit
-    ld bc, -1000
-    call .digit
-    ld bc, -100
-    call .digit
-    ld bc, -10
-    call .digit
-    ld a, l
-    add a, '0'
-    call #BB5A
+;; ----------------------------------------------------------------------------
+;; Print5Digits - Format 16-bit HL into 5 decimal digits at (B=X, C=Y)
+;; ----------------------------------------------------------------------------
+Print5Digits:
+    push bc
+    ld de, 10000 : call .div_digit : ld (digit_buf+0), a
+    ld de, 1000  : call .div_digit : ld (digit_buf+1), a
+    ld de, 100   : call .div_digit : ld (digit_buf+2), a
+    ld de, 10    : call .div_digit : ld (digit_buf+3), a
+    ld a, l                        : ld (digit_buf+4), a
+    pop bc
+
+    ;; Draw 5 digits from digit_buf
+    ld ix, digit_buf
+    ld d, 5
+.draw_d_loop:
+    ld a, (ix+0)
+    inc ix
+    push bc
+    push de
+    call DrawWhiteDigit
+    pop de
+    pop bc
+    ld a, b
+    add a, 3            ; 2 bytes digit width + 1 byte space
+    ld b, a
+    dec d
+    jr nz, .draw_d_loop
     ret
 
-.digit:
+.div_digit:
     ld a, '0' - 1
-.digit_loop:
+.sub_loop:
     inc a
-    add hl, bc
-    jr c, .digit_loop
-    sbc hl, bc
-    call #BB5A
+    or a
+    sbc hl, de
+    jr nc, .sub_loop
+    add hl, de
+    sub '0'
     ret
 
-DrawLivesHUD:
-    ;; Mini ships at bottom scanline 190 (#FF80)
-    ;; Clear previous badges
+;; ----------------------------------------------------------------------------
+;; DrawGameOverText - Display "GAME OVER" in Cyan at X=35, Y=110
+;; ----------------------------------------------------------------------------
+DrawGameOverText:
+    ld b, 35 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
+    ld b, 38 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
+    ld b, 41 : ld c, 110 : ld hl, f_c_M : call DrawGlyph
+    ld b, 44 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
+    ld b, 47 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
+    ld b, 50 : ld c, 110 : ld hl, f_c_O : call DrawGlyph
+    ld b, 53 : ld c, 110 : ld hl, f_c_V : call DrawGlyph
+    ld b, 56 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
+    ld b, 59 : ld c, 110 : ld hl, f_c_R : call DrawGlyph
+    ret
+
+ClearGameOverText:
+    ld b, 35
+    ld c, 110
+    ld d, 27
+    jp ClearTextRect
+
+;; ----------------------------------------------------------------------------
+;; DrawStageBanner - Display "STAGE " + (current_stage + 1) in Cyan at X=38, Y=110
+;; ----------------------------------------------------------------------------
+DrawStageBanner:
+    ld b, 38 : ld c, 110 : ld hl, f_c_S : call DrawGlyph
+    ld b, 41 : ld c, 110 : ld hl, f_c_T : call DrawGlyph
+    ld b, 44 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
+    ld b, 47 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
+    ld b, 50 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
+    ld b, 53 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
+    ld a, (current_stage)
+    inc a
+    ld b, 56 : ld c, 110
+    jp DrawWhiteDigit
+
+ClearStageBanner:
+    ld b, 38
+    ld c, 110
+    ld d, 21
+    jp ClearTextRect
+
+;; ----------------------------------------------------------------------------
+;; DrawChallengingBanner - Display "CHALLENGING STAGE" in Cyan at X=23, Y=110
+;; ----------------------------------------------------------------------------
+DrawChallengingBanner:
+    ld b, 23 : ld c, 110 : ld hl, f_c_C : call DrawGlyph
+    ld b, 26 : ld c, 110 : ld hl, f_c_H : call DrawGlyph
+    ld b, 29 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
+    ld b, 32 : ld c, 110 : ld hl, f_c_L : call DrawGlyph
+    ld b, 35 : ld c, 110 : ld hl, f_c_L : call DrawGlyph
+    ld b, 38 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
+    ld b, 41 : ld c, 110 : ld hl, f_c_N : call DrawGlyph
+    ld b, 44 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
+    ld b, 47 : ld c, 110 : ld hl, f_c_I : call DrawGlyph
+    ld b, 50 : ld c, 110 : ld hl, f_c_N : call DrawGlyph
+    ld b, 53 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
+    ld b, 56 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
+    ld b, 59 : ld c, 110 : ld hl, f_c_S : call DrawGlyph
+    ld b, 62 : ld c, 110 : ld hl, f_c_T : call DrawGlyph
+    ld b, 65 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
+    ld b, 68 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
+    ld b, 71 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
+    ret
+
+ClearChallengingBanner:
+    ld b, 23
+    ld c, 110
+    ld d, 51
+    jp ClearTextRect
+
+;; ----------------------------------------------------------------------------
+;; DrawFighterCapturedBanner - Display "FIGHTER CAPTURED" in Cyan at X=24, Y=110
+;; ----------------------------------------------------------------------------
+DrawFighterCapturedBanner:
+    ld b, 24 : ld c, 110 : ld hl, f_c_F : call DrawGlyph
+    ld b, 27 : ld c, 110 : ld hl, f_c_I : call DrawGlyph
+    ld b, 30 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
+    ld b, 33 : ld c, 110 : ld hl, f_c_H : call DrawGlyph
+    ld b, 36 : ld c, 110 : ld hl, f_c_T : call DrawGlyph
+    ld b, 39 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
+    ld b, 42 : ld c, 110 : ld hl, f_c_R : call DrawGlyph
+    ld b, 45 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
+    ld b, 48 : ld c, 110 : ld hl, f_c_C : call DrawGlyph
+    ld b, 51 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
+    ld b, 54 : ld c, 110 : ld hl, f_c_P : call DrawGlyph
+    ld b, 57 : ld c, 110 : ld hl, f_c_T : call DrawGlyph
+    ld b, 60 : ld c, 110 : ld hl, f_c_U : call DrawGlyph
+    ld b, 63 : ld c, 110 : ld hl, f_c_R : call DrawGlyph
+    ld b, 66 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
+    ld b, 69 : ld c, 110 : ld hl, f_c_D : call DrawGlyph
+    ret
+
+ClearFighterCapturedBanner:
+    ld b, 24
+    ld c, 110
+    ld d, 48
+    jp ClearTextRect
+
+;; ----------------------------------------------------------------------------
+;; ClearTextRect - Erase D bytes wide x 8 scanlines high starting at (B=X, C=Y)
+;; ----------------------------------------------------------------------------
+ClearTextRect:
+    ld a, 8
+.ctr_row:
+    push af
+    push bc
+    push de
+    call GetScreenAddr
+    pop de
+    ld b, d
     xor a
-    ld (#FF82), a
-    ld (#FF86), a
-    ld (#FF8A), a
-    ld (#FF8E), a
+.ctr_col:
+    ld (hl), a
+    inc hl
+    djnz .ctr_col
+    pop bc
+    pop af
+    inc c
+    dec a
+    jr nz, .ctr_row
+    ret
+
+;; ----------------------------------------------------------------------------
+;; Draw2DigitsWhite - Format 2-digit number in A (0..99) at (B=X, C=Y)
+;; ----------------------------------------------------------------------------
+Draw2DigitsWhite:
+    push bc
+    ld d, 0
+.d2_tens:
+    cp 10
+    jr c, .d2_done
+    sub 10
+    inc d
+    jr .d2_tens
+.d2_done:
+    ld e, a             ; E = ones, D = tens
+    ld a, d
+    push de
+    call DrawWhiteDigit
+    pop de
+    pop bc
+    ld a, b
+    add a, 3
+    ld b, a
+    ld a, e
+    jp DrawWhiteDigit
+
+digit_buf:  defs 5, 0
+
+;; ----------------------------------------------------------------------------
+;; DrawWhiteDigit - Draw single digit A (0..9) at (B=X, C=Y) in White
+;; ----------------------------------------------------------------------------
+DrawWhiteDigit:
+    push bc
+    ld l, a
+    ld h, 0
+    add hl, hl          ; *2
+    add hl, hl          ; *4
+    add hl, hl          ; *8
+    add hl, hl          ; *16 (16 bytes per glyph)
+    ld de, f_w_0
+    add hl, de
+    pop bc
+    jp DrawGlyph
+
+;; ----------------------------------------------------------------------------
+;; DrawGlyph - Transfer 4x8 glyph (2 bytes x 8 lines) to screen at B=X, C=Y
+;; Input:  B = X (0..93), C = Y (0..263), HL = glyph pointer (16 bytes)
+;; Preserves: BC, IX, IY
+;; ----------------------------------------------------------------------------
+DrawGlyph:
+    push ix
+    push bc
+    push hl
+    ld e, c
+    ld d, 0
+    sla e
+    rl d                ; DE = Y * 2 (16-bit safe for Y up to 271)
+    ld ix, line_tab
+    add ix, de          ; IX = line_tab pointer
+    pop hl              ; HL = glyph data
+    ld c, 8             ; 8 lines
+.g_line:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b
+    add a, e
+    ld e, a
+    jr nc, .g_nc
+    inc d
+.g_nc:
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    dec c
+    jr nz, .g_line
+    pop bc
+    pop ix
+    ret
+
+;; ----------------------------------------------------------------------------
+;; DrawLivesHUD - Draw reserve fighter ships in Lower Border (Y=244)
+;; ----------------------------------------------------------------------------
+DrawLivesHUD:
+    ;; Erase lives area in Lower Border (X=10..42, Y=244, 32 bytes wide, 16 lines)
+    ld b, 10 : ld c, LIVES_Y : call ClearSprite16x16
+    ld b, 18 : ld c, LIVES_Y : call ClearSprite16x16
+    ld b, 26 : ld c, LIVES_Y : call ClearSprite16x16
+    ld b, 34 : ld c, LIVES_Y : call ClearSprite16x16
 
     ld a, (player_lives)
     cp 2
-    ret c                   ; 1 or 0 lives -> no reserve badges
+    ret c               ; 1 or 0 lives: no reserve ships shown
 
-    ld a, #AA               ; Mini white fighter icon
-    ld (#FF82), a           ; Life 2
+    ;; Reserve Ship 1
+    ld b, 10
+    ld c, LIVES_Y
+    ld hl, player_sprite
+    call DrawSprite16x16
+
     ld a, (player_lives)
     cp 3
     ret c
 
-    ld a, #AA
-    ld (#FF86), a           ; Life 3
+    ;; Reserve Ship 2
+    ld b, 18
+    ld c, LIVES_Y
+    ld hl, player_sprite
+    call DrawSprite16x16
+
     ld a, (player_lives)
     cp 4
     ret c
 
-    ld a, #AA
-    ld (#FF8A), a           ; Life 4
+    ;; Reserve Ship 3
+    ld b, 26
+    ld c, LIVES_Y
+    ld hl, player_sprite
+    call DrawSprite16x16
+
     ld a, (player_lives)
     cp 5
     ret c
 
-    ld a, #AA
-    ld (#FF8E), a           ; Life 5
+    ;; Reserve Ship 4
+    ld b, 34
+    ld c, LIVES_Y
+    ld hl, player_sprite
+    call DrawSprite16x16
     ret
 
-txt_1up:                defb "1UP", 0
-txt_high:               defb "HIGH", 0
-txt_high_val:           defb "20000", 0
-txt_game_over:          defb "GAME  OVER", 0
-txt_stage_hud:          defb "ST.", 0
-txt_fighter_captured:   defb "FIGHTER CAPTURED", 0
-txt_blank_captured:     defb "                ", 0
-txt_challenging_stage:  defb "CHALLENGING STAGE", 0
-txt_blank_challenging:  defb "                 ", 0
-txt_num_hits:           defb "NUMBER OF HITS ", 0
-txt_bonus_label:        defb "BONUS  ", 0
-txt_perfect_bonus:      defb "SPECIAL BONUS 10000 PTS", 0
-txt_pts_suffix:         defb "00 PTS", 0
-
+;; ----------------------------------------------------------------------------
+;; DrawStageHUD - Draw stage badges / flags in Lower Border (Y=244)
+;; ----------------------------------------------------------------------------
 DrawStageHUD:
-    ;; Column 14, Row 25 (Bottom-right)
-    ld h, 14
-    ld l, 25
-    call #BB75              ; TXT SET CURSOR
-    ld a, 4                 ; Cyan
-    call #BB90
-    ld hl, txt_stage_hud
-    call PrintString
+    ;; Erase badges area (X=54..86, Y=244, 32 bytes wide, 16 lines)
+    ld b, 54 : ld c, BADGES_Y : call ClearSprite16x16
+    ld b, 62 : ld c, BADGES_Y : call ClearSprite16x16
+    ld b, 70 : ld c, BADGES_Y : call ClearSprite16x16
+    ld b, 78 : ld c, BADGES_Y : call ClearSprite16x16
+
+    ;; Calculate number of 10s, 5s, 1s from current_stage
     ld a, (current_stage)
+    ld c, 0             ; 10s count
+.cnt_10:
     cp 10
-    jr c, .single_digit
-    ;; Two digits
-    ld c, a
-    ld a, '0'
-.tens_loop:
-    inc a
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    ld b, a
-    ld a, c
-    cp 10
+    jr c, .done_10
+    sub 10
+    inc c
+    jr .cnt_10
+.done_10:
+    ld b, 0             ; 5s count
+    cp 5
+    jr c, .done_5
+    sub 5
+    inc b
+.done_5:
+    ld (stage_ones), a
     ld a, b
-    jr nc, .tens_loop
-    call #BB5A
+    ld (stage_fives), a
     ld a, c
-    add a, '0'
-    call #BB5A
-    ret
-.single_digit:
-    add a, '0'
-    call #BB5A
+    ld (stage_tens), a
+
+    ;; Start drawing flags from right to left: initial X = 80
+    ld a, 80
+    ld (badge_draw_x), a
+
+    ;; Draw 10-Stage Flags
+    ld a, (stage_tens)
+    or a
+    jr z, .chk_fives
+    ld d, a
+.loop_tens:
+    push de
+    ld a, (badge_draw_x)
+    ld b, a
+    ld c, BADGES_Y
+    ld hl, flag_10
+    call DrawSprite16x16
+    ld a, (badge_draw_x)
+    sub 9               ; flag_10 is 8 bytes + 1 space
+    ld (badge_draw_x), a
+    pop de
+    dec d
+    jr nz, .loop_tens
+
+.chk_fives:
+    ;; Draw 5-Stage Flags
+    ld a, (stage_fives)
+    or a
+    jr z, .chk_ones
+    ld d, a
+.loop_fives:
+    push de
+    ld a, (badge_draw_x)
+    ld b, a
+    ld c, BADGES_Y + 1
+    ld hl, flag_5
+    call DrawBadge5
+    ld a, (badge_draw_x)
+    sub 8               ; flag_5 is 7 bytes + 1 space
+    ld (badge_draw_x), a
+    pop de
+    dec d
+    jr nz, .loop_fives
+
+.chk_ones:
+    ;; Draw 1-Stage Flags
+    ld a, (stage_ones)
+    or a
+    ret z
+    ld d, a
+.loop_ones:
+    push de
+    ld a, (badge_draw_x)
+    ld b, a
+    ld c, BADGES_Y + 1
+    ld hl, flag_1
+    call DrawBadge1
+    ld a, (badge_draw_x)
+    sub 5               ; flag_1 is 4 bytes + 1 space
+    ld (badge_draw_x), a
+    pop de
+    dec d
+    jr nz, .loop_ones
     ret
 
+stage_tens:     defb 0
+stage_fives:    defb 0
+stage_ones:     defb 0
+badge_draw_x:   defb 0
 
+;; ----------------------------------------------------------------------------
+;; DrawBadge5 - Draw 7x14 flag_5 at B=X, C=Y
+;; ----------------------------------------------------------------------------
+DrawBadge5:
+    push ix
+    push bc
+    push hl
+    ld e, c
+    ld d, 0
+    sla e
+    rl d                ; DE = Y * 2 (16-bit safe for Y up to 271)
+    ld ix, line_tab
+    add ix, de
+    pop hl
+    ld c, 14            ; 14 lines
+.b5_row:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b
+    add a, e
+    ld e, a
+    jr nc, .b5_nc
+    inc d
+.b5_nc:
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl
+    dec c
+    jr nz, .b5_row
+    pop bc
+    pop ix
+    ret
+
+;; ----------------------------------------------------------------------------
+;; DrawBadge1 - Draw 4x14 flag_1 at B=X, C=Y
+;; ----------------------------------------------------------------------------
+DrawBadge1:
+    push ix
+    push bc
+    push hl
+    ld e, c
+    ld d, 0
+    sla e
+    rl d                ; DE = Y * 2 (16-bit safe for Y up to 271)
+    ld ix, line_tab
+    add ix, de
+    pop hl
+    ld c, 14            ; 14 lines
+.b1_row:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b
+    add a, e
+    ld e, a
+    jr nc, .b1_nc
+    inc d
+.b1_nc:
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl
+    dec c
+    jr nz, .b1_row
+    pop bc
+    pop ix
+    ret
+
+;; ----------------------------------------------------------------------------
+;; Authentic Galaga Stage Flags
+;; ----------------------------------------------------------------------------
+;; Badge Flag: flag_10 (16x16)
+flag_10:
+    defb #F0, #F0, #F0, #F0, #F0, #F0, #F0, #A0
+    defb #F0, #F0, #F0, #E4, #F0, #F0, #F0, #A0
+    defb #F0, #F0, #F0, #CC, #D8, #F0, #F0, #A0
+    defb #F0, #E4, #D8, #E4, #F0, #CC, #F0, #A0
+    defb #F0, #CC, #CC, #E4, #E4, #CC, #D8, #A0
+    defb #E4, #D8, #E4, #CC, #CC, #F0, #CC, #A0
+    defb #E4, #F0, #F0, #CC, #D8, #F0, #E4, #A0
+    defb #E4, #D8, #F0, #E4, #F0, #F0, #CC, #A0
+    defb #F0, #CC, #F0, #E4, #F0, #E4, #D8, #A0
+    defb #50, #E4, #D8, #F0, #F0, #CC, #F0, #00
+    defb #00, #F0, #CC, #CC, #CC, #D8, #A0, #00
+    defb #00, #50, #E4, #F0, #E4, #F0, #00, #00
+    defb #00, #00, #E4, #CC, #CC, #A0, #00, #00
+    defb #00, #00, #50, #F0, #F0, #00, #00, #00
+    defb #00, #00, #00, #F0, #A0, #00, #00, #00
+    defb #00, #00, #00, #50, #00, #00, #00, #00
+
+;; Badge Flag: flag_5 (14x14)
+flag_5:
+    defb #C0, #C0, #C0, #C0, #C0, #C0, #80
+    defb #C0, #C0, #C0, #C8, #C0, #C0, #80
+    defb #C0, #C0, #C4, #CC, #C0, #C0, #80
+    defb #C4, #CC, #C0, #C8, #C4, #CC, #80
+    defb #C0, #C4, #C8, #C8, #CC, #C0, #80
+    defb #C0, #CC, #CC, #CC, #CC, #C8, #80
+    defb #C0, #C0, #CC, #CC, #C8, #C0, #80
+    defb #C0, #C4, #C8, #C8, #CC, #C0, #80
+    defb #40, #C0, #C8, #C8, #C8, #C0, #00
+    defb #00, #C0, #C8, #C8, #C8, #80, #00
+    defb #00, #40, #C0, #C8, #C0, #00, #00
+    defb #00, #00, #C0, #C0, #80, #00, #00
+    defb #00, #00, #40, #C0, #00, #00, #00
+    defb #00, #00, #00, #80, #00, #00, #00
+
+;; Badge Flag: flag_1 (8x14)
+flag_1:
+    defb #FF, #FF, #FF, #AA
+    defb #0C, #0C, #0C, #08
+    defb #5D, #FF, #FF, #08
+    defb #5D, #AE, #0C, #08
+    defb #5D, #FF, #FF, #08
+    defb #0C, #0C, #FF, #08
+    defb #5D, #FF, #FF, #08
+    defb #0C, #0C, #0C, #08
+    defb #FF, #FF, #FF, #AA
+    defb #FF, #FF, #FF, #AA
+    defb #EA, #FF, #EA, #AA
+    defb #55, #D5, #D5, #00
+    defb #00, #EA, #AA, #00
+    defb #00, #55, #00, #00
+
+
+;; --- White Font (Pen 15) ---
+f_w_0:
+    defb #55, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #00, #00
+f_w_1:
+    defb #00, #AA
+    defb #55, #AA
+    defb #00, #AA
+    defb #00, #AA
+    defb #00, #AA
+    defb #00, #AA
+    defb #55, #FF
+    defb #00, #00
+f_w_2:
+    defb #55, #AA
+    defb #AA, #55
+    defb #00, #55
+    defb #00, #AA
+    defb #55, #00
+    defb #AA, #00
+    defb #FF, #FF
+    defb #00, #00
+f_w_3:
+    defb #FF, #AA
+    defb #00, #55
+    defb #00, #55
+    defb #55, #AA
+    defb #00, #55
+    defb #00, #55
+    defb #FF, #AA
+    defb #00, #00
+f_w_4:
+    defb #00, #AA
+    defb #55, #AA
+    defb #AA, #AA
+    defb #FF, #FF
+    defb #00, #AA
+    defb #00, #AA
+    defb #00, #AA
+    defb #00, #00
+f_w_5:
+    defb #FF, #FF
+    defb #AA, #00
+    defb #FF, #AA
+    defb #00, #55
+    defb #00, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #00, #00
+f_w_6:
+    defb #55, #AA
+    defb #AA, #00
+    defb #FF, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #00, #00
+f_w_7:
+    defb #FF, #FF
+    defb #00, #55
+    defb #00, #AA
+    defb #00, #AA
+    defb #55, #00
+    defb #55, #00
+    defb #55, #00
+    defb #00, #00
+f_w_8:
+    defb #55, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #00, #00
+f_w_9:
+    defb #55, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #FF
+    defb #00, #55
+    defb #00, #55
+    defb #55, #AA
+    defb #00, #00
+f_w_A:
+    defb #55, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #FF, #FF
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #00, #00
+f_w_B:
+    defb #FF, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #FF, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #FF, #AA
+    defb #00, #00
+f_w_C:
+    defb #55, #FF
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #00
+    defb #55, #FF
+    defb #00, #00
+f_w_D:
+    defb #FF, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #FF, #AA
+    defb #00, #00
+f_w_E:
+    defb #FF, #FF
+    defb #AA, #00
+    defb #AA, #00
+    defb #FF, #AA
+    defb #AA, #00
+    defb #AA, #00
+    defb #FF, #FF
+    defb #00, #00
+f_w_F:
+    defb #FF, #FF
+    defb #AA, #00
+    defb #AA, #00
+    defb #FF, #AA
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #00
+    defb #00, #00
+f_w_G:
+    defb #55, #FF
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #FF
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #00, #00
+f_w_H:
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #FF, #FF
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #00, #00
+f_w_I:
+    defb #55, #AA
+    defb #00, #AA
+    defb #00, #AA
+    defb #00, #AA
+    defb #00, #AA
+    defb #00, #AA
+    defb #55, #AA
+    defb #00, #00
+f_w_J:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_w_K:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_w_L:
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #00
+    defb #FF, #FF
+    defb #00, #00
+f_w_M:
+    defb #AA, #55
+    defb #FF, #FF
+    defb #FF, #FF
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #00, #00
+f_w_N:
+    defb #AA, #55
+    defb #FF, #55
+    defb #AA, #FF
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #00, #00
+f_w_O:
+    defb #55, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #00, #00
+f_w_P:
+    defb #FF, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #FF, #AA
+    defb #AA, #00
+    defb #AA, #00
+    defb #AA, #00
+    defb #00, #00
+f_w_U:
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #00, #00
+f_w_R:
+    defb #FF, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #FF, #AA
+    defb #AA, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #00, #00
+f_w_S:
+    defb #55, #FF
+    defb #AA, #00
+    defb #AA, #00
+    defb #55, #AA
+    defb #00, #55
+    defb #00, #55
+    defb #FF, #AA
+    defb #00, #00
+f_w_T:
+    defb #FF, #FF
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #00, #00
+f_w_V:
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #55, #AA
+    defb #00, #00
+f_w_SPACE:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_w_DOT:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #55, #AA
+    defb #55, #AA
+    defb #00, #00
+
+;; --- Red Font (Pen 2) ---
+f_r_0:
+    defb #04, #08
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #04, #08
+    defb #00, #00
+f_r_1:
+    defb #00, #08
+    defb #04, #08
+    defb #00, #08
+    defb #00, #08
+    defb #00, #08
+    defb #00, #08
+    defb #04, #0C
+    defb #00, #00
+f_r_2:
+    defb #04, #08
+    defb #08, #04
+    defb #00, #04
+    defb #00, #08
+    defb #04, #00
+    defb #08, #00
+    defb #0C, #0C
+    defb #00, #00
+f_r_3:
+    defb #0C, #08
+    defb #00, #04
+    defb #00, #04
+    defb #04, #08
+    defb #00, #04
+    defb #00, #04
+    defb #0C, #08
+    defb #00, #00
+f_r_4:
+    defb #00, #08
+    defb #04, #08
+    defb #08, #08
+    defb #0C, #0C
+    defb #00, #08
+    defb #00, #08
+    defb #00, #08
+    defb #00, #00
+f_r_5:
+    defb #0C, #0C
+    defb #08, #00
+    defb #0C, #08
+    defb #00, #04
+    defb #00, #04
+    defb #08, #04
+    defb #04, #08
+    defb #00, #00
+f_r_6:
+    defb #04, #08
+    defb #08, #00
+    defb #0C, #08
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #04, #08
+    defb #00, #00
+f_r_7:
+    defb #0C, #0C
+    defb #00, #04
+    defb #00, #08
+    defb #00, #08
+    defb #04, #00
+    defb #04, #00
+    defb #04, #00
+    defb #00, #00
+f_r_8:
+    defb #04, #08
+    defb #08, #04
+    defb #08, #04
+    defb #04, #08
+    defb #08, #04
+    defb #08, #04
+    defb #04, #08
+    defb #00, #00
+f_r_9:
+    defb #04, #08
+    defb #08, #04
+    defb #08, #04
+    defb #04, #0C
+    defb #00, #04
+    defb #00, #04
+    defb #04, #08
+    defb #00, #00
+f_r_A:
+    defb #04, #08
+    defb #08, #04
+    defb #08, #04
+    defb #0C, #0C
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #00, #00
+f_r_B:
+    defb #0C, #08
+    defb #08, #04
+    defb #08, #04
+    defb #0C, #08
+    defb #08, #04
+    defb #08, #04
+    defb #0C, #08
+    defb #00, #00
+f_r_C:
+    defb #04, #0C
+    defb #08, #00
+    defb #08, #00
+    defb #08, #00
+    defb #08, #00
+    defb #08, #00
+    defb #04, #0C
+    defb #00, #00
+f_r_D:
+    defb #0C, #08
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #0C, #08
+    defb #00, #00
+f_r_E:
+    defb #0C, #0C
+    defb #08, #00
+    defb #08, #00
+    defb #0C, #08
+    defb #08, #00
+    defb #08, #00
+    defb #0C, #0C
+    defb #00, #00
+f_r_F:
+    defb #0C, #0C
+    defb #08, #00
+    defb #08, #00
+    defb #0C, #08
+    defb #08, #00
+    defb #08, #00
+    defb #08, #00
+    defb #00, #00
+f_r_G:
+    defb #04, #0C
+    defb #08, #00
+    defb #08, #00
+    defb #08, #0C
+    defb #08, #04
+    defb #08, #04
+    defb #04, #08
+    defb #00, #00
+f_r_H:
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #0C, #0C
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #00, #00
+f_r_I:
+    defb #04, #08
+    defb #00, #08
+    defb #00, #08
+    defb #00, #08
+    defb #00, #08
+    defb #00, #08
+    defb #04, #08
+    defb #00, #00
+f_r_J:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_r_K:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_r_L:
+    defb #08, #00
+    defb #08, #00
+    defb #08, #00
+    defb #08, #00
+    defb #08, #00
+    defb #08, #00
+    defb #0C, #0C
+    defb #00, #00
+f_r_M:
+    defb #08, #04
+    defb #0C, #0C
+    defb #0C, #0C
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #00, #00
+f_r_N:
+    defb #08, #04
+    defb #0C, #04
+    defb #08, #0C
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #00, #00
+f_r_O:
+    defb #04, #08
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #04, #08
+    defb #00, #00
+f_r_P:
+    defb #0C, #08
+    defb #08, #04
+    defb #08, #04
+    defb #0C, #08
+    defb #08, #00
+    defb #08, #00
+    defb #08, #00
+    defb #00, #00
+f_r_U:
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #04, #08
+    defb #00, #00
+f_r_R:
+    defb #0C, #08
+    defb #08, #04
+    defb #08, #04
+    defb #0C, #08
+    defb #08, #08
+    defb #08, #04
+    defb #08, #04
+    defb #00, #00
+f_r_S:
+    defb #04, #0C
+    defb #08, #00
+    defb #08, #00
+    defb #04, #08
+    defb #00, #04
+    defb #00, #04
+    defb #0C, #08
+    defb #00, #00
+f_r_T:
+    defb #0C, #0C
+    defb #04, #08
+    defb #04, #08
+    defb #04, #08
+    defb #04, #08
+    defb #04, #08
+    defb #04, #08
+    defb #00, #00
+f_r_V:
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #04, #08
+    defb #04, #08
+    defb #00, #00
+f_r_SPACE:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_r_DOT:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #04, #08
+    defb #04, #08
+    defb #00, #00
+
+;; --- Cyan Font (Pen 4) ---
+f_c_0:
+    defb #10, #20
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #10, #20
+    defb #00, #00
+f_c_1:
+    defb #00, #20
+    defb #10, #20
+    defb #00, #20
+    defb #00, #20
+    defb #00, #20
+    defb #00, #20
+    defb #10, #30
+    defb #00, #00
+f_c_2:
+    defb #10, #20
+    defb #20, #10
+    defb #00, #10
+    defb #00, #20
+    defb #10, #00
+    defb #20, #00
+    defb #30, #30
+    defb #00, #00
+f_c_3:
+    defb #30, #20
+    defb #00, #10
+    defb #00, #10
+    defb #10, #20
+    defb #00, #10
+    defb #00, #10
+    defb #30, #20
+    defb #00, #00
+f_c_4:
+    defb #00, #20
+    defb #10, #20
+    defb #20, #20
+    defb #30, #30
+    defb #00, #20
+    defb #00, #20
+    defb #00, #20
+    defb #00, #00
+f_c_5:
+    defb #30, #30
+    defb #20, #00
+    defb #30, #20
+    defb #00, #10
+    defb #00, #10
+    defb #20, #10
+    defb #10, #20
+    defb #00, #00
+f_c_6:
+    defb #10, #20
+    defb #20, #00
+    defb #30, #20
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #10, #20
+    defb #00, #00
+f_c_7:
+    defb #30, #30
+    defb #00, #10
+    defb #00, #20
+    defb #00, #20
+    defb #10, #00
+    defb #10, #00
+    defb #10, #00
+    defb #00, #00
+f_c_8:
+    defb #10, #20
+    defb #20, #10
+    defb #20, #10
+    defb #10, #20
+    defb #20, #10
+    defb #20, #10
+    defb #10, #20
+    defb #00, #00
+f_c_9:
+    defb #10, #20
+    defb #20, #10
+    defb #20, #10
+    defb #10, #30
+    defb #00, #10
+    defb #00, #10
+    defb #10, #20
+    defb #00, #00
+f_c_A:
+    defb #10, #20
+    defb #20, #10
+    defb #20, #10
+    defb #30, #30
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #00, #00
+f_c_B:
+    defb #30, #20
+    defb #20, #10
+    defb #20, #10
+    defb #30, #20
+    defb #20, #10
+    defb #20, #10
+    defb #30, #20
+    defb #00, #00
+f_c_C:
+    defb #10, #30
+    defb #20, #00
+    defb #20, #00
+    defb #20, #00
+    defb #20, #00
+    defb #20, #00
+    defb #10, #30
+    defb #00, #00
+f_c_D:
+    defb #30, #20
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #30, #20
+    defb #00, #00
+f_c_E:
+    defb #30, #30
+    defb #20, #00
+    defb #20, #00
+    defb #30, #20
+    defb #20, #00
+    defb #20, #00
+    defb #30, #30
+    defb #00, #00
+f_c_F:
+    defb #30, #30
+    defb #20, #00
+    defb #20, #00
+    defb #30, #20
+    defb #20, #00
+    defb #20, #00
+    defb #20, #00
+    defb #00, #00
+f_c_G:
+    defb #10, #30
+    defb #20, #00
+    defb #20, #00
+    defb #20, #30
+    defb #20, #10
+    defb #20, #10
+    defb #10, #20
+    defb #00, #00
+f_c_H:
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #30, #30
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #00, #00
+f_c_I:
+    defb #10, #20
+    defb #00, #20
+    defb #00, #20
+    defb #00, #20
+    defb #00, #20
+    defb #00, #20
+    defb #10, #20
+    defb #00, #00
+f_c_J:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_c_K:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_c_L:
+    defb #20, #00
+    defb #20, #00
+    defb #20, #00
+    defb #20, #00
+    defb #20, #00
+    defb #20, #00
+    defb #30, #30
+    defb #00, #00
+f_c_M:
+    defb #20, #10
+    defb #30, #30
+    defb #30, #30
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #00, #00
+f_c_N:
+    defb #20, #10
+    defb #30, #10
+    defb #20, #30
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #00, #00
+f_c_O:
+    defb #10, #20
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #10, #20
+    defb #00, #00
+f_c_P:
+    defb #30, #20
+    defb #20, #10
+    defb #20, #10
+    defb #30, #20
+    defb #20, #00
+    defb #20, #00
+    defb #20, #00
+    defb #00, #00
+f_c_U:
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #10, #20
+    defb #00, #00
+f_c_R:
+    defb #30, #20
+    defb #20, #10
+    defb #20, #10
+    defb #30, #20
+    defb #20, #20
+    defb #20, #10
+    defb #20, #10
+    defb #00, #00
+f_c_S:
+    defb #10, #30
+    defb #20, #00
+    defb #20, #00
+    defb #10, #20
+    defb #00, #10
+    defb #00, #10
+    defb #30, #20
+    defb #00, #00
+f_c_T:
+    defb #30, #30
+    defb #10, #20
+    defb #10, #20
+    defb #10, #20
+    defb #10, #20
+    defb #10, #20
+    defb #10, #20
+    defb #00, #00
+f_c_V:
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #20, #10
+    defb #10, #20
+    defb #10, #20
+    defb #00, #00
+f_c_SPACE:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_c_DOT:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #10, #20
+    defb #10, #20
+    defb #00, #00

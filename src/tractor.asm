@@ -92,23 +92,21 @@ UpdateTractorState:
     ret
 
 .handle_tractor_dive:
-    ;; Boss dives straight down to Y = 110 to emit beam
+    ;; Boss dives straight down to Y = 142 to emit beam
     push bc
     ld b, (ix+4)
     ld c, (ix+5)
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
     pop bc
 
     ld a, (ix+3)
     add a, 2
     ld (ix+3), a
-    cp 110
+    cp 142
     jr c, .dive_down_ok
 
     ;; Reached hover scanline! Switch to emitting beam
-    ld (ix+3), 110
+    ld (ix+3), 142
     ld (ix+8), STATE_TRACTOR_BEAM
     ld a, 1
     ld (tractor_beam_active), a
@@ -128,7 +126,7 @@ UpdateTractorState:
     ret
 
 .handle_tractor_beam:
-    ;; Emitting beam while hovering at Y=110
+    ;; Emitting beam while hovering at Y=142
     call PlaySoundTractor
     call DrawTractorBeam
 
@@ -153,7 +151,7 @@ UpdateTractorState:
     ld (ix+8), STATE_CAPTURING
     ld a, 2
     ld (tractor_beam_active), a
-    ld a, 160
+    ld a, 210
     ld (player_y), a
     ret
 
@@ -177,26 +175,18 @@ UpdateTractorState:
     ld b, a
     ld a, (player_y)
     ld c, a
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
 
     ;; Ascend player by 1 scanline
     ld a, (player_y)
     dec a
     ld (player_y), a
-    cp 126
+    cp 158
     jr nc, .draw_ascending_player
 
     ;; *** FIGHTER DOCKED UNDER BOSS! CAPTURE COMPLETE! ***
-    ;; Display "FIGHTER CAPTURED" banner (Col 2, Row 10) in Cyan
-    ld h, 2
-    ld l, 10
-    call #BB75
-    ld a, 4                 ; Cyan
-    call #BB90
-    ld hl, txt_fighter_captured
-    call PrintString
+    ;; Display "FIGHTER CAPTURED" banner in Cyan
+    call DrawFighterCapturedBanner
 
     ;; Dock captured fighter with Boss
     ld a, 1
@@ -216,10 +206,14 @@ UpdateTractorState:
 
     ;; Delay then spawn replacement fighter
     call ClearCapturedBanner
-    ld a, 36
+    ld a, 44
     ld (player_x), a
     ld (old_player_x), a
-    call GetPlayerScreenAddr
+    ld a, 210
+    ld (player_y), a
+    ld (old_player_y), a
+    ld b, 44
+    ld c, 210
     ld hl, player_sprite
     call DrawSprite16x16
     ret
@@ -243,18 +237,11 @@ UpdateTractorState:
     ld b, a
     ld a, (player_y)
     ld c, a
-    call GetScreenAddr
-    ex de, hl
     call DrawSprite16x16
     ret
 
 ClearCapturedBanner:
-    ld h, 2
-    ld l, 10
-    call #BB75
-    ld hl, txt_blank_captured
-    call PrintString
-    ret
+    jp ClearFighterCapturedBanner
 
 ;; Pointer tables for the 7 16x16 tiles of each animation frame
 tractor_f1_ptrs:
@@ -293,92 +280,78 @@ DrawTractorBeam:
     ld iy, tractor_f3_ptrs
 
 .render_tiles:
-    ;; 1. Tier 1: Top Center (boss_x, 126)
+    ;; 1. Tier 1: Top Center (boss_x, 158)
     ld a, (tractor_boss_x)
     ld b, a
-    ld c, 126
-    call GetScreenAddr
-    ex de, hl
+    ld c, 158
     ld l, (iy+0)
     ld h, (iy+1)
     call DrawSprite16x16
 
-    ;; 2. Tier 2: Mid Left (boss_x - 8, 142)
+    ;; 2. Tier 2: Mid Left (boss_x - 8, 174)
     ld a, (tractor_boss_x)
     sub 8
-    cp 2
+    cp PLAY_X_MIN
     jr nc, .m1_x
-    ld a, 2
+    ld a, PLAY_X_MIN
 .m1_x:
     ld b, a
-    ld c, 142
-    call GetScreenAddr
-    ex de, hl
+    ld c, 174
     ld l, (iy+2)
     ld h, (iy+3)
     call DrawSprite16x16
 
-    ;; 3. Tier 2: Mid Center (boss_x, 142)
+    ;; 3. Tier 2: Mid Center (boss_x, 174)
     ld a, (tractor_boss_x)
     ld b, a
-    ld c, 142
-    call GetScreenAddr
-    ex de, hl
+    ld c, 174
     ld l, (iy+4)
     ld h, (iy+5)
     call DrawSprite16x16
 
-    ;; 4. Tier 2: Mid Right (boss_x + 8, 142)
+    ;; 4. Tier 2: Mid Right (boss_x + 8, 174)
     ld a, (tractor_boss_x)
     add a, 8
-    cp 71
+    cp PLAY_X_MAX + 1
     jr c, .m2_x
-    ld a, 70
+    ld a, PLAY_X_MAX
 .m2_x:
     ld b, a
-    ld c, 142
-    call GetScreenAddr
-    ex de, hl
+    ld c, 174
     ld l, (iy+6)
     ld h, (iy+7)
     call DrawSprite16x16
 
-    ;; 5. Tier 3: Bot Left (boss_x - 8, 158)
+    ;; 5. Tier 3: Bot Left (boss_x - 8, 190)
     ld a, (tractor_boss_x)
     sub 8
-    cp 2
+    cp PLAY_X_MIN
     jr nc, .b1_x
-    ld a, 2
+    ld a, PLAY_X_MIN
 .b1_x:
     ld b, a
-    ld c, 158
-    call GetScreenAddr
-    ex de, hl
+    ld c, 190
     ld l, (iy+8)
     ld h, (iy+9)
     call DrawSprite16x16
 
-    ;; 6. Tier 3: Bot Center (boss_x, 158)
+    ;; 6. Tier 3: Bot Center (boss_x, 190)
     ld a, (tractor_boss_x)
     ld b, a
-    ld c, 158
-    call GetScreenAddr
-    ex de, hl
+    ld c, 190
     ld l, (iy+10)
     ld h, (iy+11)
     call DrawSprite16x16
 
-    ;; 7. Tier 3: Bot Right (boss_x + 8, 158)
+    ;; 7. Tier 3: Bot Right (boss_x + 8, 190)
     ld a, (tractor_boss_x)
     add a, 8
-    cp 71
+    cp PLAY_X_MAX + 1
     jr c, .b2_x
-    ld a, 70
+    ld a, PLAY_X_MAX
 .b2_x:
     ld b, a
-    ld c, 158
-    call GetScreenAddr
-    ex de, hl
+    ld c, 190
     ld l, (iy+12)
     ld h, (iy+13)
     call DrawSprite16x16
@@ -391,77 +364,63 @@ EraseTractorBeam:
     ;; 1. Tier 1: Top Center
     ld a, (tractor_boss_x)
     ld b, a
-    ld c, 126
-    call GetScreenAddr
-    ex de, hl
+    ld c, 158
     call ClearSprite16x16
 
     ;; 2. Tier 2: Mid Left
     ld a, (tractor_boss_x)
     sub 8
-    cp 2
+    cp PLAY_X_MIN
     jr nc, .em1_x
-    ld a, 2
+    ld a, PLAY_X_MIN
 .em1_x:
     ld b, a
-    ld c, 142
-    call GetScreenAddr
-    ex de, hl
+    ld c, 174
     call ClearSprite16x16
 
     ;; 3. Tier 2: Mid Center
     ld a, (tractor_boss_x)
     ld b, a
-    ld c, 142
-    call GetScreenAddr
-    ex de, hl
+    ld c, 174
     call ClearSprite16x16
 
     ;; 4. Tier 2: Mid Right
     ld a, (tractor_boss_x)
     add a, 8
-    cp 71
+    cp PLAY_X_MAX + 1
     jr c, .em2_x
-    ld a, 70
+    ld a, PLAY_X_MAX
 .em2_x:
     ld b, a
-    ld c, 142
-    call GetScreenAddr
-    ex de, hl
+    ld c, 174
     call ClearSprite16x16
 
     ;; 5. Tier 3: Bot Left
     ld a, (tractor_boss_x)
     sub 8
-    cp 2
+    cp PLAY_X_MIN
     jr nc, .eb1_x
-    ld a, 2
+    ld a, PLAY_X_MIN
 .eb1_x:
     ld b, a
-    ld c, 158
-    call GetScreenAddr
-    ex de, hl
+    ld c, 190
     call ClearSprite16x16
 
     ;; 6. Tier 3: Bot Center
     ld a, (tractor_boss_x)
     ld b, a
-    ld c, 158
-    call GetScreenAddr
-    ex de, hl
+    ld c, 190
     call ClearSprite16x16
 
     ;; 7. Tier 3: Bot Right
     ld a, (tractor_boss_x)
     add a, 8
-    cp 71
+    cp PLAY_X_MAX + 1
     jr c, .eb2_x
-    ld a, 70
+    ld a, PLAY_X_MAX
 .eb2_x:
     ld b, a
-    ld c, 158
-    call GetScreenAddr
-    ex de, hl
+    ld c, 190
     call ClearSprite16x16
     ret
 
@@ -515,17 +474,15 @@ UpdateCapturedFighter:
     ld b, a
     ld a, (captured_old_y)
     ld c, a
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
 .skip_old_erase:
 
     ;; Position fighter next to Boss (boss_x + 8, boss_y)
     ld a, (ix+2)
     add a, 8
-    cp 71
+    cp PLAY_X_MAX + 1
     jr c, .cap_x_ok
-    ld a, 70
+    ld a, PLAY_X_MAX
 .cap_x_ok:
     ld (captured_fighter_x), a
     ld (captured_old_x), a
@@ -538,8 +495,6 @@ UpdateCapturedFighter:
     ld b, a
     ld a, (captured_fighter_y)
     ld c, a
-    call GetScreenAddr
-    ex de, hl
     ld hl, captured_player_sprite
     call DrawSprite16x16
     ret
@@ -551,8 +506,6 @@ UpdateCapturedFighter:
     ld b, a
     ld a, (captured_old_y)
     ld c, a
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
 
     ;; Steer X toward player_x + 8
@@ -571,20 +524,18 @@ UpdateCapturedFighter:
     ld (captured_fighter_x), a
 
 .rescue_fall_y:
-    ;; Descend Y down toward 160
+    ;; Descend Y down toward 210
     ld a, (captured_fighter_y)
     inc a
     ld (captured_fighter_y), a
-    cp 160
+    cp 210
     jr c, .draw_descending_rescue
 
     ;; *** DOCKED WITH PLAYER SHIP! CONVERT TO DUAL FIGHTER! ***
     ;; Erase falling fighter
     ld a, (captured_fighter_x)
     ld b, a
-    ld c, 160
-    call GetScreenAddr
-    ex de, hl
+    ld c, 210
     call ClearSprite16x16
 
     xor a
@@ -595,13 +546,15 @@ UpdateCapturedFighter:
 
     ;; Redraw player as Dual Fighter
     ld a, (player_x)
-    call GetPlayerScreenAddr
+    ld b, a
+    ld c, 210
     ld hl, player_sprite
     call DrawSprite16x16
 
     ld a, (player_x)
     add a, 8
-    call GetPlayerScreenAddr
+    ld b, a
+    ld c, 210
     ld hl, player_sprite
     call DrawSprite16x16
 
@@ -618,8 +571,6 @@ UpdateCapturedFighter:
     ld b, a
     ld a, (captured_fighter_y)
     ld c, a
-    call GetScreenAddr
-    ex de, hl
     ld hl, player_sprite
     call DrawSprite16x16
     ret

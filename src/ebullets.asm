@@ -1,5 +1,6 @@
 ;; ============================================================================
 ;; Galaga CPC - Enemy Bullets Management
+;; Overscan Geometry (Playfield Y=32..231, Lower Border Y=232)
 ;; ============================================================================
 
 SpawnEBullet:
@@ -58,7 +59,7 @@ UpdateEBullets:
     ld a, (ix+2)
     add a, 3                ; 3 scanlines/frame
     ld (ix+2), a
-    cp 185
+    cp 226                  ; Stop before entering Lower Border (Y=232)
     jr nc, .kill_eb
 
     ;; Save old
@@ -96,28 +97,35 @@ UpdateEBullets:
     djnz .eb_loop
     ret
 
+;; ----------------------------------------------------------------------------
+;; DrawEBullet: Draw 3-scanline enemy bullet at B=X, C=Y
+;; Uses line_tab directly for overscan buffer safety
+;; ----------------------------------------------------------------------------
 DrawEBullet:
+    push bc
     call GetScreenAddr
-    ex de, hl
-    ld a, #44               ; Red bullet (Pen 2)
-    ld (de), a
-    call NextScanlineDE
-    ld a, #44
-    ld (de), a
-    call NextScanlineDE
-    ld a, #44
-    ld (de), a
+    ld (hl), #44            ; Red bullet (Pen 2)
+    inc c
+    call GetScreenAddr
+    ld (hl), #44
+    inc c
+    call GetScreenAddr
+    ld (hl), #44
+    pop bc
     ret
 
+;; ----------------------------------------------------------------------------
+;; EraseEBullet: Erase 3-scanline enemy bullet at B=X, C=Y
+;; ----------------------------------------------------------------------------
 EraseEBullet:
+    push bc
     call GetScreenAddr
-    ex de, hl
-    xor a
-    ld (de), a
-    call NextScanlineDE
-    xor a
-    ld (de), a
-    call NextScanlineDE
-    xor a
-    ld (de), a
+    ld (hl), 0
+    inc c
+    call GetScreenAddr
+    ld (hl), 0
+    inc c
+    call GetScreenAddr
+    ld (hl), 0
+    pop bc
     ret

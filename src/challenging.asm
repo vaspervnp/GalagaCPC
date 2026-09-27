@@ -99,47 +99,45 @@ UpdateChallengingStage:
     ld a, 140               ; ~2.8 seconds results display
     ld (challenging_timer), a
 
-    ;; Display "NUMBER OF HITS  XX" (Row 10, Col 4)
-    ld h, 4
-    ld l, 10
-    call #BB75
-    ld a, 3                 ; Yellow
-    call #BB90
-    ld hl, txt_num_hits
-    call PrintString
-
+    ;; Display "HITS  XX" in Cyan/White at X=36, Y=100
+    ld b, 36 : ld c, 100 : ld hl, f_c_H : call DrawGlyph
+    ld b, 39 : ld c, 100 : ld hl, f_c_I : call DrawGlyph
+    ld b, 42 : ld c, 100 : ld hl, f_c_T : call DrawGlyph
+    ld b, 45 : ld c, 100 : ld hl, f_c_S : call DrawGlyph
+    ld b, 48 : ld c, 100 : ld hl, f_c_SPACE : call DrawGlyph
     ld a, (challenging_hits)
-    call Print2DigitsA
+    ld b, 51 : ld c, 100
+    call Draw2DigitsWhite
 
-    ;; Display Bonus line at Row 12
+    ;; Display Bonus line at Y=116
     ld a, (challenging_hits)
     cp 40
     jr nz, .partial_bonus
 
-    ;; Perfect 40 hits: "SPECIAL BONUS 10000 PTS"
-    ld h, 2
-    ld l, 12
-    call #BB75
-    ld a, 4                 ; Cyan
-    call #BB90
-    ld hl, txt_perfect_bonus
-    call PrintString
+    ;; Perfect 40 hits: "PERFECT" in Cyan at X=36, Y=116
+    ld b, 36 : ld c, 116 : ld hl, f_c_P : call DrawGlyph
+    ld b, 39 : ld c, 116 : ld hl, f_c_E : call DrawGlyph
+    ld b, 42 : ld c, 116 : ld hl, f_c_R : call DrawGlyph
+    ld b, 45 : ld c, 116 : ld hl, f_c_F : call DrawGlyph
+    ld b, 48 : ld c, 116 : ld hl, f_c_E : call DrawGlyph
+    ld b, 51 : ld c, 116 : ld hl, f_c_C : call DrawGlyph
+    ld b, 54 : ld c, 116 : ld hl, f_c_T : call DrawGlyph
     call AddPoints10000
     ret
 
 .partial_bonus:
-    ;; Partial hits: "BONUS  XX00 PTS"
-    ld h, 4
-    ld l, 12
-    call #BB75
-    ld a, 4                 ; Cyan
-    call #BB90
-    ld hl, txt_bonus_label
-    call PrintString
+    ;; Partial hits: "BONUS " + XX + "00" in Cyan at X=32, Y=116
+    ld b, 32 : ld c, 116 : ld hl, f_c_B : call DrawGlyph
+    ld b, 35 : ld c, 116 : ld hl, f_c_O : call DrawGlyph
+    ld b, 38 : ld c, 116 : ld hl, f_c_N : call DrawGlyph
+    ld b, 41 : ld c, 116 : ld hl, f_c_U : call DrawGlyph
+    ld b, 44 : ld c, 116 : ld hl, f_c_S : call DrawGlyph
+    ld b, 47 : ld c, 116 : ld hl, f_c_SPACE : call DrawGlyph
     ld a, (challenging_hits)
-    call Print2DigitsA
-    ld hl, txt_pts_suffix
-    call PrintString
+    ld b, 50 : ld c, 116
+    call Draw2DigitsWhite
+    ld b, 56 : ld c, 116 : ld hl, f_w_0 : call DrawGlyph
+    ld b, 59 : ld c, 116 : ld hl, f_w_0 : call DrawGlyph
 
     ;; Award hits * 100 points
     ld a, (challenging_hits)
@@ -160,17 +158,8 @@ UpdateChallengingStage:
     ret nz
 
     ;; Results display finished! Clear screen text and advance stage!
-    ld h, 2
-    ld l, 10
-    call #BB75
-    ld hl, txt_blank_challenging
-    call PrintString
-
-    ld h, 2
-    ld l, 12
-    call #BB75
-    ld hl, txt_blank_challenging
-    call PrintString
+    ld b, 32 : ld c, 100 : ld d, 32 : call ClearTextRect
+    ld b, 32 : ld c, 116 : ld d, 32 : call ClearTextRect
 
     xor a
     ld (is_challenging_stage), a
@@ -182,33 +171,6 @@ UpdateChallengingStage:
     ld (current_stage), a
     call DrawStageHUD
     call InitEnemies
-    ret
-
-;; Helper to print 2-digit number in A
-Print2DigitsA:
-    ld c, a
-    ld a, '0'
-.tens_l:
-    inc a
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    dec c
-    ld b, a
-    ld a, c
-    cp 10
-    ld a, b
-    jr nc, .tens_l
-    call #BB5A
-    ld a, c
-    add a, '0'
-    call #BB5A
     ret
 
 AddPoints10000:

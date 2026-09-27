@@ -1,5 +1,6 @@
 ;; ============================================================================
 ;; Galaga CPC - Moving Starfield Background
+;; Overscan Geometry (Playfield Y=34..228, Upper Border Y<32, Lower Border Y>232)
 ;; ============================================================================
 
 UpdateStars:
@@ -11,17 +12,17 @@ UpdateStars:
     jr z, .normal_star
 
     ;; If Game Over is active, protect "GAME OVER" text area:
-    ;; Banner rect: Scanlines 86..98, Mode 0 bytes 18..62
+    ;; Banner rect: Scanlines 108..120, Mode 0 bytes 32..64
     ld a, (ix+1)            ; Y coordinate
-    cp 86
+    cp 108
     jr c, .normal_star
-    cp 99
+    cp 120
     jr nc, .normal_star
 
     ld a, (ix+0)            ; X coordinate
-    cp 18
+    cp 32
     jr c, .normal_star
-    cp 63
+    cp 64
     jr nc, .normal_star
 
     ;; Star is inside "GAME OVER" box: Advance Y without drawing or erasing
@@ -43,9 +44,9 @@ UpdateStars:
     ;; 2. Advance y by speed
     ld a, (ix+1)
     add a, (ix+3)           ; y + speed
-    cp 195
+    cp 228
     jr c, .y_ok
-    ld a, 22                ; Wrap to top safely below HUD
+    ld a, 34                ; Wrap to top safely below HUD
 .y_ok:
     ld (ix+1), a
 

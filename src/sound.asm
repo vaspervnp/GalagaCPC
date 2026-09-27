@@ -188,6 +188,27 @@ PlaySoundExtraLife:
     ret
 
 ;; ----------------------------------------------------------------------------
+;; PlaySoundGameOver: Descending Game Over tone (Channel B)
+;; ----------------------------------------------------------------------------
+PlaySoundGameOver:
+    ld a, 50
+    ld (sfx_dive_timer), a
+    ld a, 180
+    ld (sfx_dive_pitch), a
+
+    ld a, (ay_mixer_val)
+    and %11111101
+    ld (ay_mixer_val), a
+    ld e, a
+    ld a, 7
+    call WriteAY
+
+    ld a, 9
+    ld e, 14
+    call WriteAY
+    ret
+
+;; ----------------------------------------------------------------------------
 ;; SoundUpdate: Called once per frame (50Hz) to advance envelopes and pitch
 ;; ----------------------------------------------------------------------------
 SoundUpdate:

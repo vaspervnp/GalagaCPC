@@ -82,12 +82,8 @@ UpdateExplosions:
     ld hl, explosion_3
 
 .draw_exp:
-    push hl
     ld b, (ix+1)
     ld c, (ix+2)
-    call GetScreenAddr
-    ex de, hl
-    pop hl
     call DrawSprite16x16
     pop bc
     jr .next_exp
@@ -96,8 +92,6 @@ UpdateExplosions:
     push bc
     ld b, (ix+1)
     ld c, (ix+2)
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
     pop bc
     ld (ix+0), 0

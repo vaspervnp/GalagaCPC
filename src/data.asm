@@ -1,11 +1,12 @@
 ;; ============================================================================
 ;; Galaga CPC - Game Variables & Static Data Tables
+;; Overscan Geometry Coordinates (Playfield X=8..87, Y=32..231)
 ;; ============================================================================
 
-player_x:           defb 36
-old_player_x:       defb 36
-player_y:           defb 160
-old_player_y:       defb 160
+player_x:           defb 44
+old_player_x:       defb 44
+player_y:           defb 210
+old_player_y:       defb 210
 is_dual_fighter:    defb 0
 fire_button_state:  defb 0
 player_score:       defw 0
@@ -58,39 +59,39 @@ sway_dir:           defb 1
 sway_offset:        defb 0
 attack_timer:       defb 0
 
-;; Starfield: 12 stars [x, y, color, speed]
+;; Starfield: 12 stars [x, y, color, speed] inside Playfield (X=10..84, Y=34..228)
 stars_data:
-    defb 8,  25,  #AA, 1   ; White
-    defb 22, 50,  #22, 2   ; Yellow
-    defb 35, 80,  #88, 1   ; Blue
-    defb 48, 120, #44, 2   ; Red
-    defb 65, 140, #AA, 1   ; White
-    defb 75, 40,  #22, 2   ; Yellow
-    defb 14, 160, #88, 1   ; Blue
-    defb 28, 95,  #44, 2   ; Red
-    defb 42, 30,  #AA, 1   ; White
-    defb 58, 70,  #22, 2   ; Yellow
-    defb 68, 110, #88, 1   ; Blue
-    defb 18, 185, #44, 2   ; Red
+    defb 14, 45,  #AA, 1   ; White
+    defb 28, 70,  #22, 2   ; Yellow
+    defb 42, 100, #88, 1   ; Blue
+    defb 56, 140, #44, 2   ; Red
+    defb 72, 160, #AA, 1   ; White
+    defb 80, 55,  #22, 2   ; Yellow
+    defb 20, 180, #88, 1   ; Blue
+    defb 36, 115, #44, 2   ; Red
+    defb 50, 40,  #AA, 1   ; White
+    defb 64, 85,  #22, 2   ; Yellow
+    defb 76, 125, #88, 1   ; Blue
+    defb 24, 205, #44, 2   ; Red
 
-;; Initial Enemies (2 Bosses at Y=36, 4 Butterflies at Y=52, 4 Bees at Y=68)
+;; Initial Enemies (2 Bosses at Y=68, 4 Butterflies at Y=84, 4 Bees at Y=100)
 ;; Format: [alive, type, x, y, hp] - 5 bytes per enemy
 initial_enemies:
-    ;; 2 Boss Galagas (Row 1, Y=36):
-    defb 1, 2, 30, 36, 2
-    defb 1, 2, 42, 36, 2
+    ;; 2 Boss Galagas (Row 1, Y=68):
+    defb 1, 2, 38, 68, 2
+    defb 1, 2, 50, 68, 2
 
-    ;; 4 Goei Butterflies (Row 2, Y=52):
-    defb 1, 1, 18, 52, 1
-    defb 1, 1, 30, 52, 1
-    defb 1, 1, 42, 52, 1
-    defb 1, 1, 54, 52, 1
+    ;; 4 Goei Butterflies (Row 2, Y=84):
+    defb 1, 1, 26, 84, 1
+    defb 1, 1, 38, 84, 1
+    defb 1, 1, 50, 84, 1
+    defb 1, 1, 62, 84, 1
 
-    ;; 4 Zako Bees (Row 3, Y=68):
-    defb 1, 0, 18, 68, 1
-    defb 1, 0, 30, 68, 1
-    defb 1, 0, 42, 68, 1
-    defb 1, 0, 54, 68, 1
+    ;; 4 Zako Bees (Row 3, Y=100):
+    defb 1, 0, 26, 100, 1
+    defb 1, 0, 38, 100, 1
+    defb 1, 0, 50, 100, 1
+    defb 1, 0, 62, 100, 1
 
 ;; Enemy data structure: 10 enemies x 12 bytes
 ;; [alive, type, x, y, old_x, old_y, anim_frame, base_x, state, hp, base_y, pad]

@@ -1,133 +1,93 @@
 ;; ============================================================================
 ;; Galaga CPC - Main Entry Point & Game Loop
-;; Amstrad CPC 464 / 6128
+;; Amstrad CPC 464 / 6128 Overscan Edition
+;; Based on LoukoumasCPC overscan architecture
 ;; ============================================================================
 
     org #4000
 
+    include "config.asm"
     include "constants.asm"
 
 start:
-    ;; 1. Set Mode 0 (Firmware: 160x200, 16 colors)
-    ld a, 0
-    call #BC0E              ; SCR SET MODE
+    di
+    ld sp, #7FFF                ; Place stack below Page 2 Video RAM (#8000..#FFFF)
 
-    ;; 2. Setup Full Palette (Firmware SCR SET INK)
-    ;; Pen 0 = Black (Firmware Color 0)
-    ld a, 0
-    ld b, 0
-    ld c, 0
-    call #BC32
+    ;; 1. Set Mode 0 and disable firmware ROMs via Gate Array
+    ld bc, #7F8C                ; Mode 0, Upper ROM off, Lower ROM off
+    out (c), c
 
-    ;; Pen 1 = Bright Blue (Firmware Color 2)
-    ld a, 1
-    ld b, 2
-    ld c, 2
-    call #BC32
+    ;; 2. Precompute scanline table spanning Page 2 and Page 3
+    call build_line_tab
 
-    ;; Pen 2 = Bright Red (Firmware Color 6)
-    ld a, 2
-    ld b, 6
-    ld c, 6
-    call #BC32
+    ;; 3. Setup CRTC registers for 96x272 overscan
+    call setup_crtc
 
-    ;; Pen 3 = Bright Yellow (Firmware Color 24)
-    ld a, 3
-    ld b, 24
-    ld c, 24
-    call #BC32
+    ;; 4. Setup hardware palette
+    ld hl, pal_play
+    call set_pal
 
-    ;; Pen 4 = Bright Cyan (Firmware Color 11)
-    ld a, 4
-    ld b, 11
-    ld c, 11
-    call #BC32
+    ;; 5. Clear 32KB overscan buffer to black
+    call ClearScreenOverscan
 
-    ;; Pen 5 = Bright Magenta (Firmware Color 7)
-    ld a, 5
-    ld b, 7
-    ld c, 7
-    call #BC32
+    ;; 6. Initialize AY-3-8912 PSG Sound Driver
+    call SoundInit
 
-    ;; Pen 6 = Bright Green (Firmware Color 18)
-    ld a, 6
-    ld b, 18
-    ld c, 18
-    call #BC32
-
-    ;; Pen 15 = Bright White (Firmware Color 26)
-    ld a, 15
-    ld b, 26
-    ld c, 26
-    call #BC32
-
-    ;; Border = Black (Firmware Color 0)
-    ld b, 0
-    ld c, 0
-    call #BC38              ; SCR SET BORDER
-
-    ;; 3. Clear entire 16KB Video RAM (#C000 - #FFFF) to Black (#00)
-    ld hl, #C000
-    ld de, #C001
-    ld bc, #3FFF
-    ld (hl), 0
-    ldir
-
-    ;; 4. Initialize HUD and Lives indicator
+    ;; 7. Initialize HUD (Upper border scores, Lower border lives & badges)
     call InitHUD
     call DrawLivesHUD
+    call DrawStageHUD
 
-    ;; 5. Draw initial authentic player ship
+    ;; 8. Draw initial authentic player ship
     ld a, (player_x)
-    call GetPlayerScreenAddr
+    ld b, a
+    ld a, (player_y)
+    ld c, a
     ld hl, player_sprite
     call DrawSprite16x16
     ld a, (player_x)
     ld (old_player_x), a
 
-    ;; 6. Initialize enemy formation (10 enemies)
+    ;; 9. Initialize enemy formation (10 enemies)
     call InitEnemies
 
-    ;; 7. Initialize AY-3-8912 PSG Sound Driver
-    call SoundInit
-
 GameLoop:
-    ;; 8. Wait for VSYNC (Firmware: 50Hz)
-    call #BD19              ; MC WAIT FLYBACK
+    ;; Wait for VSYNC (50Hz hardware flyback via PPI)
+    call WaitVSync
 
-    ;; 9. Moving Starfield Background
+    ;; Moving Starfield Background
     call UpdateStars
 
-    ;; 10. Check if Game Over is active
+    ;; Check if Game Over is active
     ld a, (game_over)
     or a
     jp nz, HandleGameOver
 
-    ;; 11. Read Keyboard input (Left, Right, Space/Fire)
+    ;; Read Keyboard/Joystick input (Left, Right, Fire)
     call ReadInput
 
-    ;; 12. Update Player Ship
+    ;; Update Player Ship
     call UpdatePlayer
 
-    ;; 13. Update Player Missiles
+    ;; Update Player Missiles
     call UpdateMissiles
 
-    ;; 14. Update Enemy Bullets
+    ;; Update Enemy Bullets
     call UpdateEBullets
 
-    ;; 15. Update Enemy Formation & Dive-bombing
+    ;; Update Enemy Formation & Dive-bombing
     call UpdateEnemies
 
-    ;; 16. Check Collisions (Missile vs Enemy, EBullet vs Player, Enemy vs Player)
+    ;; Check Collisions (Missile vs Enemy, EBullet vs Player, Enemy vs Player)
     call CheckCollisions
 
-    ;; 17. Update Explosions
+    ;; Update Explosions
     call UpdateExplosions
 
-    ;; 18. Update AY-3-8912 Sound Envelopes & Pitch
+    ;; Update AY-3-8912 Sound Envelopes & Pitch
     call SoundUpdate
 
-    ;; 19. Check Stage Progression & Wave Clearing
+    ;; Check Stage Progression & Wave Clearing
     call UpdateStageProgression
 
     jp GameLoop
@@ -136,7 +96,7 @@ GameLoop:
 ;; HandleGameOver: Frozen gameplay loop during Game Over, waiting for restart
 ;; ----------------------------------------------------------------------------
 HandleGameOver:
-    ;; Allow explosion animation and sound decay to finish playing
+    call WaitVSync
     call SoundUpdate
     call UpdateExplosions
 
@@ -149,18 +109,11 @@ HandleGameOver:
     jp GameLoop
 
 .check_restart_key:
-    ;; Check Spacebar (Key 47) or Joystick Fire (Key 77)
-    ld a, 47
-    call #BB1E              ; KM TEST KEY
-    jr nz, .do_restart
+    call read_controls
+    ld a, (ctl_pressed)
+    bit CTL_FIRE, a
+    jp z, GameLoop
 
-    ld a, 77
-    call #BB1E
-    jr nz, .do_restart
-
-    jp GameLoop
-
-.do_restart:
     call RestartGame
     jp GameLoop
 
@@ -198,10 +151,10 @@ RestartGame:
     ld (player_score), hl
 
     ;; Reset player coordinates
-    ld a, 36
+    ld a, 44
     ld (player_x), a
     ld (old_player_x), a
-    ld a, 160
+    ld a, 210
     ld (player_y), a
     ld (old_player_y), a
 
@@ -224,36 +177,32 @@ RestartGame:
     ld (hl), 0
     ldir
 
+    ;; Clear 32KB Video RAM
+    call ClearScreenOverscan
 
-    ;; 2. Clear entire 16KB Video RAM (#C000 - #FFFF) to Black (#00)
-    ld hl, #C000
-    ld de, #C001
-    ld bc, #3FFF
-    ld (hl), 0
-    ldir
-
-    ;; 3. Redraw HUD, Lives, Stage
+    ;; Redraw HUD, Lives, Stage
     call InitHUD
     call DrawLivesHUD
     call DrawStageHUD
 
-    ;; 4. Draw Player Ship
-    ld a, (player_x)
-    call GetPlayerScreenAddr
+    ;; Draw Player Ship
+    ld b, 44
+    ld c, 210
     ld hl, player_sprite
     call DrawSprite16x16
 
-    ;; 5. Reset Sound
+    ;; Reset Sound
     call SoundInit
 
-    ;; 6. Reset and draw enemy formation
+    ;; Reset and draw enemy formation
     call InitEnemies
     ret
-
 
 ;; ----------------------------------------------------------------------------
 ;; Included Modular Components
 ;; ----------------------------------------------------------------------------
+    include "crtc.asm"
+    include "keys.asm"
     include "video.asm"
     include "hud.asm"
     include "player.asm"
@@ -269,7 +218,6 @@ RestartGame:
     include "stages.asm"
     include "data.asm"
     include "sprites.asm"
-
 
 ;; ----------------------------------------------------------------------------
 ;; Export to DSK Virtual Disk

@@ -66,31 +66,13 @@ UpdateStageProgression:
     cp 3
     jr z, .show_challenging_banner
 
-    ;; Display "STAGE X" in Bright Yellow at center (Col 7, Row 10)
-    ld h, 7
-    ld l, 10
-    call #BB75              ; TXT SET CURSOR
-    ld a, 3                 ; Yellow
-    call #BB90
-    ld hl, txt_stage_label
-    call PrintString
-
-    ;; Print next stage digit
-    ld a, (current_stage)
-    inc a
-    add a, '0'
-    call #BB5A
+    ;; Display "STAGE X" in Cyan at center
+    call DrawStageBanner
     ret
 
 .show_challenging_banner:
-    ;; Display "CHALLENGING STAGE" in Bright Yellow (Col 2, Row 10)
-    ld h, 2
-    ld l, 10
-    call #BB75
-    ld a, 3                 ; Yellow
-    call #BB90
-    ld hl, txt_challenging_stage
-    call PrintString
+    ;; Display "CHALLENGING STAGE" in Cyan at center
+    call DrawChallengingBanner
     ret
 
 .advance_stage:
@@ -105,11 +87,7 @@ UpdateStageProgression:
     jr z, .start_challenging
 
     ;; Clear "STAGE X" banner
-    ld h, 7
-    ld l, 10
-    call #BB75
-    ld hl, txt_blank_stage
-    call PrintString
+    call ClearStageBanner
 
     ;; Increase difficulty: Faster attacks (down to min 50 frames)
     ld a, (attack_threshold)
@@ -133,11 +111,7 @@ UpdateStageProgression:
 
 .start_challenging:
     ;; Clear "CHALLENGING STAGE" banner
-    ld h, 2
-    ld l, 10
-    call #BB75
-    ld hl, txt_blank_challenging
-    call PrintString
+    call ClearChallengingBanner
 
     ;; Update HUD with new stage number at bottom right
     call DrawStageHUD
