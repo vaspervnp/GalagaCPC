@@ -212,7 +212,7 @@ SpawnChallengingEnemy:
 
     ;; Wave 5: Enterprise (type 5) from right center swooping left
     ld (ix+1), 5            ; type 5 = Enterprise
-    ld a, 68
+    ld a, 74
     ld (ix+2), a
     ld (ix+4), a
     ld a, 36
@@ -227,14 +227,14 @@ SpawnChallengingEnemy:
     ld a, (challenging_spawn_cnt)
     and 1
     jr nz, .w1_right
-    ld a, 32
+    ld a, 38
     jr .w1_set_x
 .w1_right:
-    ld a, 40
+    ld a, 48
 .w1_set_x:
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 24
+    ld a, 36
     ld (ix+3), a
     ld (ix+5), a
     ld (ix+10), 0           ; direction flag
@@ -243,10 +243,10 @@ SpawnChallengingEnemy:
 .spawn_w2:
     ;; Wave 2: Butterflies (type 1) from upper left
     ld (ix+1), 1
-    ld a, 4
+    ld a, 14
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 28
+    ld a, 36
     ld (ix+3), a
     ld (ix+5), a
     ld (ix+10), 0
@@ -255,22 +255,22 @@ SpawnChallengingEnemy:
 .spawn_w3:
     ;; Wave 3: Butterflies (type 1) from upper right
     ld (ix+1), 1
-    ld a, 68
+    ld a, 74
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 28
+    ld a, 36
     ld (ix+3), a
     ld (ix+5), a
     ld (ix+10), 1
     jr .spawn_draw
 
 .spawn_w4:
-    ;; Wave 4: Tonbo Dragonflies (type 3) from left center
+    ;; Wave 4: Tonbo Dragonflies (type 3) entering from left, weaving right
     ld (ix+1), 3
-    ld a, 4
+    ld a, 14
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 40
+    ld a, 36
     ld (ix+3), a
     ld (ix+5), a
     ld (ix+10), 0
@@ -294,15 +294,13 @@ MoveChallengingEnemies:
     push bc
     ld b, (ix+4)
     ld c, (ix+5)
-    call GetScreenAddr
-    ex de, hl
     call ClearSprite16x16
     pop bc
 
     ;; 2. Move Y down by 2 scanlines
     ld a, (ix+3)
     add a, 2
-    cp 175
+    cp 222
     jp nc, .kill_ch_enemy   ; Reached bottom -> exit screen
 
     ld (ix+3), a
@@ -317,10 +315,19 @@ MoveChallengingEnemies:
     jr z, .move_w3
     cp 4
     jr z, .move_w4
-    ;; Wave 5: sweep left
+
+    ;; --- Wave 5: S-curve weave travelling across to the left ---
+    ld a, (ix+3)
+    and 16
+    jr nz, .w5_slower
+    ld a, (ix+2)
+    sub 2
+    jr .w5_chk_l
+.w5_slower:
     ld a, (ix+2)
     dec a
-    cp 2
+.w5_chk_l:
+    cp PLAY_X_MIN
     jp c, .kill_ch_enemy
     ld (ix+2), a
     jr .ch_draw_now
@@ -330,7 +337,7 @@ MoveChallengingEnemies:
     ld a, (ix+3)
     cp 60
     jr c, .w1_down
-    cp 110
+    cp 130
     jr nc, .w1_down
     ;; Arc outward
     ld a, (ix+10)
@@ -338,14 +345,14 @@ MoveChallengingEnemies:
     jr nz, .w1_arc_r
     ld a, (ix+2)
     dec a
-    cp 2
+    cp PLAY_X_MIN
     jp c, .kill_ch_enemy
     ld (ix+2), a
     jr .ch_draw_now
 .w1_arc_r:
     ld a, (ix+2)
     inc a
-    cp 71
+    cp PLAY_X_MAX
     jp nc, .kill_ch_enemy
     ld (ix+2), a
     jr .ch_draw_now
@@ -356,7 +363,7 @@ MoveChallengingEnemies:
     ;; Wave 2: sweep right diagonally
     ld a, (ix+2)
     inc a
-    cp 71
+    cp PLAY_X_MAX
     jp nc, .kill_ch_enemy
     ld (ix+2), a
     jr .ch_draw_now
@@ -365,29 +372,27 @@ MoveChallengingEnemies:
     ;; Wave 3: sweep left diagonally
     ld a, (ix+2)
     dec a
-    cp 2
+    cp PLAY_X_MIN
     jp c, .kill_ch_enemy
     ld (ix+2), a
     jr .ch_draw_now
 
 .move_w4:
-    ;; Wave 4: sinusoidal weave
+    ;; Wave 4: S-curve weave travelling across to the right
     ld a, (ix+3)
     and 16
-    jr nz, .w4_r
+    jr nz, .w4_slower
     ld a, (ix+2)
-    dec a
-    cp 2
-    jp c, .kill_ch_enemy
-    ld (ix+2), a
-    jr .ch_draw_now
-.w4_r:
+    add a, 2
+    jr .w4_chk_r
+.w4_slower:
     ld a, (ix+2)
     inc a
-    cp 71
+.w4_chk_r:
+    cp PLAY_X_MAX
     jp nc, .kill_ch_enemy
     ld (ix+2), a
-
+    jr .ch_draw_now
 
 .ch_draw_now:
     ld a, (ix+2)
