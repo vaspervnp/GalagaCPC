@@ -23,7 +23,7 @@ UpdateStars:
     add a, (ix+3)
     cp 228
     jr c, .t_y_ok
-    ld a, 34
+    sub 194
 .t_y_ok:
     ld (ix+1), a
     jp .next_star
@@ -82,36 +82,48 @@ UpdateStars:
     ;; Star is inside active text box: Advance Y without drawing or erasing
     ld a, (ix+1)
     add a, (ix+3)
+    cp 228
+    jr c, .prot_y_ok
+    sub 194
+.prot_y_ok:
     ld (ix+1), a
     jr .next_star
 
 
 .normal_star:
-    ;; 1. Erase star at current position
+    ;; 1. Erase star at current position (only if pixel matches star color)
     push bc
     ld b, (ix+0)            ; x
     ld c, (ix+1)            ; y
     call GetScreenAddr
+    ld a, (hl)
+    cp (ix+2)
+    jr nz, .no_erase_star
     xor a
-    ld (hl), a              ; Erase with black
+    ld (hl), a              ; Erase star with black
+.no_erase_star:
     pop bc
 
-    ;; 2. Advance y by speed
+    ;; 2. Advance y by speed with smooth wrapping
     ld a, (ix+1)
     add a, (ix+3)           ; y + speed
     cp 228
     jr c, .y_ok
-    ld a, 34                ; Wrap to top safely below HUD
+    sub 194                 ; Wrap to top safely below HUD preserving phase
 .y_ok:
     ld (ix+1), a
 
-    ;; 3. Draw star at new position
+    ;; 3. Draw star at new position (only if space is empty black)
     push bc
     ld b, (ix+0)
     ld c, (ix+1)
     call GetScreenAddr
+    ld a, (hl)
+    or a
+    jr nz, .no_draw_star    ; Occulted by sprite/text in foreground!
     ld a, (ix+2)            ; star color byte
     ld (hl), a
+.no_draw_star:
     pop bc
 
 .next_star:

@@ -205,3 +205,61 @@ challenging_perfect_tune_data:
     defb  3 : defw #0000, #0000, #0000  ; Rest (60ms)
     defb  0  ; End marker
 
+;; ============================================================================
+;; Fighter Rescued Music (from assets/fighter_rescued.wav)
+;; 3-Voice Polyphonic: Plays when captured fighter is released and docks
+;; ============================================================================
+fighter_rescued_tune_data:
+    defb  6 : defw #0026, #005F, #00BE  ; Lead N92, Harm N76, Bass N64
+    defb  6 : defw #0026, #0071, #00B3  ; Lead N92, Harm N73, Bass N65
+    defb  3 : defw #002A, #0064, #0166  ; Lead N90, Harm N75, Bass N53
+    defb  5 : defw #002A, #0032, #0166  ; Lead N90, Harm N87, Bass N53
+    defb  2 : defw #0026, #0059, #011C  ; Lead N92, Harm N77, Bass N57
+    defb  3 : defw #0026, #005F, #011C  ; Lead N92, Harm N76, Bass N57
+    defb 14 : defw #002F, #005F, #011C  ; Lead N88, Harm N76, Bass N57
+    defb  6 : defw #002F, #006A, #0166  ; Lead N88, Harm N74, Bass N53
+    defb  2 : defw #003F, #008E, #01C3  ; Lead N83, Harm N69, Bass N49
+    defb 50 : defw #003F, #0096, #01C3  ; Lead N83, Harm N68, Bass N49
+    defb  8 : defw #0047, #008E, #0192  ; Lead N81, Harm N69, Bass N51
+    defb  4 : defw #003F, #007F, #017B  ; Lead N83, Harm N71, Bass N52
+    defb 10 : defw #0047, #0054, #00E1  ; Lead N81, Harm N78, Bass N61
+    defb  2 : defw #003F, #007F, #0166  ; Lead N83, Harm N71, Bass N53
+    defb  4 : defw #003F, #007F, #017B  ; Lead N83, Harm N71, Bass N52
+    defb  6 : defw #002F, #0077, #0166  ; Lead N88, Harm N72, Bass N53
+    defb  3 : defw #0032, #008E, #01AA  ; Lead N87, Harm N69, Bass N50
+    defb  2 : defw #002F, #0071, #017B  ; Lead N88, Harm N73, Bass N52
+    defb 13 : defw #002F, #0071, #0192  ; Lead N88, Harm N73, Bass N51
+    defb  2 : defw #0038, #004B, #00BE  ; Lead N85, Harm N80, Bass N64
+    defb  2 : defw #0038, #004B, #00C9  ; Lead N85, Harm N80, Bass N63
+    defb  5 : defw #0032, #008E, #01FA  ; Lead N87, Harm N69, Bass N47
+    defb  0  ; End marker
+
+;; ============================================================================
+;; Fighter Captured Music (from assets/fighter_captured.wav)
+;; 3-Voice Polyphonic: Plays when ship is captured by tractor beam
+;; ============================================================================
+fighter_captured_tune_data:
+    defb  8 : defw #0028, #005F, #00BE  ; Lead N91, Harm N76, Bass N64
+    defb  2 : defw #0028, #0071, #00BE  ; Lead N91, Harm N73, Bass N64
+    defb  3 : defw #002A, #006A, #0166  ; Lead N90, Harm N74, Bass N53
+    defb  3 : defw #002A, #0064, #0166  ; Lead N90, Harm N75, Bass N53
+    defb  4 : defw #002A, #0032, #0166  ; Lead N90, Harm N87, Bass N53
+    defb  5 : defw #0028, #005F, #011C  ; Lead N91, Harm N76, Bass N57
+    defb 16 : defw #002F, #005F, #011C  ; Lead N88, Harm N76, Bass N57
+    defb  8 : defw #002F, #003C, #01AA  ; Lead N88, Harm N84, Bass N50
+    defb  8 : defw #003C, #0047, #01DE  ; Lead N84, Harm N81, Bass N48
+    defb 18 : defw #0047, #0054, #00BE  ; Lead N81, Harm N78, Bass N64
+    defb  9 : defw #0064, #007F, #0152  ; Lead N75, Harm N71, Bass N54
+    defb 11 : defw #0050, #005F, #00FD  ; Lead N79, Harm N76, Bass N59
+    defb  2 : defw #0047, #008E, #01AA  ; Lead N81, Harm N69, Bass N50
+    defb  7 : defw #0047, #008E, #0192  ; Lead N81, Harm N69, Bass N51
+    defb  2 : defw #003F, #007F, #0192  ; Lead N83, Harm N71, Bass N51
+    defb 10 : defw #003F, #007F, #017B  ; Lead N83, Harm N71, Bass N52
+    defb  4 : defw #003C, #0077, #0152  ; Lead N84, Harm N72, Bass N54
+    defb  5 : defw #003F, #007F, #017B  ; Lead N83, Harm N71, Bass N52
+    defb  9 : defw #002F, #0077, #0166  ; Lead N88, Harm N72, Bass N53
+    defb  2 : defw #002F, #0086, #01C3  ; Lead N88, Harm N70, Bass N49
+    defb 22 : defw #002F, #007F, #01C3  ; Lead N88, Harm N71, Bass N49
+    defb  0  ; End marker
+
+

@@ -11,13 +11,13 @@ DEFAULT_PLAYER_Y equ 222
 EBULLET_SIZE    equ 8
 MAX_EBULLETS    equ 4
 
-ENEMY_COUNT     equ 20
+ENEMY_COUNT     equ 28
 ENEMY_SIZE      equ 12
 
 MAX_EXPLOSIONS  equ 3
 EXPLOSION_SIZE  equ 4
 
-NUM_STARS       equ 12
+NUM_STARS       equ 32
 
 ;; Enemy States:
 STATE_FORMATION     equ 0

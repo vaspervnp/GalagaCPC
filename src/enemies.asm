@@ -6,6 +6,9 @@ InitEnemies:
     xor a
     ld (sway_offset), a
     ld (attack_timer), a
+    ld (attack_cycle), a
+    ld (transform_trigger_cnt), a
+    ld (transform_killed), a
     ld (stage_phase), a         ; STAGE_PHASE_ENTRY = 0
     ld (entry_spawn_idx), a
 
@@ -311,20 +314,117 @@ UpdateEnemies:
     call CheckTractorTrigger
     jp c, .update_diving
 
-    ;; Pick first alive enemy in formation to dive
+    ;; Advance attack cycle (0=Bee/Transform, 1=Butterfly, 2=Boss, 3=Bee/Transform)
+    ld a, (attack_cycle)
+    inc a
+    and 3
+    ld (attack_cycle), a
+
+    cp 1
+    jr z, .try_butterfly_attack
+    cp 2
+    jr z, .try_boss_attack
+
+.try_bee_attack:
+    ;; Check if stage >= 4 for Transform Trio
+    ld a, (current_stage)
+    cp 4
+    jr c, .regular_bee_dive
+
+    ;; Check if another transform is currently active
+    call CheckAnyTransformActive
+    jr nz, .regular_bee_dive
+
+    ;; Increment transform trigger counter
+    ld a, (transform_trigger_cnt)
+    inc a
+    ld (transform_trigger_cnt), a
+    cp 2
+    jr c, .regular_bee_dive
+
+    ;; Check if at least 3 bees in formation
+    call CountBeesInFormation
+    cp 3
+    jr c, .regular_bee_dive
+
+    ;; *** START TRANSFORM TRIO! ***
+    xor a
+    ld (transform_trigger_cnt), a
+    call StartTransformTrio
+    jp .update_diving
+
+.regular_bee_dive:
+    ;; Pick an alive Bee in formation (Type 0, State 0)
     ld ix, enemy_data
     ld b, ENEMY_COUNT
-.find_diver:
+.find_bee_diver:
     ld a, (ix+0)
     or a
-    jr z, .next_cand
-    ld a, (ix+8)            ; in formation?
+    jr z, .next_bee_cand
+    ld a, (ix+8)
     or a
-    jr z, .start_dive
-.next_cand:
+    jr nz, .next_bee_cand
+    ld a, (ix+1)            ; type == 0?
+    or a
+    jp z, .start_dive
+.next_bee_cand:
     ld de, ENEMY_SIZE
     add ix, de
-    djnz .find_diver
+    djnz .find_bee_diver
+    jr .find_any_diver      ; Fallback if no bees in formation
+
+.try_butterfly_attack:
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+.find_bf_diver:
+    ld a, (ix+0)
+    or a
+    jr z, .next_bf_cand
+    ld a, (ix+8)
+    or a
+    jr nz, .next_bf_cand
+    ld a, (ix+1)            ; type == 1?
+    cp 1
+    jp z, .start_dive
+.next_bf_cand:
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .find_bf_diver
+    jr .find_any_diver      ; Fallback if no butterflies in formation
+
+.try_boss_attack:
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+.find_boss_diver:
+    ld a, (ix+0)
+    or a
+    jr z, .next_boss_cand
+    ld a, (ix+8)
+    or a
+    jr nz, .next_boss_cand
+    ld a, (ix+1)            ; type == 2?
+    cp 2
+    jp z, .start_dive
+.next_boss_cand:
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .find_boss_diver
+    ;; Fall through to .find_any_diver
+
+.find_any_diver:
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+.find_any_loop:
+    ld a, (ix+0)
+    or a
+    jr z, .next_any_cand
+    ld a, (ix+8)
+    or a
+    jr z, .start_dive
+.next_any_cand:
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .find_any_loop
     jp .update_diving
 
 .start_dive:
@@ -334,7 +434,7 @@ UpdateEnemies:
     ;; Check if enemy is Boss Galaga (Type 2)
     ld a, (ix+1)
     cp 2
-    jr nz, .check_diver_bee
+    jr nz, .update_diving
 
     ;; Boss Galaga dive: find up to 2 Goeis in formation to escort!
     ld (ix+11), 0           ; default 0 escorts
@@ -366,32 +466,6 @@ UpdateEnemies:
 .escorts_done:
     pop ix
     ld (ix+11), d           ; store escort count in Boss Galaga
-    jr .update_diving
-
-.check_diver_bee:
-    ;; Check transform if enemy is Type 0 (Bee)
-    or a
-    jr nz, .update_diving
-
-    ;; Check stage for transform
-    ld a, (current_stage)
-    cp 4
-    jr c, .update_diving    ; Stage 1-3: no transforms
-    cp 7
-    jr c, .transform_sasori ; Stage 4-6: Sasori
-    cp 10
-    jr c, .transform_stingray ; Stage 7-9: Midori Stingray
-    ;; Stage 10+: Galboss Flagship
-    ld (ix+1), 8
-    jr .update_diving
-
-.transform_sasori:
-    ld (ix+1), 6
-    jr .update_diving
-
-.transform_stingray:
-    ld (ix+1), 7
-    jr .update_diving
 
 .update_diving:
     ;; --- 4. Move diving enemies ---
@@ -484,6 +558,14 @@ UpdateEnemies:
     jp .next_dive_slot
 
 .loop_to_top:
+    ;; If transform enemy escapes off bottom, group bonus is forfeit!
+    ld a, (ix+1)
+    cp 6
+    jr c, .no_tr_escape
+    xor a
+    ld (transform_killed), a
+.no_tr_escape:
+
     ;; Wrap around to top safely below HUD (scanline 36, HUD ends at 31)
     ld a, 36
     ld (ix+3), a
@@ -573,6 +655,8 @@ UpdateEnemies:
     cp 6
     jr c, .ret_draw
     ld (ix+1), 0
+    xor a
+    ld (transform_killed), a
 
 .ret_draw:
     ld a, (ix+2)
@@ -592,6 +676,105 @@ UpdateEnemies:
 
     call UpdateTractorState
     call UpdateCapturedFighter
+    ret
+
+;; ----------------------------------------------------------------------------
+;; CheckAnyTransformActive: Returns NZ if any transformed enemy is alive
+;; ----------------------------------------------------------------------------
+CheckAnyTransformActive:
+    ld iy, enemy_data
+    ld b, ENEMY_COUNT
+.chk_tr_loop:
+    ld a, (iy+0)            ; alive?
+    or a
+    jr z, .chk_tr_next
+    ld a, (iy+1)            ; type >= 6?
+    cp 6
+    jr c, .chk_tr_next
+    ld a, 1
+    or a
+    ret                     ; NZ: found active transform!
+.chk_tr_next:
+    ld de, ENEMY_SIZE
+    add iy, de
+    djnz .chk_tr_loop
+    xor a                   ; Z: none active
+    ret
+
+;; ----------------------------------------------------------------------------
+;; CountBeesInFormation: Returns count of alive Bees in formation in A
+;; ----------------------------------------------------------------------------
+CountBeesInFormation:
+    ld iy, enemy_data
+    ld b, ENEMY_COUNT
+    ld c, 0
+.cnt_b_loop:
+    ld a, (iy+0)            ; alive?
+    or a
+    jr z, .cnt_b_next
+    ld a, (iy+8)            ; in formation?
+    or a
+    jr nz, .cnt_b_next
+    ld a, (iy+1)            ; type == 0 (Bee)?
+    or a
+    jr nz, .cnt_b_next
+    inc c
+.cnt_b_next:
+    ld de, ENEMY_SIZE
+    add iy, de
+    djnz .cnt_b_loop
+    ld a, c
+    ret
+
+;; ----------------------------------------------------------------------------
+;; StartTransformTrio: 3 Bees transform into aliens and dive together in formation!
+;; ----------------------------------------------------------------------------
+StartTransformTrio:
+    ;; Determine transform alien type based on stage:
+    ;; Stage 4..6: Type 6 (Sasori) -> 1,000 pts
+    ;; Stage 7..9: Type 7 (Midori Stingray) -> 2,000 pts
+    ;; Stage 10+:  Type 8 (Galboss Flagship) -> 3,000 pts
+    ld a, (current_stage)
+    cp 7
+    ld c, 6                 ; Sasori
+    jr c, .got_tr_type
+    cp 10
+    ld c, 7                 ; Midori Stingray
+    jr c, .got_tr_type
+    ld c, 8                 ; Galboss Flagship
+.got_tr_type:
+    ;; Reset group kill counter
+    xor a
+    ld (transform_killed), a
+
+    ;; Find 3 bees in formation and morph them!
+    ld iy, enemy_data
+    ld b, ENEMY_COUNT
+    ld d, 3                 ; Need 3 bees
+.find_trio_loop:
+    ld a, (iy+0)
+    or a
+    jr z, .next_trio_cand
+    ld a, (iy+8)
+    or a
+    jr nz, .next_trio_cand
+    ld a, (iy+1)
+    or a
+    jr nz, .next_trio_cand
+
+    ;; Found a bee for the trio!
+    ld (iy+1), c            ; Set type to transform alien!
+    ld (iy+8), 1            ; Set state = 1 (diving!)
+
+    dec d
+    jr z, .trio_found_all
+.next_trio_cand:
+    ld de, ENEMY_SIZE
+    add iy, de
+    djnz .find_trio_loop
+
+.trio_found_all:
+    call PlaySoundDive
     ret
 
 ;; ============================================================================
@@ -915,29 +1098,34 @@ UpdateEntryPhase:
 ;; SpawnEntryEnemy: Spawn 1 enemy for the Entry Swarm
 ;; ----------------------------------------------------------------------------
 SpawnEntryEnemy:
-    ;; 1. Point HL to entry_enemy_defs + (entry_spawn_idx * 7)
+    ;; 1. Point IX to enemy_data + (entry_spawn_idx * 12)
     ld a, (entry_spawn_idx)
-    ld c, a
-    add a, a                ; * 2
-    add a, c                ; * 3
-    add a, a                ; * 6
-    add a, c                ; * 7
-    ld e, a
-    ld d, 0
-    ld hl, entry_enemy_defs
-    add hl, de              ; HL -> [type, hp, base_x, base_y, start_x, start_y, entry_path]
+    ld l, a
+    ld h, 0                 ; HL = idx
+    add hl, hl              ; * 2
+    ld e, l
+    ld d, h                 ; DE = idx * 2
+    add hl, hl              ; * 4
+    add hl, de              ; * 6
+    add hl, hl              ; * 12 (16-bit safe, up to 28 * 12 = 336)
+    ld de, enemy_data
+    add hl, de              ; HL = enemy_data + (idx * 12)
+    push hl
+    pop ix                  ; IX -> enemy slot
 
-    ;; 2. Point IX to enemy_data + (entry_spawn_idx * 12)
+    ;; 2. Point HL to entry_enemy_defs + (entry_spawn_idx * 7)
     ld a, (entry_spawn_idx)
-    ld c, a
-    add a, a                ; * 2
-    add a, c                ; * 3
-    add a, a                ; * 6
-    add a, a                ; * 12
+    ld l, a
+    ld h, 0                 ; HL = idx
+    add hl, hl              ; * 2
+    add hl, hl              ; * 4
+    add hl, hl              ; * 8
     ld e, a
-    ld d, 0
-    ld ix, enemy_data
-    add ix, de
+    ld d, 0                 ; DE = idx
+    or a                    ; clear carry
+    sbc hl, de              ; HL = idx * 7 (16-bit safe)
+    ld de, entry_enemy_defs
+    add hl, de              ; HL -> entry_enemy_defs + (idx * 7)
 
     ;; 3. Initialize enemy slot
     ld (ix+0), 1            ; alive = 1
@@ -970,17 +1158,17 @@ SpawnEntryEnemy:
     inc a
     ld (entry_spawn_idx), a
 
-    ;; Check if starting a new entry attack wave (0, 4, 8, 12, or 16)
+    ;; Check if starting a new entry attack wave (0, 4, 10, 16, or 22)
     dec a
     or a
     jr z, .check_entry_wave_sfx
     cp 4
     jr z, .check_entry_wave_sfx
-    cp 8
-    jr z, .check_entry_wave_sfx
-    cp 12
+    cp 10
     jr z, .check_entry_wave_sfx
     cp 16
+    jr z, .check_entry_wave_sfx
+    cp 22
     jr nz, .done_entry_wave_sfx
 .check_entry_wave_sfx:
     ld a, (music_playing)
@@ -993,11 +1181,11 @@ SpawnEntryEnemy:
     ld a, (entry_spawn_idx)
     cp 4
     jr z, .pause_wave
-    cp 8
-    jr z, .pause_wave
-    cp 12
+    cp 10
     jr z, .pause_wave
     cp 16
+    jr z, .pause_wave
+    cp 22
     jr z, .pause_wave
     ld a, 8                 ; 8 frames between enemies in wave
     ld (entry_spawn_timer), a
@@ -1009,37 +1197,45 @@ SpawnEntryEnemy:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; Entry Phase Enemy Definitions (20 enemies: 4 Bosses, 8 Butterflies, 8 Bees)
+;; Entry Phase Enemy Definitions (28 enemies: 4 Bosses, 12 Butterflies, 12 Bees)
 ;; Format: [type, hp, base_x, base_y, start_x, start_y, entry_path] - 7 bytes each
 ;; ----------------------------------------------------------------------------
 entry_enemy_defs:
     ;; Wave 1: 4 Boss Galagas (Row 1, Y=52) - Swoop top-right (path 0)
-    defb 2, 2, 26, 52,  66, 36, 0  ; Slot 0: Boss Galaga 1 (target 26, 52)
-    defb 2, 2, 38, 52,  66, 36, 0  ; Slot 1: Boss Galaga 2 (target 38, 52)
-    defb 2, 2, 50, 52,  66, 36, 0  ; Slot 2: Boss Galaga 3 (target 50, 52)
-    defb 2, 2, 62, 52,  66, 36, 0  ; Slot 3: Boss Galaga 4 (target 62, 52)
+    defb 2, 2, 27, 52,  66, 36, 0  ; Slot 0: Boss Galaga 1 (target 27, 52)
+    defb 2, 2, 37, 52,  66, 36, 0  ; Slot 1: Boss Galaga 2 (target 37, 52)
+    defb 2, 2, 47, 52,  66, 36, 0  ; Slot 2: Boss Galaga 3 (target 47, 52)
+    defb 2, 2, 57, 52,  66, 36, 0  ; Slot 3: Boss Galaga 4 (target 57, 52)
 
-    ;; Wave 2: 4 Goei Butterflies (Row 2, Y=68) - Swoop top-left (path 1)
-    defb 1, 1, 26, 68,  16, 36, 1  ; Slot 4: Goei 1 (target 26, 68)
-    defb 1, 1, 38, 68,  16, 36, 1  ; Slot 5: Goei 2 (target 38, 68)
-    defb 1, 1, 50, 68,  16, 36, 1  ; Slot 6: Goei 3 (target 50, 68)
-    defb 1, 1, 62, 68,  16, 36, 1  ; Slot 7: Goei 4 (target 62, 68)
+    ;; Wave 2: 6 Goei Butterflies (Row 2, Y=68) - Swoop top-left (path 1)
+    defb 1, 1, 17, 68,  16, 36, 1  ; Slot 4: Goei 1 (target 17, 68)
+    defb 1, 1, 27, 68,  16, 36, 1  ; Slot 5: Goei 2 (target 27, 68)
+    defb 1, 1, 37, 68,  16, 36, 1  ; Slot 6: Goei 3 (target 37, 68)
+    defb 1, 1, 47, 68,  16, 36, 1  ; Slot 7: Goei 4 (target 47, 68)
+    defb 1, 1, 57, 68,  16, 36, 1  ; Slot 8: Goei 5 (target 57, 68)
+    defb 1, 1, 67, 68,  16, 36, 1  ; Slot 9: Goei 6 (target 67, 68)
 
-    ;; Wave 3: 4 Goei Butterflies (Row 3, Y=84) - Swoop top-right (path 2)
-    defb 1, 1, 26, 84,  72, 36, 2  ; Slot 8: Goei 5 (target 26, 84)
-    defb 1, 1, 38, 84,  72, 36, 2  ; Slot 9: Goei 6 (target 38, 84)
-    defb 1, 1, 50, 84,  72, 36, 2  ; Slot 10: Goei 7 (target 50, 84)
-    defb 1, 1, 62, 84,  72, 36, 2  ; Slot 11: Goei 8 (target 62, 84)
+    ;; Wave 3: 6 Goei Butterflies (Row 3, Y=84) - Swoop top-right (path 2)
+    defb 1, 1, 17, 84,  72, 36, 2  ; Slot 10: Goei 7 (target 17, 84)
+    defb 1, 1, 27, 84,  72, 36, 2  ; Slot 11: Goei 8 (target 27, 84)
+    defb 1, 1, 37, 84,  72, 36, 2  ; Slot 12: Goei 9 (target 37, 84)
+    defb 1, 1, 47, 84,  72, 36, 2  ; Slot 13: Goei 10 (target 47, 84)
+    defb 1, 1, 57, 84,  72, 36, 2  ; Slot 14: Goei 11 (target 57, 84)
+    defb 1, 1, 67, 84,  72, 36, 2  ; Slot 15: Goei 12 (target 67, 84)
 
-    ;; Wave 4: 4 Zako Bees (Row 4, Y=100) - Swoop top-left (path 1)
-    defb 0, 1, 26, 100, 16, 36, 1  ; Slot 12: Zako 1 (target 26, 100)
-    defb 0, 1, 38, 100, 16, 36, 1  ; Slot 13: Zako 2 (target 38, 100)
-    defb 0, 1, 50, 100, 16, 36, 1  ; Slot 14: Zako 3 (target 50, 100)
-    defb 0, 1, 62, 100, 16, 36, 1  ; Slot 15: Zako 4 (target 62, 100)
+    ;; Wave 4: 6 Zako Bees (Row 4, Y=100) - Swoop top-left (path 1)
+    defb 0, 1, 17, 100, 16, 36, 1  ; Slot 16: Zako 1 (target 17, 100)
+    defb 0, 1, 27, 100, 16, 36, 1  ; Slot 17: Zako 2 (target 27, 100)
+    defb 0, 1, 37, 100, 16, 36, 1  ; Slot 18: Zako 3 (target 37, 100)
+    defb 0, 1, 47, 100, 16, 36, 1  ; Slot 19: Zako 4 (target 47, 100)
+    defb 0, 1, 57, 100, 16, 36, 1  ; Slot 20: Zako 5 (target 57, 100)
+    defb 0, 1, 67, 100, 16, 36, 1  ; Slot 21: Zako 6 (target 67, 100)
 
-    ;; Wave 5: 4 Zako Bees (Row 5, Y=116) - Swoop top-right (path 0)
-    defb 0, 1, 26, 116, 66, 36, 0  ; Slot 16: Zako 5 (target 26, 116)
-    defb 0, 1, 38, 116, 66, 36, 0  ; Slot 17: Zako 6 (target 38, 116)
-    defb 0, 1, 50, 116, 66, 36, 0  ; Slot 18: Zako 7 (target 50, 116)
-    defb 0, 1, 62, 116, 66, 36, 0  ; Slot 19: Zako 8 (target 62, 116)
+    ;; Wave 5: 6 Zako Bees (Row 5, Y=116) - Swoop top-right (path 0)
+    defb 0, 1, 17, 116, 66, 36, 0  ; Slot 22: Zako 7 (target 17, 116)
+    defb 0, 1, 27, 116, 66, 36, 0  ; Slot 23: Zako 8 (target 27, 116)
+    defb 0, 1, 37, 116, 66, 36, 0  ; Slot 24: Zako 9 (target 37, 116)
+    defb 0, 1, 47, 116, 66, 36, 0  ; Slot 25: Zako 10 (target 47, 116)
+    defb 0, 1, 57, 116, 66, 36, 0  ; Slot 26: Zako 11 (target 57, 116)
+    defb 0, 1, 67, 116, 66, 36, 0  ; Slot 27: Zako 12 (target 67, 116)
 

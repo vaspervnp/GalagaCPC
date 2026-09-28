@@ -49,6 +49,7 @@ CheckCollisions:
     push ix                 ; Preserve missile_data pointer
     push de
     call DrawEnemyIY
+    call PlaySoundBossDamage
     pop de
     push de
     call AddPoints50
@@ -207,6 +208,7 @@ CheckCollisions:
     xor a
     ld (transform_killed), a
     call AddPoints1000
+    call PlaySoundExtraLife
     jr .score_done
 
 .pts_stingray:
@@ -219,6 +221,7 @@ CheckCollisions:
     xor a
     ld (transform_killed), a
     call AddPoints2000
+    call PlaySoundExtraLife
     jr .score_done
 
 .pts_galboss:
@@ -231,6 +234,7 @@ CheckCollisions:
     xor a
     ld (transform_killed), a
     call AddPoints3000
+    call PlaySoundExtraLife
     jr .score_done
 
 .score_done:
@@ -256,6 +260,52 @@ CheckCollisions:
     add iy, bc
     dec e
     jp nz, .e_loop
+
+    ;; Check if missile ix hits captured fighter (if active in formation, escort, or descending)
+    ld a, (captured_fighter_active)
+    or a
+    jr z, .next_m
+
+    ;; Horizontal overlap check
+    ld a, (ix+1)            ; missile X
+    ld hl, captured_fighter_x
+    sub (hl)
+    cp 8
+    jr nc, .next_m
+
+    ;; Vertical overlap check
+    ld a, (ix+2)            ; missile Y
+    ld hl, captured_fighter_y
+    sub (hl)
+    add a, 3
+    cp 19
+    jr nc, .next_m
+
+    ;; *** HIT CAPTURED FIGHTER! ***
+    ld hl, (shots_hit)
+    inc hl
+    ld (shots_hit), hl
+
+    ;; Get coordinates before clearing
+    ld a, (captured_fighter_x)
+    ld b, a
+    ld a, (captured_fighter_y)
+    ld c, a
+
+    call ClearCapturedFighterSprite
+    xor a
+    ld (captured_fighter_active), a
+    ld (captured_fighter_x), a
+    ld (captured_fighter_y), a
+
+    push ix
+    push de
+    call SpawnExplosion
+    call PlaySoundCapturedDestroy
+    call AddPoints1000
+    pop de
+    pop ix
+    jp .destroy_missile
 
 .next_m:
     ld bc, MISSILE_SIZE

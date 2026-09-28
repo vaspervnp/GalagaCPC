@@ -8,18 +8,32 @@
 ay_mixer_val:       defb #3F
 
 ;; Sound FX Timers & State
-sfx_shot_timer:     defb 0
-sfx_shot_pitch:     defb 0
+sfx_shot_timer:         defb 0
+sfx_shot_pitch:         defb 0
 
-sfx_exp_timer:      defb 0
-sfx_exp_vol:        defb 0
+sfx_exp_timer:          defb 0
+sfx_exp_vol:            defb 0
 
-sfx_dive_timer:     defb 0
-sfx_dive_pitch:     defb 0
-sfx_dive_type:      defb 0  ; 0 = Flying enemy dive warble, 1 = Tractor pulse
+sfx_dive_timer:         defb 0
+sfx_dive_pitch:         defb 0
+sfx_dive_type:          defb 0  ; 0 = Flying enemy dive warble, 1 = Tractor pulse
 
-sfx_jingle_timer:   defb 0
-sfx_jingle_step:    defb 0
+sfx_jingle_timer:       defb 0
+sfx_jingle_step:        defb 0
+
+;; Extra Life Fanfare (6-Note Arpeggio on Channel A from assets/extend.wav)
+sfx_extend_timer:       defb 0
+extend_pitches:
+    defw #002F, #0028, #0020, #001B, #0014, #0010 ; E6, G6, B6, D7, G7, B7
+
+;; Boss Galaga Damage Chirp (9-Frame Upward Sweep on Channel A from assets/boss_damage.wav)
+sfx_boss_dmg_timer:     defb 0
+boss_damage_pitches:
+    defw #009D, #0090, #0089, #0082, #007C, #0074, #006F, #006B, #0063
+
+;; Captured Fighter Destroyed Warble (Channel B from assets/captured_ship_destroy.wav)
+sfx_cap_destroy_timer:  defb 0
+sfx_cap_destroy_pitch:  defb 0
 
 ;; Stage Background Drone State (Channel C)
 drone_active:       defb 0  ; 0 = inactive, 1 = active
@@ -49,6 +63,9 @@ SoundInit:
     ld (sfx_exp_timer), a
     ld (sfx_dive_timer), a
     ld (sfx_jingle_timer), a
+    ld (sfx_extend_timer), a
+    ld (sfx_boss_dmg_timer), a
+    ld (sfx_cap_destroy_timer), a
     ld (drone_active), a
     ld (drone_timer), a
     ld (drone_step), a
@@ -77,6 +94,14 @@ SoundInit:
 ;; PlaySoundShot: Classic Galaga Laser Firing Chirp (Channel A)
 ;; ----------------------------------------------------------------------------
 PlaySoundShot:
+    ;; Don't override extra life fanfare or boss damage chirp
+    ld a, (sfx_extend_timer)
+    or a
+    ret nz
+    ld a, (sfx_boss_dmg_timer)
+    or a
+    ret nz
+
     ld a, 8                 ; ~8 frames duration
     ld (sfx_shot_timer), a
     ld a, 25                ; Starting high pitch period
@@ -173,14 +198,50 @@ PlaySoundTractor:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; PlaySoundRescue: Triumphant Dual Fighter Rescue Chime (Channel A)
+;; PlaySoundBossDamage: Fast Ascending Chirp Sweep (Channel A)
+;; (Transcribed directly from assets/boss_damage.wav - 9 frames duration)
 ;; ----------------------------------------------------------------------------
-PlaySoundRescue:
-    ld a, 30
-    ld (sfx_jingle_timer), a
-    xor a
-    ld (sfx_jingle_step), a
+PlaySoundBossDamage:
+    ld a, (music_playing)
+    or a
+    ret nz
+    ld a, (sfx_extend_timer)
+    or a
+    ret nz
 
+    ld a, 9
+    ld (sfx_boss_dmg_timer), a
+    xor a
+    ld (sfx_shot_timer), a  ; Override laser shot
+
+    ;; Enable Tone on Channel A (Bit 0 of Reg 7 = 0)
+    ld a, (ay_mixer_val)
+    and %11111110
+    ld (ay_mixer_val), a
+    ld e, a
+    ld a, 7
+    call WriteAY
+
+    ;; Initial Channel A Volume = 13
+    ld a, 8
+    ld e, 13
+    call WriteAY
+    ret
+
+;; ----------------------------------------------------------------------------
+;; PlaySoundExtraLife: Authentic 6-Note Ascending Arpeggio (Channel A)
+;; (Transcribed from assets/extend.wav - 30 frames duration, ~0.60 seconds)
+;; Pitches: E6, G6, B6, D7, G7, B7
+;; ----------------------------------------------------------------------------
+PlaySoundExtraLife:
+    ld a, 30
+    ld (sfx_extend_timer), a
+    xor a
+    ld (sfx_shot_timer), a
+    ld (sfx_boss_dmg_timer), a
+    ld (sfx_jingle_timer), a
+
+    ;; Enable Tone on Channel A (Bit 0 of Reg 7 = 0)
     ld a, (ay_mixer_val)
     and %11111110
     ld (ay_mixer_val), a
@@ -194,10 +255,60 @@ PlaySoundRescue:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; PlaySoundExtraLife / PlaySoundStageStart: High Ascending Fanfare (Channel A)
+;; PlaySoundCapturedDestroy: Captured Fighter Destroyed SFX
+;; (Explosion crunch on Channel C Noise + Sad descending tone glide on Channel B)
+;; (Transcribed from assets/captured_ship_destroy.wav)
+;; ----------------------------------------------------------------------------
+PlaySoundCapturedDestroy:
+    ;; 1. Channel C: Deep explosion crunch
+    call PlaySoundExplosion
+
+    ;; 2. Channel B: Descending mournful warble
+    ld a, 50                ; 50 frames duration (~1.0s)
+    ld (sfx_cap_destroy_timer), a
+    ld a, 46                ; Initial high frequency period (~1350 Hz)
+    ld (sfx_cap_destroy_pitch), a
+    xor a
+    ld (sfx_dive_timer), a  ; Override dive sound
+
+    ;; Enable Tone on Channel B (Bit 1 of Reg 7 = 0)
+    ld a, (ay_mixer_val)
+    and %11111101
+    ld (ay_mixer_val), a
+    ld e, a
+    ld a, 7
+    call WriteAY
+
+    ld a, 9                 ; Initial Channel B Volume = 14
+    ld e, 14
+    call WriteAY
+    ret
+
+;; ----------------------------------------------------------------------------
+;; PlayMusicFighterCaptured: 3-Voice Fighter Captured Theme
+;; (Transcribed from assets/fighter_captured.wav)
+;; ----------------------------------------------------------------------------
+PlayMusicFighterCaptured:
+    ld hl, fighter_captured_tune_data
+    jp PlayMusicFromHL
+
+;; ----------------------------------------------------------------------------
+;; PlayMusicFighterRescued / PlaySoundRescue: 3-Voice Fighter Rescued Theme
+;; (Transcribed from assets/fighter_rescued.wav)
+;; ----------------------------------------------------------------------------
+PlayMusicFighterRescued:
+PlaySoundRescue:
+    ;; If music is already playing, do not restart
+    ld a, (music_playing)
+    or a
+    ret nz
+    ld hl, fighter_rescued_tune_data
+    jp PlayMusicFromHL
+
+;; ----------------------------------------------------------------------------
+;; PlaySoundStageStart: Ascending Fanfare (Channel A)
 ;; ----------------------------------------------------------------------------
 PlaySoundStageStart:
-PlaySoundExtraLife:
     ld a, 40
     ld (sfx_jingle_timer), a
     xor a
@@ -240,7 +351,7 @@ PlaySoundGameOver:
 ;; SoundUpdate: Called once per frame (50Hz) to advance envelopes and pitch
 ;; ----------------------------------------------------------------------------
 SoundUpdate:
-    ;; --- 0. Update Background Music (Game Start Tune) ---
+    ;; --- 0. Update Background Music (Game Start Tune, Rescue, Capture, etc.) ---
     ld a, (music_playing)
     or a
     jr z, .no_music
@@ -249,7 +360,110 @@ SoundUpdate:
     ret
 
 .no_music:
-    ;; --- 1. Update Jingle / Fanfare (Channel A) ---
+    ;; --- 1A. Update Extra Life Arpeggio (Channel A) ---
+    ld a, (sfx_extend_timer)
+    or a
+    jr z, .check_boss_dmg
+
+    dec a
+    ld (sfx_extend_timer), a
+    jr nz, .extend_continue
+
+    ;; Finished: silence Channel A
+    ld a, 8 : ld e, 0 : call WriteAY
+    ld a, (ay_mixer_val)
+    or %00000001
+    ld (ay_mixer_val), a
+    ld e, a : ld a, 7 : call WriteAY
+    jp .check_exp
+
+.extend_continue:
+    ;; Timer goes from 29 down to 1 (30 frames total)
+    ;; Elapsed = 30 - timer (1..29)
+    ld a, 30
+    ld hl, sfx_extend_timer
+    sub (hl)                ; A = 1..29
+    ld b, a
+
+    ;; 1-frame silence on every 5th frame for crisp staccato articulation
+.ext_mod:
+    cp 5
+    jr c, .ext_mod_done
+    sub 5
+    jr .ext_mod
+.ext_mod_done:
+    or a
+    jr nz, .ext_play_note
+    ld a, 8 : ld e, 0 : call WriteAY
+    jp .check_exp
+
+.ext_play_note:
+    ;; Note index = B / 5 (0..5)
+    ld a, b
+    ld c, 0
+.ext_div:
+    cp 5
+    jr c, .ext_div_done
+    sub 5
+    inc c
+    jr .ext_div
+.ext_div_done:
+    ld a, c
+    cp 6
+    jr c, .ext_idx_ok
+    ld a, 5
+.ext_idx_ok:
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, extend_pitches
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, 0 : call WriteAY
+    ld a, 1 : ld e, d : call WriteAY
+    ld a, 8 : ld e, 14 : call WriteAY
+    jp .check_exp
+
+.check_boss_dmg:
+    ;; --- 1B. Update Boss Damage Chirp (Channel A) ---
+    ld a, (sfx_boss_dmg_timer)
+    or a
+    jr z, .check_jingle
+
+    dec a
+    ld (sfx_boss_dmg_timer), a
+    jr nz, .boss_dmg_continue
+
+    ;; Finished: silence Channel A
+    ld a, 8 : ld e, 0 : call WriteAY
+    ld a, (ay_mixer_val)
+    or %00000001
+    ld (ay_mixer_val), a
+    ld e, a : ld a, 7 : call WriteAY
+    jp .check_exp
+
+.boss_dmg_continue:
+    ;; 9 frames total: index = 8 - a (0..8)
+    ld b, a
+    ld a, 8
+    sub b
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, boss_damage_pitches
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, 0 : call WriteAY
+    ld a, 1 : ld e, d : call WriteAY
+    ld a, 8 : ld e, 13 : call WriteAY
+    jp .check_exp
+
+.check_jingle:
+    ;; --- 1C. Update Jingle / Fanfare (Channel A) ---
     ld a, (sfx_jingle_timer)
     or a
     jr z, .check_shot
@@ -268,13 +482,13 @@ SoundUpdate:
     ld e, a
     ld a, 7
     call WriteAY
-    jr .check_exp
+    jp .check_exp
 
 .jingle_continue:
     ;; Step pitch upward
     ld a, (sfx_jingle_timer)
     and 7
-    jr nz, .check_exp
+    jp nz, .check_exp
     ld a, (sfx_jingle_step)
     inc a
     ld (sfx_jingle_step), a
@@ -295,11 +509,10 @@ SoundUpdate:
     ld a, 1
     ld e, 0
     call WriteAY
-    jr .check_exp
+    jp .check_exp
 
 .check_shot:
-
-    ;; --- 1. Update Laser Shot (Channel A) ---
+    ;; --- 1D. Update Laser Shot (Channel A) ---
     ld a, (sfx_shot_timer)
     or a
     jr z, .check_exp
@@ -318,7 +531,7 @@ SoundUpdate:
     ld e, a
     ld a, 7
     call WriteAY
-    jr .check_exp
+    jp .check_exp
 
 .shot_continue:
     ;; Sweep pitch down (increase period by 14)
@@ -347,7 +560,7 @@ SoundUpdate:
     ;; --- 2. Update Explosion (Channel C) ---
     ld a, (sfx_exp_timer)
     or a
-    jr z, .check_dive
+    jr z, .check_cap_destroy
 
     dec a
     ld (sfx_exp_timer), a
@@ -363,20 +576,57 @@ SoundUpdate:
     ld e, a
     ld a, 7
     call WriteAY
-    jr .check_dive
+    jr .check_cap_destroy
 
 .exp_continue:
     ld a, (sfx_exp_vol)
     or a
-    jr z, .check_dive
+    jr z, .check_cap_destroy
     dec a
     ld (sfx_exp_vol), a
     ld e, a
     ld a, 10                ; Reg 10: Channel C Volume
     call WriteAY
 
+.check_cap_destroy:
+    ;; --- 3. Update Captured Fighter Destroy Mournful Warble (Channel B) ---
+    ld a, (sfx_cap_destroy_timer)
+    or a
+    jr z, .check_dive
+
+    dec a
+    ld (sfx_cap_destroy_timer), a
+    jr nz, .cap_destroy_continue
+
+    ;; Finished: silence Channel B Tone
+    ld a, 9 : ld e, 0 : call WriteAY
+    ld a, (ay_mixer_val)
+    or %00000010           ; Disable Tone B
+    ld (ay_mixer_val), a
+    ld e, a : ld a, 7 : call WriteAY
+    jp .check_drone
+
+.cap_destroy_continue:
+    ;; Slide pitch downward: increase period by 4 each frame
+    ld hl, sfx_cap_destroy_pitch
+    ld a, (hl)
+    add a, 4
+    ld (hl), a
+    ld e, a
+    ld a, 2 : call WriteAY
+    ld a, 3 : ld e, 0 : call WriteAY
+
+    ;; Decay volume from 14 down to 0
+    ld a, (sfx_cap_destroy_timer)
+    srl a
+    srl a                   ; timer / 4 (0..12)
+    add a, 2                ; 2..14
+    ld e, a
+    ld a, 9 : call WriteAY
+    jp .check_drone
+
 .check_dive:
-    ;; --- 3. Update Dive Warble (Channel B) ---
+    ;; --- 4. Update Dive Warble (Channel B) ---
     ld a, (sfx_dive_timer)
     or a
     jr z, .check_drone
@@ -538,19 +788,19 @@ UpdateDrone:
     jp z, .silence_drone
 
     ;; Tempo scaling based on alive enemies count C:
-    ;; C >= 15: 12 frames (~0.96s per 4-note motif)
-    ;; 10 <= C < 15: 9 frames (~0.72s)
-    ;; 5 <= C < 10: 6 frames (~0.48s)
-    ;; C < 5: 4 frames (~0.32s rapid intense pulse!)
-    cp 15
+    ;; C >= 20: 12 frames (~0.96s per 4-note motif)
+    ;; 12 <= C < 20: 9 frames (~0.72s)
+    ;; 6 <= C < 12: 6 frames (~0.48s)
+    ;; C < 6: 4 frames (~0.32s rapid intense pulse!)
+    cp 20
     ld a, 12
     jr nc, .set_step_len
     ld a, c
-    cp 10
+    cp 12
     ld a, 9
     jr nc, .set_step_len
     ld a, c
-    cp 5
+    cp 6
     ld a, 6
     jr nc, .set_step_len
     ld a, 4
@@ -731,6 +981,9 @@ PlayMusicFromHL:
     ld (sfx_exp_timer), a
     ld (sfx_dive_timer), a
     ld (sfx_jingle_timer), a
+    ld (sfx_extend_timer), a
+    ld (sfx_boss_dmg_timer), a
+    ld (sfx_cap_destroy_timer), a
 
     ld a, 1
     ld (music_playing), a

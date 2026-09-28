@@ -283,7 +283,8 @@ UpdateTractorState:
 
     ;; Display "FIGHTER CAPTURED" banner in Cyan
     call DrawFighterCapturedBanner
-    ld a, 60                ; ~1.2s delay for Boss to return to formation before next ship spawns
+    call PlayMusicFighterCaptured
+    ld a, 150               ; ~3.0s delay for 21-step capture tune before next ship spawns
     ld (capture_delay), a
     ret
 
