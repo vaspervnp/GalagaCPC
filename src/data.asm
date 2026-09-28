@@ -10,10 +10,14 @@ old_player_y:       defb DEFAULT_PLAYER_Y
 is_dual_fighter:    defb 0
 player_invincible_timer: defb 0 ; Respawn invincibility countdown (100 frames = 2.0s at 50Hz)
 fire_button_state:  defb 0
-player_score:       defw 0
-high_score:         defw 20000
-player_lives:       defb 3
-extra_life_awarded: defb 0
+player_score:           defw 0
+player_score_hi:        defb 0
+high_score:             defw 20000
+high_score_hi:          defb 0
+player_lives:           defb 3
+extra_life_count:       defb 0  ; Milestone count: 1=20k, 2=70k, 3=140k...
+next_extra_life_lo:     defw 20000
+next_extra_life_hi:     defb 0
 game_over:          defb 0
 restart_debounce:   defb 0
 game_over_timer:    defb 0

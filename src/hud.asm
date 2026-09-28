@@ -41,22 +41,113 @@ InitHUD:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; PrintScore - Print player_score at X=16, Y=16 in White
+;; PrintScore - Print player_score at X=14, Y=16 in White (6 digits)
 ;; ----------------------------------------------------------------------------
 PrintScore:
     ld hl, (player_score)
-    ld b, 16
+    ld a, (player_score_hi)
+    ld b, 14
     ld c, 16
-    jp Print5Digits
+    jp Print6Digits
 
 ;; ----------------------------------------------------------------------------
-;; PrintHighScore - Print high_score at X=52, Y=16 in White
+;; PrintHighScore - Print high_score at X=50, Y=16 in White (6 digits)
 ;; ----------------------------------------------------------------------------
 PrintHighScore:
     ld hl, (high_score)
-    ld b, 52
+    ld a, (high_score_hi)
+    ld b, 50
     ld c, 16
-    jp Print5Digits
+    jp Print6Digits
+
+;; ----------------------------------------------------------------------------
+;; Print6Digits - Format 24-bit (A:HL) into 6 decimal digits at (B=X, C=Y)
+;; ----------------------------------------------------------------------------
+Print6Digits:
+    push bc
+    ld (digit_buf_temp_a), a
+
+    ;; Digit 0: 100,000s (sub 100,000: HL - 34464, A - 1 - borrow)
+    ld c, 0
+.div_100k:
+    ld a, (digit_buf_temp_a)
+    ld de, 34464
+    or a
+    sbc hl, de
+    sbc a, 1
+    jr c, .done_100k
+    ld (digit_buf_temp_a), a
+    inc c
+    jr .div_100k
+.done_100k:
+    add hl, de          ; Restore HL (remainder)
+    ld a, c
+    ld (digit_buf+0), a
+
+    ;; Digit 1: 10,000s (sub 10,000: HL - 10000, A - 0 - borrow)
+    ld c, 0
+.div_10k:
+    ld a, (digit_buf_temp_a)
+    ld de, 10000
+    or a
+    sbc hl, de
+    sbc a, 0
+    jr c, .done_10k
+    ld (digit_buf_temp_a), a
+    inc c
+    jr .div_10k
+.done_10k:
+    add hl, de          ; Restore HL (remainder < 10,000)
+    ld a, c
+    ld (digit_buf+1), a
+
+    ;; Digits 2..5: 16-bit remainder in HL
+    ld de, 1000  : call .div_digit_6 : ld (digit_buf+2), a
+    ld de, 100   : call .div_digit_6 : ld (digit_buf+3), a
+    ld de, 10    : call .div_digit_6 : ld (digit_buf+4), a
+    ld a, l                          : ld (digit_buf+5), a
+
+    ;; Suppress leading zeros for first 4 digits (indices 0..3)
+    ld ix, digit_buf
+    ld b, 4
+.blank_loop:
+    ld a, (ix+0)
+    or a
+    jr nz, .blank_done
+    ld (ix+0), 10       ; 10 = space
+    inc ix
+    djnz .blank_loop
+.blank_done:
+    pop bc
+
+    ;; Draw 6 digits from digit_buf
+    ld ix, digit_buf
+    ld d, 6
+.draw_d6_loop:
+    ld a, (ix+0)
+    inc ix
+    push bc
+    push de
+    call DrawWhiteDigit
+    pop de
+    pop bc
+    ld a, b
+    add a, 3            ; 2 bytes digit width + 1 byte space
+    ld b, a
+    dec d
+    jr nz, .draw_d6_loop
+    ret
+
+.div_digit_6:
+    ld a, '0' - 1
+.sub_loop_6:
+    inc a
+    or a
+    sbc hl, de
+    jr nc, .sub_loop_6
+    add hl, de
+    sub '0'
+    ret
 
 ;; ----------------------------------------------------------------------------
 ;; Print5Digits - Format 16-bit HL into 5 decimal digits at (B=X, C=Y)
@@ -375,13 +466,21 @@ Draw2DigitsWhite:
     ld a, e
     jp DrawWhiteDigit
 
-digit_buf:  defs 5, 0
+digit_buf:          defs 6, 0
+digit_buf_temp_a:   defb 0
 
 ;; ----------------------------------------------------------------------------
-;; DrawWhiteDigit - Draw single digit A (0..9) at (B=X, C=Y) in White
+;; DrawWhiteDigit - Draw single digit A (0..9) at (B=X, C=Y) in White.
+;; If A >= 10, draws space (f_w_SPACE).
 ;; ----------------------------------------------------------------------------
 DrawWhiteDigit:
     push bc
+    cp 10
+    jr c, .is_digit
+    ld hl, f_w_SPACE
+    pop bc
+    jp DrawGlyph
+.is_digit:
     ld l, a
     ld h, 0
     add hl, hl          ; *2

@@ -518,22 +518,52 @@ apply_points:
     ld hl, (player_score)
     add hl, bc
     ld (player_score), hl
+    jr nc, .no_score_carry
+    ld a, (player_score_hi)
+    inc a
+    ld (player_score_hi), a
+.no_score_carry:
     call PrintScore
 
-    ;; Check extra life at 20,000 points
-    ld a, (extra_life_awarded)
-    or a
-    jr nz, .check_high_score
-    ld de, 20000
-    push hl
-    or a
+.check_extra_life:
+    ;; Compare 24-bit player_score against next_extra_life
+    ld a, (player_score_hi)
+    ld hl, next_extra_life_hi
+    cp (hl)
+    jr c, .check_high_score     ; player_score_hi < next_extra_life_hi -> not reached
+    jr nz, .extra_life_reached  ; player_score_hi > next_extra_life_hi -> reached!
+    ;; High bytes equal: compare low 16 bits
+    ld hl, (player_score)
+    ld de, (next_extra_life_lo)
+    or a                        ; Clear carry
     sbc hl, de
-    pop hl
-    jr c, .check_high_score
+    jr c, .check_high_score     ; player_score < next_extra_life_lo -> not reached
 
-    ;; 1st Extra Life milestone reached!
+.extra_life_reached:
+    ld a, (extra_life_count)
+    inc a
+    ld (extra_life_count), a
+    cp 1
+    jr nz, .add_70k
+    ;; 1st milestone (20,000) reached: set next to 70,000 (1 * 65536 + 4464)
+    ld hl, 4464
+    ld (next_extra_life_lo), hl
     ld a, 1
-    ld (extra_life_awarded), a
+    ld (next_extra_life_hi), a
+    jr .award_life
+
+.add_70k:
+    ;; 2nd and subsequent milestones: advance next by 70,000
+    ld hl, (next_extra_life_lo)
+    ld de, 4464
+    add hl, de
+    ld (next_extra_life_lo), hl
+    ld a, (next_extra_life_hi)
+    adc a, 1
+    ld (next_extra_life_hi), a
+
+.award_life:
+    ;; Max 8 lives limit (arcade authentic)
     ld a, (player_lives)
     cp 8
     jr nc, .no_more_lives
@@ -544,13 +574,23 @@ apply_points:
     call PlaySoundExtraLife
 
 .check_high_score:
-    ;; Check if new high score
+    ;; Check if new high score (24-bit comparison)
+    ld a, (player_score_hi)
+    ld hl, high_score_hi
+    cp (hl)
+    jr c, .no_high_update     ; player_score_hi < high_score_hi
+    jr nz, .update_high_score ; player_score_hi > high_score_hi
+    ;; High bytes equal: compare low 16 bits
+    ld hl, (player_score)
     ld de, (high_score)
-    or a                    ; Clear carry
+    or a                      ; Clear carry
     sbc hl, de
-    jr c, .no_high_update
+    jr c, .no_high_update     ; player_score < high_score
+.update_high_score:
     ld hl, (player_score)
     ld (high_score), hl
+    ld a, (player_score_hi)
+    ld (high_score_hi), a
     call PrintHighScore
 .no_high_update:
     ret

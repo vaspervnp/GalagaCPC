@@ -145,7 +145,7 @@ RestartGame:
     ld (priority_text_active), a
     ld (player_invincible_timer), a
     ld (is_dual_fighter), a
-    ld (extra_life_awarded), a
+    ld (extra_life_count), a
     ld (tractor_beam_active), a
     ld (tractor_trigger_cnt), a
     ld (captured_fighter_active), a
@@ -170,9 +170,15 @@ RestartGame:
     ld a, 130
     ld (attack_threshold), a
 
-    ;; Reset player score
+    ;; Reset player score (24-bit)
     ld hl, 0
     ld (player_score), hl
+    xor a
+    ld (player_score_hi), a
+    ld (extra_life_count), a
+    ld hl, 20000
+    ld (next_extra_life_lo), hl
+    ld (next_extra_life_hi), a
 
     ;; Reset player coordinates
     ld a, 44
