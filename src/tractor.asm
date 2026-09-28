@@ -583,12 +583,15 @@ UpdateCapturedFighter:
     ;; *** FREED CAPTURED FIGHTER DESCENDING TO LINK UP WITH PLAYER! ***
     ;; Erase old position
     ld a, (captured_old_x)
+    or a
+    jr z, .no_prev_cap_erase
     ld b, a
     ld a, (captured_old_y)
     ld c, a
     call ClearSprite16x16
+.no_prev_cap_erase:
 
-    ;; Steer X toward player_x + 8
+    ;; Steer X toward player_x + 8 (up to 2 pixels/frame)
     ld a, (player_x)
     add a, 8
     ld c, a
@@ -597,30 +600,32 @@ UpdateCapturedFighter:
     jr z, .rescue_fall_y
     jr c, .rescue_inc_x
     dec a
+    cp c
+    jr z, .steer_x_done
+    dec a
+.steer_x_done:
     ld (captured_fighter_x), a
     jr .rescue_fall_y
+
 .rescue_inc_x:
     inc a
+    cp c
+    jr z, .steer_x_inc_done
+    inc a
+.steer_x_inc_done:
     ld (captured_fighter_x), a
 
 .rescue_fall_y:
-    ;; Descend Y down toward player_y
+    ;; Descend Y down toward player_y (2 pixels/frame for smooth, snappy arcade docking)
     ld a, (player_y)
     ld b, a
     ld a, (captured_fighter_y)
-    inc a
+    add a, 2
     ld (captured_fighter_y), a
     cp b
     jr c, .draw_descending_rescue
 
     ;; *** DOCKED WITH PLAYER SHIP! CONVERT TO DUAL FIGHTER! ***
-    ;; Erase falling fighter
-    ld a, (captured_fighter_x)
-    ld b, a
-    ld a, (player_y)
-    ld c, a
-    call ClearSprite16x16
-
     xor a
     ld (captured_fighter_active), a
     ld (captured_old_x), a
@@ -659,4 +664,20 @@ UpdateCapturedFighter:
     ld c, a
     ld hl, player_sprite
     call DrawSprite16x16
+    ret
+
+;; ----------------------------------------------------------------------------
+;; ClearCapturedFighterSprite: Erase captured fighter sprite from screen if active
+;; ----------------------------------------------------------------------------
+ClearCapturedFighterSprite:
+    ld a, (captured_old_x)
+    or a
+    ret z
+    ld b, a
+    ld a, (captured_old_y)
+    ld c, a
+    call ClearSprite16x16
+    xor a
+    ld (captured_old_x), a
+    ld (captured_old_y), a
     ret

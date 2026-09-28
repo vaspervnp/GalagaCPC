@@ -24,6 +24,18 @@ StartChallengingStage:
     ld de, ENEMY_SIZE
     add ix, de
     djnz .clear_ch_enemies
+
+    ;; Clean up any leftover captured fighter sprite if any
+    ld a, (captured_fighter_active)
+    cp 3
+    jr nz, .no_ch_rescue_dock
+    call ClearCapturedFighterSprite
+    xor a
+    ld (captured_fighter_active), a
+    ld a, 1
+    ld (is_dual_fighter), a
+.no_ch_rescue_dock:
+    call ClearCapturedFighterSprite
     ret
 
 UpdateChallengingStage:

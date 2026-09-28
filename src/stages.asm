@@ -95,6 +95,12 @@ UpdateStageProgression:
     add ix, de
     djnz .count_alive
 
+    ;; Even if all enemies are dead, wave CANNOT be cleared if a captured fighter
+    ;; is still active or descending to dock with player!
+    ld a, (captured_fighter_active)
+    or a
+    ret nz                  ; Wait until rescued fighter finishes docking!
+
     ;; *** ALL ENEMIES DESTROYED! WAVE CLEARED! ***
     ld a, 1
     ld (stage_clear_active), a

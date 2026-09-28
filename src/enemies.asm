@@ -16,6 +16,18 @@ InitEnemies:
     ld (hl), 0
     ldir
 
+    ;; Clean up any leftover captured fighter sprite if any
+    ld a, (captured_fighter_active)
+    cp 3
+    jr nz, .no_init_rescue_dock
+    call ClearCapturedFighterSprite
+    xor a
+    ld (captured_fighter_active), a
+    ld a, 1
+    ld (is_dual_fighter), a
+.no_init_rescue_dock:
+    call ClearCapturedFighterSprite
+
     ;; If Stage 1 (new game), wait for stage intro banners before spawning
     ld a, (current_stage)
     cp 1
