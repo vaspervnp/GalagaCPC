@@ -34,6 +34,10 @@ CheckCollisions:
     jp nc, .next_e
 
     ;; *** HIT ENEMY! ***
+    ld hl, (shots_hit)
+    inc hl
+    ld (shots_hit), hl
+
     ;; Check HP (Boss Galaga takes 2 hits)
     ld a, (iy+9)            ; hp
     dec a
@@ -56,6 +60,36 @@ CheckCollisions:
 .kill_enemy:
     ld (iy+0), 0            ; alive = 0
 
+    ;; If tractor boss is killed during beam or capture, cancel beam & free player!
+    ld a, (tractor_beam_active)
+    or a
+    jr z, .no_tractor_kill
+    ld a, (iy+1)
+    cp 2
+    jr nz, .no_tractor_kill
+    call EraseTractorBeam
+    ld a, (tractor_beam_active)
+    cp 2                    ; was capturing player?
+    jr nz, .clear_tractor_flags
+    ld a, (player_x)
+    ld b, a
+    ld a, (player_y)
+    ld c, a
+    call ClearSprite16x16
+    ld a, DEFAULT_PLAYER_Y
+    ld (player_y), a
+    ld (old_player_y), a
+    ld a, (player_x)
+    ld b, a
+    ld c, DEFAULT_PLAYER_Y
+    ld hl, player_sprite
+    call DrawSprite16x16
+.clear_tractor_flags:
+    xor a
+    ld (tractor_beam_active), a
+    ld (capture_delay), a
+.no_tractor_kill:
+
     ;; Erase enemy
     push ix                 ; Preserve missile_data pointer
     push de
@@ -72,7 +106,7 @@ CheckCollisions:
     call PlaySoundExplosion
     pop de
 
-    ;; Add Score based on enemy type and state (StrategyWiki authentic scoring)
+    ;; Add Score based on enemy type and state (Arcade authentic scoring)
     push de
     ld a, (is_challenging_stage)
     or a
@@ -83,30 +117,30 @@ CheckCollisions:
     inc a
     ld (challenging_hits), a
     call AddPoints100
-    jr .score_done
+    jp .score_done
 
 .normal_scoring:
     ld a, (iy+1)            ; Enemy Type
     cp 8
-    jr z, .pts_galboss
+    jp z, .pts_galboss
     cp 7
-    jr z, .pts_stingray
+    jp z, .pts_stingray
     cp 6
-    jr z, .pts_sasori
+    jp z, .pts_sasori
     cp 2
-    jr z, .pts_boss
+    jp z, .pts_boss
     cp 1
-    jr z, .pts_bf
+    jp z, .pts_bf
 
     ;; Type 0: Bee (50 formation, 100 diving)
     ld a, (iy+8)            ; State
     cp 1
     jr z, .pts_bee_dive
     call AddPoints50
-    jr .score_done
+    jp .score_done
 .pts_bee_dive:
     call AddPoints100
-    jr .score_done
+    jp .score_done
 
 .pts_bf:
     ;; Type 1: Butterfly (80 formation, 160 diving)
@@ -114,47 +148,88 @@ CheckCollisions:
     cp 1
     jr z, .pts_bf_dive
     call AddPoints80
-    jr .score_done
+    jp .score_done
 .pts_bf_dive:
     call AddPoints160
-    jr .score_done
+    jp .score_done
 
 .pts_boss:
-    ;; Type 2: Boss Galaga (150 formation, 400 diving, 1000 + rescue with escort)
-    ld a, (iy+8)            ; State
-    cp 1
-    jr z, .boss_in_flight
-    cp 4                    ; Tractor beam hover
-    jr z, .boss_in_flight
-    call AddPoints150
-    jr .score_done
+    ;; Type 2: Boss Galaga (150 convoy, 400 alone, 800 w/ 1 escort, 1600 w/ 2 escorts)
+    ;; Stop enemy firing for a short period (authentic arcade mechanic)
+    ld a, 100
+    ld (enemy_fire_freeze), a
 
-.boss_in_flight:
-    ;; Check if Boss Galaga was escorting captured fighter
+    ;; If this Boss was holding captured fighter (in formation or diving), RESCUE IT!
     ld a, (captured_fighter_active)
-    cp 2
-    jr nz, .boss_single_dive
+    or a
+    jr z, .no_held_rescue
+    cp 3
+    jr z, .no_held_rescue
 
     ;; RESCUE CAPTURED FIGHTER!
     ld a, 3
     ld (captured_fighter_active), a
     call PlaySoundRescue
     call AddPoints1000
-    jr .score_done
+    jp .score_done
 
-.boss_single_dive:
+.no_held_rescue:
+    ld a, (iy+8)            ; State
+    cp 1
+    jr z, .boss_in_flight
+    cp 4                    ; Tractor beam hover
+    jr z, .boss_in_flight
+    call AddPoints150
+    jp .score_done
+
+.boss_in_flight:
+    ld a, (iy+11)           ; Escort count (0, 1, or 2 Goeis)
+    cp 2
+    jr z, .boss_two_escorts
+    cp 1
+    jr z, .boss_one_escort
     call AddPoints400
+    jr .score_done
+.boss_one_escort:
+    call AddPoints800
+    jr .score_done
+.boss_two_escorts:
+    call AddPoints1600
     jr .score_done
 
 .pts_sasori:
+    call AddPoints160
+    ld a, (transform_killed)
+    inc a
+    ld (transform_killed), a
+    cp 3
+    jr nz, .score_done
+    xor a
+    ld (transform_killed), a
     call AddPoints1000
     jr .score_done
 
 .pts_stingray:
+    call AddPoints160
+    ld a, (transform_killed)
+    inc a
+    ld (transform_killed), a
+    cp 3
+    jr nz, .score_done
+    xor a
+    ld (transform_killed), a
     call AddPoints2000
     jr .score_done
 
 .pts_galboss:
+    call AddPoints160
+    ld a, (transform_killed)
+    inc a
+    ld (transform_killed), a
+    cp 3
+    jr nz, .score_done
+    xor a
+    ld (transform_killed), a
     call AddPoints3000
     jr .score_done
 
@@ -193,6 +268,23 @@ CheckCollisions:
     or a
     ret nz
 
+    ;; In Challenging Stage: NO DANGER! Enemies cannot fire or harm ship!
+    ld a, (is_challenging_stage)
+    or a
+    ret nz
+
+    ld a, (tractor_beam_active)
+    or a
+    ret nz                  ; Immune while beam active or being captured!
+
+    ld a, (capture_delay)
+    or a
+    ret nz                  ; Immune while waiting for replacement ship!
+
+    ld a, (player_invincible_timer)
+    or a
+    ret nz                  ; Immune for 2 seconds after respawn!
+
     ld ix, ebullet_data
     ld b, MAX_EBULLETS
 .eb_p_loop:
@@ -228,7 +320,15 @@ CheckCollisions:
     jr nc, .next_eb_chk
 
     ;; Bullet hit Player!
+    push bc
+    push ix
+    ld b, (ix+1)
+    ld c, (ix+2)
+    call EraseEBullet
+    pop ix
+    pop bc
     ld (ix+0), 0
+    ld (ix+5), 0
     call HitPlayer
     ret
 
@@ -311,6 +411,12 @@ AddPoints160:
     jr apply_points
 AddPoints400:
     ld bc, 400
+    jr apply_points
+AddPoints800:
+    ld bc, 800
+    jr apply_points
+AddPoints1600:
+    ld bc, 1600
     jr apply_points
 AddPoints1000:
     ld bc, 1000

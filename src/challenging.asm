@@ -54,6 +54,12 @@ UpdateChallengingStage:
     cp 8
     jr nc, .check_wave_cleared
 
+    or a
+    jr nz, .no_wave_start_sfx
+    ;; First enemy in wave: Play Flying Enemy attack sound!
+    call PlaySoundDive
+.no_wave_start_sfx:
+
     ;; Spawn 1 enemy in first available slot
     call SpawnChallengingEnemy
     ld a, (challenging_spawn_cnt)
@@ -96,86 +102,132 @@ UpdateChallengingStage:
     ;; Switch to Results Screen sequence
     ld a, 2
     ld (challenging_active), a
-    ld a, 140               ; ~2.8 seconds results display
+    ld a, 40                ; ~0.8 second pause after music finishes
     ld (challenging_timer), a
 
-    ;; Display "HITS  XX" in Cyan/White at X=36, Y=100
-    ld b, 36 : ld c, 100 : ld hl, f_c_H : call DrawGlyph
-    ld b, 39 : ld c, 100 : ld hl, f_c_I : call DrawGlyph
-    ld b, 42 : ld c, 100 : ld hl, f_c_T : call DrawGlyph
-    ld b, 45 : ld c, 100 : ld hl, f_c_S : call DrawGlyph
-    ld b, 48 : ld c, 100 : ld hl, f_c_SPACE : call DrawGlyph
-    ld a, (challenging_hits)
-    ld b, 51 : ld c, 100
-    call Draw2DigitsWhite
-
-    ;; Display Bonus line at Y=116
+    ;; Check if 40 hits (PERFECT!)
     ld a, (challenging_hits)
     cp 40
-    jr nz, .partial_bonus
+    jr nz, .award_partial
 
-    ;; Perfect 40 hits: "PERFECT" in Cyan at X=36, Y=116
-    ld b, 36 : ld c, 116 : ld hl, f_c_P : call DrawGlyph
-    ld b, 39 : ld c, 116 : ld hl, f_c_E : call DrawGlyph
-    ld b, 42 : ld c, 116 : ld hl, f_c_R : call DrawGlyph
-    ld b, 45 : ld c, 116 : ld hl, f_c_F : call DrawGlyph
-    ld b, 48 : ld c, 116 : ld hl, f_c_E : call DrawGlyph
-    ld b, 51 : ld c, 116 : ld hl, f_c_C : call DrawGlyph
-    ld b, 54 : ld c, 116 : ld hl, f_c_T : call DrawGlyph
+    ;; Perfect 40 hits! Play authentic Perfect Victory Fanfare!
+    call PlayMusicChallengingPerfect
     call AddPoints10000
-    ret
+    jr .first_draw_results
 
-.partial_bonus:
-    ;; Partial hits: "BONUS " + XX + "00" in Cyan at X=32, Y=116
-    ld b, 32 : ld c, 116 : ld hl, f_c_B : call DrawGlyph
-    ld b, 35 : ld c, 116 : ld hl, f_c_O : call DrawGlyph
-    ld b, 38 : ld c, 116 : ld hl, f_c_N : call DrawGlyph
-    ld b, 41 : ld c, 116 : ld hl, f_c_U : call DrawGlyph
-    ld b, 44 : ld c, 116 : ld hl, f_c_S : call DrawGlyph
-    ld b, 47 : ld c, 116 : ld hl, f_c_SPACE : call DrawGlyph
-    ld a, (challenging_hits)
-    ld b, 50 : ld c, 116
-    call Draw2DigitsWhite
-    ld b, 56 : ld c, 116 : ld hl, f_w_0 : call DrawGlyph
-    ld b, 59 : ld c, 116 : ld hl, f_w_0 : call DrawGlyph
+.award_partial:
+    ;; Imperfect hits: Play authentic Results Theme!
+    call PlayMusicChallengingResults
 
-    ;; Award hits * 100 points
     ld a, (challenging_hits)
     or a
-    ret z
+    jr z, .first_draw_results
     ld b, a
 .add_bonus_loop:
     push bc
     call AddPoints100
     pop bc
     djnz .add_bonus_loop
+
+.first_draw_results:
+    call DrawChallengingResults
     ret
 
 .update_results_sequence:
+    ;; Wait until music finishes playing before counting down timer!
+    ld a, (music_playing)
+    or a
+    ret nz
+
     ld a, (challenging_timer)
     dec a
     ld (challenging_timer), a
     ret nz
 
     ;; Results display finished! Clear screen text and advance stage!
-    ld b, 32 : ld c, 100 : ld d, 32 : call ClearTextRect
-    ld b, 32 : ld c, 116 : ld d, 32 : call ClearTextRect
+    ld b, 24 : ld c, 100 : ld d, 56 : call ClearTextRect
+    ld b, 24 : ld c, 116 : ld d, 56 : call ClearTextRect
 
     xor a
     ld (is_challenging_stage), a
     ld (challenging_active), a
 
-    ;; Advance to next stage (Stage 4)
+    ;; Advance to next stage (supports 255 stages continuous loop)
     ld a, (current_stage)
     inc a
+    or a
+    jr nz, .ch_st_no_wrap
+    inc a               ; 255 wraps to 1
+.ch_st_no_wrap:
     ld (current_stage), a
     call DrawStageHUD
     call InitEnemies
     ret
 
+;; ----------------------------------------------------------------------------
+;; DrawChallengingResults: Display challenging hits and bonus tally
+;; Can be called every frame to maintain text priority over player missiles
+;; ----------------------------------------------------------------------------
+DrawChallengingResults:
+    ;; Display "NUMBER OF HITS  XX" in Cyan/White at X=24, Y=100
+    ld b, 24 : ld c, 100
+    ld hl, str_number_of_hits
+    call DrawGlyphString
+    ld a, (challenging_hits)
+    ld b, 69 : ld c, 100
+    call Draw2DigitsWhite
+
+    ;; Display Bonus line at Y=116
+    ld a, (challenging_hits)
+    cp 40
+    jr nz, .cr_partial
+
+    ;; Perfect 40 hits: "SPECIAL 10000 PTS" in Cyan/White at X=26, Y=116
+    ld b, 26 : ld c, 116
+    ld hl, str_special_10000
+    jp DrawGlyphString
+
+.cr_partial:
+    ;; Partial hits: "BONUS " + XX + "00 PTS" at X=29, Y=116
+    ld b, 29 : ld c, 116
+    ld hl, str_bonus_label
+    call DrawGlyphString
+    ld a, (challenging_hits)
+    ld b, 47 : ld c, 116
+    call Draw2DigitsWhite
+    ld b, 53 : ld c, 116 : ld hl, f_w_0 : call DrawGlyph
+    ld b, 56 : ld c, 116 : ld hl, f_w_0 : call DrawGlyph
+    ld b, 59 : ld c, 116
+    ld hl, str_pts_label
+    jp DrawGlyphString
+
+
 AddPoints10000:
     ld bc, 10000
     jp apply_points
+
+GetChallengingStageEnemyType:
+    ld a, (current_stage)
+    sub 3
+    srl a
+    srl a
+    and 7
+    ld e, a
+    ld d, 0
+    ld hl, challenging_stage_types
+    add hl, de
+    ld a, (hl)
+    ret
+
+challenging_stage_types:
+    defb 0  ; Stage 3: Zako
+    defb 1  ; Stage 7: Goei
+    defb 3  ; Stage 11: Tonbo
+    defb 6  ; Stage 15: Ogawamushi (Sasori)
+    defb 4  ; Stage 19: Momiji
+    defb 7  ; Stage 23: Ei (Midori Stingray)
+    defb 8  ; Stage 27: Galboss
+    defb 5  ; Stage 31: Enterprise
 
 ;; ----------------------------------------------------------------------------
 ;; SpawnChallengingEnemy: Spawn 1 enemy for current wave pattern
@@ -199,6 +251,10 @@ SpawnChallengingEnemy:
     ld (ix+9), 1            ; hp = 1
     ld (ix+6), 0            ; anim frame
 
+    ;; Set signature enemy for current challenging stage
+    call GetChallengingStageEnemyType
+    ld (ix+1), a
+
     ;; Set enemy type and starting coordinates according to wave
     ld a, (challenging_wave)
     cp 1
@@ -210,8 +266,12 @@ SpawnChallengingEnemy:
     cp 4
     jr z, .spawn_w4
 
-    ;; Wave 5: Enterprise (type 5) from right center swooping left
-    ld (ix+1), 5            ; type 5 = Enterprise
+    ;; Wave 5: 4 Boss Galagas + 4 signature enemies (arcade authentic)
+    ld a, (challenging_spawn_cnt)
+    cp 4
+    jr nc, .w5_stage_enemy
+    ld (ix+1), 2            ; Boss Galaga
+.w5_stage_enemy:
     ld a, 74
     ld (ix+2), a
     ld (ix+4), a
@@ -222,8 +282,7 @@ SpawnChallengingEnemy:
     jr .spawn_draw
 
 .spawn_w1:
-    ;; Wave 1: Bees (type 0) from top center
-    ld (ix+1), 0            ; type 0 = Bee
+    ;; Wave 1: Enemies from top center
     ld a, (challenging_spawn_cnt)
     and 1
     jr nz, .w1_right
@@ -241,8 +300,7 @@ SpawnChallengingEnemy:
     jr .spawn_draw
 
 .spawn_w2:
-    ;; Wave 2: Butterflies (type 1) from upper left
-    ld (ix+1), 1
+    ;; Wave 2: Upper left swoop
     ld a, 14
     ld (ix+2), a
     ld (ix+4), a
@@ -253,8 +311,7 @@ SpawnChallengingEnemy:
     jr .spawn_draw
 
 .spawn_w3:
-    ;; Wave 3: Butterflies (type 1) from upper right
-    ld (ix+1), 1
+    ;; Wave 3: Upper right swoop
     ld a, 74
     ld (ix+2), a
     ld (ix+4), a
@@ -265,8 +322,7 @@ SpawnChallengingEnemy:
     jr .spawn_draw
 
 .spawn_w4:
-    ;; Wave 4: Tonbo Dragonflies (type 3) entering from left, weaving right
-    ld (ix+1), 3
+    ;; Wave 4: Entering from left, weaving right
     ld a, 14
     ld (ix+2), a
     ld (ix+4), a

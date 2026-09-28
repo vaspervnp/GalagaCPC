@@ -63,6 +63,7 @@ CheckTractorTrigger:
     ld (tractor_boss_x), a
     ld a, (ix+3)
     ld (tractor_boss_y), a
+    ld (captor_boss_ptr), ix
     scf                     ; Signal tractor beam initiated
     ret
 
@@ -71,6 +72,19 @@ CheckTractorTrigger:
 ;; Called each frame from GameLoop
 ;; ----------------------------------------------------------------------------
 UpdateTractorState:
+    ;; Check if waiting for replacement fighter after capture
+    ld a, (capture_delay)
+    or a
+    jr z, .no_capture_delay
+    dec a
+    ld (capture_delay), a
+    jr nz, .no_capture_delay
+
+    ;; Delay expired! Clear "FIGHTER CAPTURED" banner and spawn replacement fighter
+    call ClearCapturedBanner
+    call RespawnPlayer
+
+.no_capture_delay:
     ld ix, enemy_data
     ld b, ENEMY_COUNT
 .find_tractor_loop:
@@ -131,6 +145,10 @@ UpdateTractorState:
     call DrawTractorBeam
 
     ;; Check if player is caught in beam
+    ld a, (player_invincible_timer)
+    or a
+    jr nz, .beam_timer_tick     ; Immune while invincible!
+
     ;; Beam bottom width: (tractor_boss_x - 3) to (tractor_boss_x + 9)
     ld a, (tractor_boss_x)
     sub 3
@@ -147,12 +165,59 @@ UpdateTractorState:
     jr nc, .beam_timer_tick
 
     ;; *** PLAYER CAUGHT IN TRACTOR BEAM! ***
-    call EraseTractorBeam
+    ;; Cleanly erase player from ALL previous positions before centering!
+    ld a, (old_player_x)
+    ld b, a
+    ld a, (player_y)
+    ld c, a
+    call ClearSprite16x16
+
+    ld a, (player_x)
+    ld b, a
+    ld a, (player_y)
+    ld c, a
+    call ClearSprite16x16
+
+    ;; If dual fighter was active, also erase the second fighter and reset flag
+    ld a, (is_dual_fighter)
+    or a
+    jr z, .cap_not_dual
+    xor a
+    ld (is_dual_fighter), a
+
+    ld a, (old_player_x)
+    add a, 8
+    ld b, a
+    ld a, (player_y)
+    ld c, a
+    call ClearSprite16x16
+
+    ld a, (player_x)
+    add a, 8
+    ld b, a
+    ld a, (player_y)
+    ld c, a
+    call ClearSprite16x16
+
+.cap_not_dual:
+    ;; Center player directly under Boss
+    ld a, (tractor_boss_x)
+    ld (player_x), a
+    ld (old_player_x), a
+    ld a, DEFAULT_PLAYER_Y
+    ld (player_y), a
+    ld (old_player_y), a
+
+    ;; Draw player cleanly at new centered position
+    ld a, (player_x)
+    ld b, a
+    ld c, DEFAULT_PLAYER_Y
+    ld hl, player_sprite
+    call DrawSprite16x16
+
     ld (ix+8), STATE_CAPTURING
     ld a, 2
     ld (tractor_beam_active), a
-    ld a, 210
-    ld (player_y), a
     ret
 
 .beam_timer_tick:
@@ -169,24 +234,34 @@ UpdateTractorState:
     ret
 
 .handle_capturing:
-    ;; Pull player upward toward Boss
-    ;; Erase player at old Y
+    ;; 1. Erase player at current position BEFORE redrawing beam
     ld a, (player_x)
     ld b, a
     ld a, (player_y)
     ld c, a
     call ClearSprite16x16
 
-    ;; Ascend player by 1 scanline
+    ;; 2. Keep tractor beam active & animated while player is ascending!
+    call PlaySoundTractor
+    call DrawTractorBeam
+
+    ;; 3. Ascend player upward toward Boss by 1 scanline
     ld a, (player_y)
     dec a
     ld (player_y), a
     cp 158
     jr nc, .draw_ascending_player
 
+
     ;; *** FIGHTER DOCKED UNDER BOSS! CAPTURE COMPLETE! ***
-    ;; Display "FIGHTER CAPTURED" banner in Cyan
-    call DrawFighterCapturedBanner
+    ;; Erase tractor beam
+    call EraseTractorBeam
+
+    ;; Erase player at scanline 158 (it is now docked with Boss as captured fighter)
+    ld a, (player_x)
+    ld b, a
+    ld c, 158
+    call ClearSprite16x16
 
     ;; Dock captured fighter with Boss
     ld a, 1
@@ -195,8 +270,10 @@ UpdateTractorState:
     ld (tractor_beam_active), a
     ld (ix+8), STATE_RETURNING
 
-    ;; Decrease player lives
+    ;; Decrease player lives with underflow prevention
     ld a, (player_lives)
+    or a
+    jr z, .captured_game_over
     dec a
     ld (player_lives), a
     call DrawLivesHUD
@@ -204,23 +281,20 @@ UpdateTractorState:
     or a
     jr z, .captured_game_over
 
-    ;; Delay then spawn replacement fighter
-    call ClearCapturedBanner
-    ld a, 44
-    ld (player_x), a
-    ld (old_player_x), a
-    ld a, 210
-    ld (player_y), a
-    ld (old_player_y), a
-    ld b, 44
-    ld c, 210
-    ld hl, player_sprite
-    call DrawSprite16x16
+    ;; Display "FIGHTER CAPTURED" banner in Cyan
+    call DrawFighterCapturedBanner
+    ld a, 60                ; ~1.2s delay for Boss to return to formation before next ship spawns
+    ld (capture_delay), a
     ret
 
 .captured_game_over:
     call ClearCapturedBanner
-    call PlayerDied
+    ld a, 1
+    ld (game_over), a
+    ld a, 1
+    ld (restart_debounce), a
+    call DrawGameOverText
+    call PlaySoundGameOver
     ret
 
 .draw_ascending_player:
@@ -436,20 +510,26 @@ UpdateCapturedFighter:
     cp 3
     jr z, .handle_rescue_fall
 
-    ;; Check Boss Galaga position
-    ld ix, enemy_data
-    ld b, ENEMY_COUNT
-.find_captor_boss:
+    ;; Check Captor Boss Galaga position
+    ld ix, (captor_boss_ptr)
     ld a, (ix+0)
     or a
-    jr z, .next_cb
+    jr z, .captor_dead
     ld a, (ix+1)
     cp 2
     jr z, .found_captor_boss
-.next_cb:
-    ld de, ENEMY_SIZE
-    add ix, de
-    djnz .find_captor_boss
+
+.captor_dead:
+    ;; Boss was destroyed! Release captured fighter into rescue fall!
+    ld a, (captured_fighter_active)
+    or a
+    ret z
+    cp 3
+    ret z
+    ld a, 3
+    ld (captured_fighter_active), a
+    call PlaySoundRescue
+    call AddPoints1000
     ret
 
 .found_captor_boss:
@@ -524,37 +604,43 @@ UpdateCapturedFighter:
     ld (captured_fighter_x), a
 
 .rescue_fall_y:
-    ;; Descend Y down toward 210
+    ;; Descend Y down toward player_y
+    ld a, (player_y)
+    ld b, a
     ld a, (captured_fighter_y)
     inc a
     ld (captured_fighter_y), a
-    cp 210
+    cp b
     jr c, .draw_descending_rescue
 
     ;; *** DOCKED WITH PLAYER SHIP! CONVERT TO DUAL FIGHTER! ***
     ;; Erase falling fighter
     ld a, (captured_fighter_x)
     ld b, a
-    ld c, 210
+    ld a, (player_y)
+    ld c, a
     call ClearSprite16x16
 
     xor a
     ld (captured_fighter_active), a
     ld (captured_old_x), a
+    ld (captured_old_y), a
     ld a, 1
     ld (is_dual_fighter), a  ; DUAL FIGHTER ACTIVATED!
 
     ;; Redraw player as Dual Fighter
     ld a, (player_x)
     ld b, a
-    ld c, 210
+    ld a, (player_y)
+    ld c, a
     ld hl, player_sprite
     call DrawSprite16x16
 
     ld a, (player_x)
     add a, 8
     ld b, a
-    ld c, 210
+    ld a, (player_y)
+    ld c, a
     ld hl, player_sprite
     call DrawSprite16x16
 

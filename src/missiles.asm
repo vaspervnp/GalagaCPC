@@ -1,6 +1,6 @@
 ;; ============================================================================
 ;; Galaga CPC - Player Missiles Management
-;; Overscan Geometry (Playfield Y=32..231, Player Y=210)
+;; Overscan Geometry (Playfield Y=32..231, Player Y=DEFAULT_PLAYER_Y)
 ;; ============================================================================
 
 SpawnMissile:
@@ -31,8 +31,11 @@ SpawnMissile:
     ld a, (player_x)
     add a, 3
     ld (ix+1), a            ; x
-    ld (ix+2), 204          ; y (player_y 210 - 6)
+    ld (ix+2), DEFAULT_PLAYER_Y - 6 ; y (player_y - 6)
     ld (ix+5), 0            ; has_old = 0
+    ld hl, (shots_fired)
+    inc hl
+    ld (shots_fired), hl
     call PlaySoundShot
     pop bc
     pop de
@@ -65,8 +68,11 @@ SpawnDualMissiles:
     ld a, (player_x)
     add a, 3                ; Left fighter barrel
     ld (ix+1), a
-    ld (ix+2), 204
+    ld (ix+2), DEFAULT_PLAYER_Y - 6
     ld (ix+5), 0
+    ld hl, (shots_fired)
+    inc hl
+    ld (shots_fired), hl
 
     ;; Find 2nd free slot (Right fighter)
     ld ix, missile_data
@@ -85,8 +91,11 @@ SpawnDualMissiles:
     ld a, (player_x)
     add a, 11               ; Right fighter barrel
     ld (ix+1), a
-    ld (ix+2), 204
+    ld (ix+2), DEFAULT_PLAYER_Y - 6
     ld (ix+5), 0
+    ld hl, (shots_fired)
+    inc hl
+    ld (shots_fired), hl
 
 .dual_fired_one:
     call PlaySoundShot
@@ -151,40 +160,90 @@ UpdateMissiles:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; DrawMissile: Draw 4-scanline missile at B=X, C=Y
-;; Uses line_tab directly for overscan buffer safety
+;; Player Missile Sprite: Mode 0 4-pixel (2-byte) x 9 scanlines
+;; Exact sprite from assets/missilesmap.png (Top-Middle tile: Row 0, Col 1)
+;; Blue tip & wings (Pen 1), White core (Pen 15), Red thruster tail (Pen 2)
+;; ----------------------------------------------------------------------------
+player_missile_sprite:
+    defb #00, #80       ; Line 0: . . B . (Blue tip)
+    defb #00, #80       ; Line 1: . . B . (Blue tip)
+    defb #40, #C0       ; Line 2: . B B B (Blue wings)
+    defb #40, #EA       ; Line 3: . B W B (Blue wings, White core)
+    defb #40, #EA       ; Line 4: . B W B (Blue wings, White core)
+    defb #00, #08       ; Line 5: . . R . (Red thruster)
+    defb #00, #08       ; Line 6: . . R . (Red thruster)
+    defb #00, #08       ; Line 7: . . R . (Red thruster)
+    defb #00, #08       ; Line 8: . . R . (Red thruster)
+
+;; ----------------------------------------------------------------------------
+;; DrawMissile: Draw 2-byte x 9-scanline missile at B=X, C=Y
+;; Uses line_tab directly for fast, overscan-buffer safe drawing
 ;; ----------------------------------------------------------------------------
 DrawMissile:
     push bc
-    call GetScreenAddr
-    ld (hl), #FF            ; White tip
-    inc c
-    call GetScreenAddr
-    ld (hl), #CC            ; Yellow body
-    inc c
-    call GetScreenAddr
-    ld (hl), #CC            ; Yellow body
-    inc c
-    call GetScreenAddr
-    ld (hl), #0C            ; Red thruster
+    push de
+    push ix
+    ld e, c
+    ld d, 0
+    sla e
+    rl d
+    ld ix, line_tab
+    add ix, de                  ; IX = line_tab[Y]
+    ld hl, player_missile_sprite
+    ld c, 9                     ; 9 scanlines
+.dm_loop:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b
+    add a, e
+    ld e, a
+    jr nc, .dm_nc
+    inc d
+.dm_nc:
+    ld a, (hl) : ld (de), a : inc hl : inc de
+    ld a, (hl) : ld (de), a : inc hl
+    dec c
+    jr nz, .dm_loop
+    pop ix
+    pop de
     pop bc
     ret
 
 ;; ----------------------------------------------------------------------------
-;; EraseMissile: Erase 4-scanline missile at B=X, C=Y
+;; EraseMissile: Erase 2-byte x 9-scanline missile at B=X, C=Y
 ;; ----------------------------------------------------------------------------
 EraseMissile:
     push bc
-    call GetScreenAddr
-    ld (hl), 0
-    inc c
-    call GetScreenAddr
-    ld (hl), 0
-    inc c
-    call GetScreenAddr
-    ld (hl), 0
-    inc c
-    call GetScreenAddr
-    ld (hl), 0
+    push de
+    push ix
+    ld e, c
+    ld d, 0
+    sla e
+    rl d
+    ld ix, line_tab
+    add ix, de                  ; IX = line_tab[Y]
+    ld c, 9                     ; 9 scanlines
+.em_loop:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b
+    add a, e
+    ld e, a
+    jr nc, .em_nc
+    inc d
+.em_nc:
+    xor a
+    ld (de), a
+    inc de
+    ld (de), a
+    dec c
+    jr nz, .em_loop
+    pop ix
+    pop de
     pop bc
     ret
+

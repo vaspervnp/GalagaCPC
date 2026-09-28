@@ -1,13 +1,23 @@
 ;; ============================================================================
 ;; Galaga CPC - Player Ship Logic & Input
-;; Overscan Geometry (Playfield X=10..78, Y=210)
+;; Overscan Geometry (Playfield X=10..78, Y=DEFAULT_PLAYER_Y)
 ;; ============================================================================
 
 ReadInput:
+    ;; Check if stage intro is active (input locked during Level 1 intro)
+    ld a, (stage_intro_state)
+    or a
+    ret nz
+
     ;; Check if player is being tractor-beamed (input locked)
     ld a, (tractor_beam_active)
     cp 2
     ret z
+
+    ;; Check if waiting for replacement fighter to spawn
+    ld a, (capture_delay)
+    or a
+    ret nz
 
     call read_controls
 
@@ -71,6 +81,23 @@ UpdatePlayer:
     or a
     ret nz
 
+    ;; If player is being captured or replacement is delayed: skip UpdatePlayer
+    ld a, (tractor_beam_active)
+    cp 2
+    ret z
+
+    ld a, (capture_delay)
+    or a
+    ret nz
+
+    ;; Decrement invincibility timer if active
+    ld a, (player_invincible_timer)
+    or a
+    jr z, .p_not_invincible
+    dec a
+    ld (player_invincible_timer), a
+.p_not_invincible:
+
     ld a, (is_dual_fighter)
     or a
     jr nz, .update_dual
@@ -84,6 +111,16 @@ UpdatePlayer:
 
     ld a, (player_x)
     ld (old_player_x), a
+
+    ;; Check invincibility flicker (blink every 2 frames)
+    ld a, (player_invincible_timer)
+    or a
+    jr z, .draw_single_ship
+    bit 1, a
+    ret nz                  ; Skip draw on flicker frame
+
+.draw_single_ship:
+    ld a, (player_x)
     ld b, a
     ld a, (player_y)
     ld c, a
@@ -108,6 +145,16 @@ UpdatePlayer:
 
     ld a, (player_x)
     ld (old_player_x), a
+
+    ;; Check invincibility flicker (blink every 2 frames)
+    ld a, (player_invincible_timer)
+    or a
+    jr z, .draw_dual_ships
+    bit 1, a
+    ret nz
+
+.draw_dual_ships:
+    ld a, (player_x)
     ld b, a
     ld a, (player_y)
     ld c, a
@@ -124,6 +171,11 @@ UpdatePlayer:
     ret
 
 HitPlayer:
+    ;; Immune while invincible
+    ld a, (player_invincible_timer)
+    or a
+    ret nz
+
     ld a, (is_dual_fighter)
     or a
     jp z, PlayerDied
@@ -202,8 +254,10 @@ PlayerDied:
     call SpawnExplosion
     call PlaySoundExplosion
 
-    ;; Decrease lives
+    ;; Decrease lives with strict underflow check
     ld a, (player_lives)
+    or a
+    jr z, .trigger_game_over
     dec a
     ld (player_lives), a
     call DrawLivesHUD
@@ -216,6 +270,8 @@ PlayerDied:
     ret
 
 .trigger_game_over:
+    xor a
+    ld (player_invincible_timer), a
     ld a, 1
     ld (game_over), a
     ld a, 1
@@ -225,14 +281,16 @@ PlayerDied:
     ret
 
 RespawnPlayer:
+    ld a, 100               ; 2 seconds invincibility (100 frames at 50Hz)
+    ld (player_invincible_timer), a
     ld a, 44
     ld (player_x), a
     ld (old_player_x), a
-    ld a, 210
+    ld a, DEFAULT_PLAYER_Y
     ld (player_y), a
     ld (old_player_y), a
     ld b, 44
-    ld c, 210
+    ld c, DEFAULT_PLAYER_Y
     ld hl, player_sprite
     call DrawSprite16x16
     ret

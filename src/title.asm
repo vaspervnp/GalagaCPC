@@ -1,0 +1,114 @@
+;; ============================================================================
+;; Galaga CPC - Title Screen & Attract Mode
+;; Features: Official Galaga Logo, Point Values Table, Revive9bit Footer
+;; ============================================================================
+
+    include "title_logo.asm"
+
+ShowTitleScreen:
+    ;; 1. Set title screen flag and reset timers/controls
+    ld a, 1
+    ld (is_title_screen), a
+    xor a
+    ld (title_timer), a
+    ld (ctl_now), a
+    ld (ctl_last), a
+    ld (ctl_pressed), a
+
+    ;; 2. Clear entire 32KB overscan screen to Black
+    call ClearScreenOverscan
+
+    ;; 3. Draw Top HUD headers (1UP in Red, HIGH SCORE in Red, and High Score value)
+    call InitHUD
+
+    ;; 4. Draw Official Arcade Galaga Logo at X=30, Y=36 (36 bytes x 32 lines)
+    ld b, 30
+    ld c, 36
+    ld d, TITLE_LOGO_W         ; 36 bytes wide
+    ld e, TITLE_LOGO_H         ; 32 scanlines high
+    ld hl, title_logo_data
+    call DrawBitmapRect
+
+    ;; 5. Draw "- POINT VALUES -" at X=24, Y=106 in Bright Cyan
+    ld b, 24
+    ld c, 106
+    ld hl, str_title_points_hdr
+    call DrawGlyphString
+
+    ;; 6. Draw Enemy Point Value Demonstration
+    ;; Row 1: Zako Bee at X=22, Y=126
+    ld b, 22
+    ld c, 126
+    ld hl, zako_bee_1
+    call DrawSprite16x16
+    ld b, 34
+    ld c, 130
+    ld hl, str_pts_50_100
+    call DrawGlyphString
+
+    ;; Row 2: Goei Butterfly at X=22, Y=148
+    ld b, 22
+    ld c, 148
+    ld hl, goei_butterfly_1
+    call DrawSprite16x16
+    ld b, 34
+    ld c, 152
+    ld hl, str_pts_80_160
+    call DrawGlyphString
+
+    ;; Row 3: Boss Galaga at X=22, Y=170
+    ld b, 22
+    ld c, 170
+    ld hl, boss_galaga_1
+    call DrawSprite16x16
+    ld b, 34
+    ld c, 174
+    ld hl, str_pts_150_400
+    call DrawGlyphString
+
+    ;; 7. Draw Bottom Signature in Lower Border:
+    ;; "REVIVE8BIT - 2026 - VASPER" at X=9, Y=244
+    ld b, 9
+    ld c, 244
+    ld hl, str_revive8bit_footer
+    call DrawGlyphString
+
+TitleLoop:
+    call WaitVSync
+
+    ;; Starfield moves in the background (protected on sides)
+    call UpdateStars
+
+    ;; Sound driver tick
+    call SoundUpdate
+
+    ;; Blink "PUSH FIRE BUTTON" at X=24, Y=82
+    ld a, (title_timer)
+    inc a
+    ld (title_timer), a
+    and 32                      ; Toggle visibility every 32 frames (~0.64s)
+    jr z, .hide_prompt
+
+    ld b, 24
+    ld c, 82
+    ld hl, str_title_prompt
+    call DrawGlyphString
+    jr .check_start_key
+
+.hide_prompt:
+    ld b, 24
+    ld c, 82
+    ld d, 48                    ; 16 chars * 3 bytes
+    call ClearTextRect
+
+.check_start_key:
+    call read_controls
+    ld a, (ctl_pressed)
+    bit CTL_FIRE, a
+    jr z, TitleLoop
+
+    ;; *** FIRE PRESSED! START GAME! ***
+    xor a
+    ld (is_title_screen), a
+    call RestartGame            ; Fresh game initialization (plays game start tune)
+    jp GameLoop

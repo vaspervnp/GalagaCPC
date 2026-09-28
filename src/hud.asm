@@ -121,7 +121,7 @@ ClearGameOverText:
     jp ClearTextRect
 
 ;; ----------------------------------------------------------------------------
-;; DrawStageBanner - Display "STAGE " + (current_stage + 1) in Cyan at X=38, Y=110
+;; DrawStageBanner - Display "STAGE " + current_stage in Cyan at X=38, Y=110
 ;; ----------------------------------------------------------------------------
 DrawStageBanner:
     ld b, 38 : ld c, 110 : ld hl, f_c_S : call DrawGlyph
@@ -131,14 +131,39 @@ DrawStageBanner:
     ld b, 50 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
     ld b, 53 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
     ld a, (current_stage)
-    inc a
+    cp 10
+    jr nc, .dsb_2digits
     ld b, 56 : ld c, 110
     jp DrawWhiteDigit
+.dsb_2digits:
+    ld b, 56 : ld c, 110
+    jp Draw2DigitsWhite
 
 ClearStageBanner:
     ld b, 38
     ld c, 110
-    ld d, 21
+    ld d, 24
+    jp ClearTextRect
+
+;; ----------------------------------------------------------------------------
+;; DrawPlayerBanner - Display "PLAYER 1" in Cyan at X=36, Y=110
+;; ----------------------------------------------------------------------------
+DrawPlayerBanner:
+    ld b, 36 : ld c, 110 : ld hl, f_c_P : call DrawGlyph
+    ld b, 39 : ld c, 110 : ld hl, f_c_L : call DrawGlyph
+    ld b, 42 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
+    ld b, 45 : ld c, 110 : ld hl, f_c_Y : call DrawGlyph
+    ld b, 48 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
+    ld b, 51 : ld c, 110 : ld hl, f_c_R : call DrawGlyph
+    ld b, 54 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
+    ld b, 57 : ld c, 110
+    ld a, 1
+    jp DrawWhiteDigit
+
+ClearPlayerBanner:
+    ld b, 36
+    ld c, 110
+    ld d, 24
     jp ClearTextRect
 
 ;; ----------------------------------------------------------------------------
@@ -223,6 +248,102 @@ ClearTextRect:
     ret
 
 ;; ----------------------------------------------------------------------------
+;; SetPriorityText - Register custom text to display with priority over sprites
+;; Input:  B = X, C = Y, HL = null-terminated glyph pointer string
+;; ----------------------------------------------------------------------------
+SetPriorityText:
+    ld a, b : ld (priority_text_x), a
+    ld a, c : ld (priority_text_y), a
+    ld (priority_text_ptr), hl
+    ld a, 1
+    ld (priority_text_active), a
+    jp DrawGlyphString
+
+;; ----------------------------------------------------------------------------
+;; ClearPriorityText - Clear custom priority text from screen
+;; Input:  B = X, C = Y, D = width in bytes
+;; ----------------------------------------------------------------------------
+ClearPriorityText:
+    xor a
+    ld (priority_text_active), a
+    jp ClearTextRect
+
+;; ----------------------------------------------------------------------------
+;; RefreshPriorityText - Redraw any active text/banners on top of all sprites
+;; Ensures text always has priority ("Τα γράμματα έχουν πάντα προτεραιότητα")
+;; ----------------------------------------------------------------------------
+RefreshPriorityText:
+    ;; 0. Check Stage Intro State (Level 1 Intro: banners are drawn on state change)
+    ld a, (stage_intro_state)
+    or a
+    ret nz
+
+
+.rpt_check_custom:
+    ;; 1. Check custom registered priority text
+    ld a, (priority_text_active)
+    or a
+    jr z, .rpt_check_game_over
+    push bc
+    ld a, (priority_text_x)
+    ld b, a
+    ld a, (priority_text_y)
+    ld c, a
+    ld hl, (priority_text_ptr)
+    call DrawGlyphString
+    pop bc
+
+.rpt_check_game_over:
+    ;; 2. Check Game Over banner (Phase 0)
+    ld a, (game_over)
+    or a
+    jr z, .rpt_check_stage_clear
+    ld a, (game_over_phase)
+    or a
+    jr nz, .rpt_check_stage_clear
+    call DrawGameOverText
+    ret
+
+.rpt_check_stage_clear:
+    ;; 3. Check Stage Clear / Stage Banner ("STAGE X" or "CHALLENGING STAGE")
+    ld a, (stage_clear_active)
+    or a
+    jr z, .rpt_check_capture
+    ld a, (stage_clear_timer)
+    cp 51
+    jr nc, .rpt_check_capture   ; Not yet showing banner (timer > 50)
+    cp 2
+    jr c, .rpt_check_capture    ; Banner is being cleared (timer < 2)
+
+    ;; Check if current stage is Challenging Stage (already advanced at timer=50)
+    ld a, (current_stage)
+    and 3
+    cp 3
+    jr z, .rpt_draw_ch_banner
+    call DrawStageBanner
+    jr .rpt_check_capture
+
+.rpt_draw_ch_banner:
+    call DrawChallengingBanner
+
+.rpt_check_capture:
+    ;; 4. Check Fighter Captured Banner
+    ld a, (capture_delay)
+    or a
+    jr z, .rpt_check_challenging_results
+    call DrawFighterCapturedBanner
+
+.rpt_check_challenging_results:
+    ;; 5. Check Challenging Stage Results text
+    ld a, (is_challenging_stage)
+    or a
+    ret z
+    ld a, (challenging_active)
+    cp 2
+    ret nz
+    jp DrawChallengingResults
+
+;; ----------------------------------------------------------------------------
 ;; Draw2DigitsWhite - Format 2-digit number in A (0..99) at (B=X, C=Y)
 ;; ----------------------------------------------------------------------------
 Draw2DigitsWhite:
@@ -300,6 +421,9 @@ DrawGlyph:
     ld a, (hl)
     ld (de), a
     inc hl
+    inc de
+    xor a
+    ld (de), a          ; Ensure 3rd gap byte is black, masking underlying sprites
     dec c
     jr nz, .g_line
     pop bc
@@ -397,10 +521,11 @@ DrawStageHUD:
     ld a, (stage_tens)
     or a
     jr z, .chk_fives
-    ld d, a
 .loop_tens:
-    push de
     ld a, (badge_draw_x)
+    cp 54
+    jr c, .chk_fives
+    push de
     ld b, a
     ld c, BADGES_Y
     ld hl, flag_10
@@ -419,8 +544,10 @@ DrawStageHUD:
     jr z, .chk_ones
     ld d, a
 .loop_fives:
-    push de
     ld a, (badge_draw_x)
+    cp 54
+    jr c, .chk_ones
+    push de
     ld b, a
     ld c, BADGES_Y + 1
     ld hl, flag_5
@@ -439,8 +566,10 @@ DrawStageHUD:
     ret z
     ld d, a
 .loop_ones:
-    push de
     ld a, (badge_draw_x)
+    cp 54
+    ret c
+    push de
     ld b, a
     ld c, BADGES_Y + 1
     ld hl, flag_1
@@ -754,13 +883,13 @@ f_w_H:
     defb #AA, #55
     defb #00, #00
 f_w_I:
+    defb #FF, #FF
     defb #55, #AA
-    defb #00, #AA
-    defb #00, #AA
-    defb #00, #AA
-    defb #00, #AA
-    defb #00, #AA
     defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #FF, #FF
     defb #00, #00
 f_w_J:
     defb #00, #00
@@ -1053,13 +1182,13 @@ f_r_H:
     defb #08, #04
     defb #00, #00
 f_r_I:
+    defb #0C, #0C
     defb #04, #08
-    defb #00, #08
-    defb #00, #08
-    defb #00, #08
-    defb #00, #08
-    defb #00, #08
     defb #04, #08
+    defb #04, #08
+    defb #04, #08
+    defb #04, #08
+    defb #0C, #0C
     defb #00, #00
 f_r_J:
     defb #00, #00
@@ -1352,13 +1481,13 @@ f_c_H:
     defb #20, #10
     defb #00, #00
 f_c_I:
+    defb #30, #30
     defb #10, #20
-    defb #00, #20
-    defb #00, #20
-    defb #00, #20
-    defb #00, #20
-    defb #00, #20
     defb #10, #20
+    defb #10, #20
+    defb #10, #20
+    defb #10, #20
+    defb #30, #30
     defb #00, #00
 f_c_J:
     defb #00, #00
@@ -1468,6 +1597,15 @@ f_c_V:
     defb #10, #20
     defb #10, #20
     defb #00, #00
+f_c_Y:
+    defb #20, #10
+    defb #20, #10
+    defb #10, #20
+    defb #10, #20
+    defb #10, #20
+    defb #10, #20
+    defb #10, #20
+    defb #00, #00
 f_c_SPACE:
     defb #00, #00
     defb #00, #00
@@ -1486,3 +1624,186 @@ f_c_DOT:
     defb #10, #20
     defb #10, #20
     defb #00, #00
+f_c_DASH:
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #30, #30
+    defb #30, #30
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_w_PERCENT:
+    defb #AA, #00
+    defb #55, #55
+    defb #00, #AA
+    defb #55, #00
+    defb #AA, #55
+    defb #00, #AA
+    defb #00, #00
+    defb #00, #00
+
+;; ----------------------------------------------------------------------------
+;; DrawGlyphString - Draw null-terminated list of glyph pointers at (B=X, C=Y)
+;; ----------------------------------------------------------------------------
+DrawGlyphString:
+.dgs_loop:
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld a, d
+    or e
+    ret z
+    push hl
+    push de
+    pop hl              ; HL = glyph address
+    call DrawGlyph
+    pop hl
+    ld a, b
+    add a, 3            ; X advance
+    ld b, a
+    jr .dgs_loop
+
+;; ----------------------------------------------------------------------------
+;; DrawResultsScreen - Display authentic Galaga end-of-game statistics
+;; ----------------------------------------------------------------------------
+DrawResultsScreen:
+    ;; 1. Header "- RESULTS -" at X=30, Y=70
+    ld b, 30 : ld c, 70
+    ld hl, str_results_header
+    call DrawGlyphString
+
+    ;; 2. "SHOTS FIRED" at X=16, Y=94
+    ld b, 16 : ld c, 94
+    ld hl, str_shots_fired
+    call DrawGlyphString
+
+    ;; Number of shots fired in White at X=55, Y=94
+    ld hl, (shots_fired)
+    ld b, 55 : ld c, 94
+    call Print5Digits
+
+    ;; 3. "NUMBER OF HITS" at X=16, Y=114
+    ld b, 16 : ld c, 114
+    ld hl, str_number_of_hits
+    call DrawGlyphString
+
+    ;; Number of hits in White at X=55, Y=114
+    ld hl, (shots_hit)
+    ld b, 55 : ld c, 114
+    call Print5Digits
+
+    ;; 4. "HIT-MISS RATIO" at X=16, Y=134
+    ld b, 16 : ld c, 134
+    ld hl, str_hit_miss_ratio
+    call DrawGlyphString
+
+    ;; Ratio percentage in White at X=58, Y=134
+    call CalcHitMissRatio
+    ld b, 58 : ld c, 134
+    call Draw2DigitsWhite
+    ld b, 64 : ld c, 134
+    ld hl, f_w_PERCENT
+    call DrawGlyph
+
+    ;; 5. "2026 REVIVE8BIT" at X=25, Y=160
+    ld b, 25 : ld c, 160
+    ld hl, str_revive8bit_copyright
+    call DrawGlyphString
+    ret
+
+ClearResultsScreen:
+    ld b, 14 : ld c, 70 : ld d, 66 : call ClearTextRect
+    ld b, 14 : ld c, 94 : ld d, 66 : call ClearTextRect
+    ld b, 14 : ld c, 114 : ld d, 66 : call ClearTextRect
+    ld b, 14 : ld c, 134 : ld d, 66 : call ClearTextRect
+    ld b, 14 : ld c, 160 : ld d, 66 : call ClearTextRect
+    ret
+
+CalcHitMissRatio:
+    ld hl, (shots_fired)
+    ld a, h
+    or l
+    ret z                   ; if shots_fired == 0 -> return A=0
+
+    ld bc, (shots_hit)
+    ld a, c
+    or b
+    ret z                   ; if shots_hit == 0 -> return A=0
+
+    ;; HL = shots_hit * 100
+    ld hl, 0
+    ld d, b
+    ld e, c
+    ld b, 100
+.chmr_mloop:
+    add hl, de
+    djnz .chmr_mloop
+
+    ;; Divide HL by DE (shots_fired) to get percentage (0..100)
+    ld de, (shots_fired)
+    ld c, 0
+.chmr_dloop:
+    or a
+    sbc hl, de
+    jr c, .chmr_done
+    inc c
+    ld a, c
+    cp 100
+    jr c, .chmr_dloop
+    ld c, 100
+.chmr_done:
+    ld a, c
+    ret
+
+;; String Tables for Galaga Authentic Screens
+str_results_header:
+    defw f_c_DASH, f_c_SPACE, f_c_R, f_c_E, f_c_S, f_c_U, f_c_L, f_c_T, f_c_S, f_c_SPACE, f_c_DASH, 0
+
+str_shots_fired:
+    defw f_c_S, f_c_H, f_c_O, f_c_T, f_c_S, f_c_SPACE, f_c_F, f_c_I, f_c_R, f_c_E, f_c_D, 0
+
+str_number_of_hits:
+    defw f_c_N, f_c_U, f_c_M, f_c_B, f_c_E, f_c_R, f_c_SPACE, f_c_O, f_c_F, f_c_SPACE, f_c_H, f_c_I, f_c_T, f_c_S, 0
+
+str_hit_miss_ratio:
+    defw f_c_H, f_c_I, f_c_T, f_c_DASH, f_c_M, f_c_I, f_c_S, f_c_S, f_c_SPACE, f_c_R, f_c_A, f_c_T, f_c_I, f_c_O, 0
+
+str_special_10000:
+    defw f_c_S, f_c_P, f_c_E, f_c_C, f_c_I, f_c_A, f_c_L, f_c_SPACE, f_w_1, f_w_0, f_w_0, f_w_0, f_w_0, f_c_SPACE, f_c_P, f_c_T, f_c_S, 0
+
+str_bonus_label:
+    defw f_c_B, f_c_O, f_c_N, f_c_U, f_c_S, f_c_SPACE, 0
+
+str_pts_label:
+    defw f_c_SPACE, f_c_P, f_c_T, f_c_S, 0
+
+str_revive8bit_copyright:
+    defw f_c_2, f_c_0, f_c_2, f_c_6, f_c_SPACE
+    defw f_c_R, f_c_E, f_c_V, f_c_I, f_c_V, f_c_E, f_c_8, f_c_B, f_c_I, f_c_T, 0
+
+;; Title Screen Strings
+str_title_prompt:
+    defw f_c_P, f_c_U, f_c_S, f_c_H, f_c_SPACE, f_c_F, f_c_I, f_c_R, f_c_E, f_c_SPACE, f_c_B, f_c_U, f_c_T, f_c_T, f_c_O, f_c_N, 0
+
+str_title_points_hdr:
+    defw f_c_DASH, f_c_SPACE, f_c_P, f_c_O, f_c_I, f_c_N, f_c_T, f_c_SPACE, f_c_V, f_c_A, f_c_L, f_c_U, f_c_E, f_c_S, f_c_SPACE, f_c_DASH, 0
+
+str_pts_50_100:
+    defw f_w_5, f_w_0, f_c_SPACE, f_c_P, f_c_T, f_c_S, f_c_SPACE, f_c_SPACE, f_c_SPACE, f_w_1, f_w_0, f_w_0, f_c_SPACE, f_c_P, f_c_T, f_c_S, 0
+
+str_pts_80_160:
+    defw f_w_8, f_w_0, f_c_SPACE, f_c_P, f_c_T, f_c_S, f_c_SPACE, f_c_SPACE, f_c_SPACE, f_w_1, f_w_6, f_w_0, f_c_SPACE, f_c_P, f_c_T, f_c_S, 0
+
+str_pts_150_400:
+    defw f_w_1, f_w_5, f_w_0, f_c_SPACE, f_c_P, f_c_T, f_c_S, f_c_SPACE, f_c_SPACE, f_w_4, f_w_0, f_w_0, f_c_SPACE, f_c_P, f_c_T, f_c_S, 0
+
+str_revive8bit_footer:
+    defw f_c_R, f_c_E, f_c_V, f_c_I, f_c_V, f_c_E, f_c_8, f_c_B, f_c_I, f_c_T
+    defw f_c_SPACE, f_c_DASH, f_c_SPACE
+    defw f_c_2, f_c_0, f_c_2, f_c_6
+    defw f_c_SPACE, f_c_DASH, f_c_SPACE
+    defw f_c_V, f_c_A, f_c_S, f_c_P, f_c_E, f_c_R
+    defw 0
+

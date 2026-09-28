@@ -7,7 +7,7 @@ REM Delete old DSK to ensure a 100% clean image with no leftover dummy files
 if exist build\galaga.dsk del /f /q build\galaga.dsk
 
 REM Assemble the source code using rasm
-"%TOOLS_PATH%\rasm_w64.exe" src\main.asm -eo -o build\galaga
+"%TOOLS_PATH%\rasm_w64.exe" src\main.asm -eo -s -o build\galaga
 
 REM Check for compilation errors
 if %ERRORLEVEL% NEQ 0 (

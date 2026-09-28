@@ -4,7 +4,7 @@
 ;; Based on LoukoumasCPC overscan architecture
 ;; ============================================================================
 
-    org #4000
+    org #2000
 
     include "config.asm"
     include "constants.asm"
@@ -27,33 +27,24 @@ start:
     ld hl, pal_play
     call set_pal
 
-    ;; 5. Clear 32KB overscan buffer to black
-    call ClearScreenOverscan
-
-    ;; 6. Initialize AY-3-8912 PSG Sound Driver
+    ;; 5. Initialize AY-3-8912 PSG Sound Driver
     call SoundInit
 
-    ;; 7. Initialize HUD (Upper border scores, Lower border lives & badges)
-    call InitHUD
-    call DrawLivesHUD
-    call DrawStageHUD
-
-    ;; 8. Draw initial authentic player ship
-    ld a, (player_x)
-    ld b, a
-    ld a, (player_y)
-    ld c, a
-    ld hl, player_sprite
-    call DrawSprite16x16
-    ld a, (player_x)
-    ld (old_player_x), a
-
-    ;; 9. Initialize enemy formation (10 enemies)
-    call InitEnemies
+    ;; 6. Jump to Title Screen & Attract Mode!
+    jp ShowTitleScreen
 
 GameLoop:
     ;; Wait for VSYNC (50Hz hardware flyback via PPI)
     call WaitVSync
+
+    ;; --- TOP OF FRAME / VBLANK ZONE (Raster is at Y=0..32) ---
+    ;; Update Enemies FIRST while raster is scanning upper border / HUD!
+    ;; Enemies are at Y=36..150, so updating them here guarantees all
+    ;; enemy drawing finishes before the electron beam reaches Y=36!
+    call UpdateEnemies
+
+    ;; Check Collisions immediately after enemy movement
+    call CheckCollisions
 
     ;; Moving Starfield Background
     call UpdateStars
@@ -66,20 +57,14 @@ GameLoop:
     ;; Read Keyboard/Joystick input (Left, Right, Fire)
     call ReadInput
 
-    ;; Update Player Ship
-    call UpdatePlayer
-
     ;; Update Player Missiles
     call UpdateMissiles
 
     ;; Update Enemy Bullets
     call UpdateEBullets
 
-    ;; Update Enemy Formation & Dive-bombing
-    call UpdateEnemies
-
-    ;; Check Collisions (Missile vs Enemy, EBullet vs Player, Enemy vs Player)
-    call CheckCollisions
+    ;; Update Player Ship (at Y=DEFAULT_PLAYER_Y, bottom of screen)
+    call UpdatePlayer
 
     ;; Update Explosions
     call UpdateExplosions
@@ -90,6 +75,9 @@ GameLoop:
     ;; Check Stage Progression & Wave Clearing
     call UpdateStageProgression
 
+    ;; Refresh any active text/banners so letters always have priority over sprites
+    call RefreshPriorityText
+
     jp GameLoop
 
 ;; ----------------------------------------------------------------------------
@@ -99,7 +87,27 @@ HandleGameOver:
     call WaitVSync
     call SoundUpdate
     call UpdateExplosions
+    call RefreshPriorityText
 
+    ld a, (game_over_phase)
+    or a
+    jr nz, .results_phase
+
+    ;; Phase 0: "GAME OVER" banner displayed
+    ld a, (game_over_timer)
+    inc a
+    ld (game_over_timer), a
+    cp 85                   ; ~1.7 seconds
+    jr c, .check_restart_key
+
+    ;; Transition to Phase 1: Authentic Results Screen!
+    ld a, 1
+    ld (game_over_phase), a
+    call ClearGameOverText
+    call DrawResultsScreen
+    jp GameLoop
+
+.results_phase:
     ;; Debounce delay (~1.5s = 75 frames at 50Hz) before accepting restart
     ld a, (restart_debounce)
     cp 75
@@ -114,8 +122,7 @@ HandleGameOver:
     bit CTL_FIRE, a
     jp z, GameLoop
 
-    call RestartGame
-    jp GameLoop
+    jp ShowTitleScreen
 
 ;; ----------------------------------------------------------------------------
 ;; RestartGame: Reset game state and start fresh game
@@ -125,9 +132,15 @@ RestartGame:
     xor a
     ld (game_over), a
     ld (restart_debounce), a
+    ld (game_over_timer), a
+    ld (game_over_phase), a
+    ld (enemy_fire_freeze), a
+    ld (transform_killed), a
     ld (fire_button_state), a
     ld (stage_clear_active), a
     ld (stage_clear_timer), a
+    ld (priority_text_active), a
+    ld (player_invincible_timer), a
     ld (is_dual_fighter), a
     ld (extra_life_awarded), a
     ld (tractor_beam_active), a
@@ -136,6 +149,13 @@ RestartGame:
     ld (captured_old_x), a
     ld (is_challenging_stage), a
     ld (challenging_active), a
+    ld (stage_phase), a
+    ld (entry_spawn_idx), a
+    ld (entry_spawn_timer), a
+
+    ld hl, 0
+    ld (shots_fired), hl
+    ld (shots_hit), hl
 
     ld a, 3
     ld (player_lives), a
@@ -154,7 +174,7 @@ RestartGame:
     ld a, 44
     ld (player_x), a
     ld (old_player_x), a
-    ld a, 210
+    ld a, DEFAULT_PLAYER_Y
     ld (player_y), a
     ld (old_player_y), a
 
@@ -187,15 +207,28 @@ RestartGame:
 
     ;; Draw Player Ship
     ld b, 44
-    ld c, 210
+    ld c, DEFAULT_PLAYER_Y
     ld hl, player_sprite
     call DrawSprite16x16
 
     ;; Reset Sound
     call SoundInit
 
+    ;; Play authentic Game Start Tune from assets/game-start-tune.mid
+    call PlayMusicGameStart
+
     ;; Reset and draw enemy formation
     call InitEnemies
+
+    ;; Setup Stage 1 Intro sequence:
+    ;; 1. Display "STAGE 1" for at least 2 seconds (105 frames = ~2.1s at 50Hz)
+    ;; 2. Followed by "PLAYER 1" for 1 second (50 frames at 50Hz)
+    ;; 3. Intro music plays continuously in background
+    ld a, 1
+    ld (stage_intro_state), a
+    ld a, 105
+    ld (stage_intro_timer), a
+    call DrawStageBanner
     ret
 
 ;; ----------------------------------------------------------------------------
@@ -216,6 +249,7 @@ RestartGame:
     include "stars.asm"
     include "sound.asm"
     include "stages.asm"
+    include "title.asm"
     include "data.asm"
     include "sprites.asm"
 
@@ -223,4 +257,4 @@ RestartGame:
 ;; Export to DSK Virtual Disk
 ;; ----------------------------------------------------------------------------
 end_program:
-    save "GALAGA.BIN", #4000, end_program-#4000, DSK, "build/galaga.dsk", start
+    save "GALAGA.BIN", #2000, end_program-#2000, DSK, "build/galaga.dsk", start

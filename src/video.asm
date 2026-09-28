@@ -185,3 +185,61 @@ ClearSprite16x16:
     pop bc
     pop ix
     ret
+
+;; ---------------------------------------------------------------------------
+;; DrawBitmapRect: Draw bitmap of D bytes wide x E scanlines high from HL to (B=X, C=Y)
+;; Input:  B = X (0..95)
+;;         C = Y (0..271)
+;;         D = Width in bytes (1..96)
+;;         E = Height in scanlines (1..272)
+;;         HL = Pointer to bitmap data
+;; Preserves: IX, IY, BC
+;; ---------------------------------------------------------------------------
+DrawBitmapRect:
+    push ix
+    push bc
+    ld a, e
+    ld (.dbr_lines), a
+    ld a, d
+    ld (.dbr_width), a
+
+    ld e, c
+    ld d, 0
+    sla e
+    rl d                        ; DE = Y * 2 (16-bit safe)
+    ld ix, line_tab
+    add ix, de                  ; IX = pointer to line_tab[Y]
+
+.dbr_row:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b
+    add a, e
+    ld e, a
+    jr nc, .dbr_nc
+    inc d
+.dbr_nc:
+    push bc
+    ld a, (.dbr_width)
+    ld b, a
+.dbr_col:
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    djnz .dbr_col
+    pop bc
+
+    ld a, (.dbr_lines)
+    dec a
+    ld (.dbr_lines), a
+    jr nz, .dbr_row
+
+    pop bc
+    pop ix
+    ret
+
+.dbr_lines: defb 0
+.dbr_width: defb 0

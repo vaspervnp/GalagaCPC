@@ -16,19 +16,42 @@ sfx_exp_vol:        defb 0
 
 sfx_dive_timer:     defb 0
 sfx_dive_pitch:     defb 0
+sfx_dive_type:      defb 0  ; 0 = Flying enemy dive warble, 1 = Tractor pulse
 
 sfx_jingle_timer:   defb 0
 sfx_jingle_step:    defb 0
+
+;; Stage Background Drone State (Channel C)
+drone_active:       defb 0  ; 0 = inactive, 1 = active
+drone_step:         defb 0  ; Current note in pattern (0..3)
+drone_timer:        defb 0  ; Countdown for current step
+drone_step_len:     defb 12 ; Length of step in frames (based on remaining enemies)
+
+drone_pitches:
+    defb #53, #03   ; Note 0: D2 (73.4 Hz, period 851)
+    defb #CC, #02   ; Note 1: F2 (87.3 Hz, period 716)
+    defb #7E, #02   ; Note 2: G2 (98.0 Hz, period 638)
+    defb #CC, #02   ; Note 3: F2 (87.3 Hz, period 716)
+
+;; 3-Voice Polyphonic Music Engine (Game Start Tune from assets/game-start-tune.mid)
+music_playing:      defb 0
+music_ptr:          defw 0
+music_step_timer:   defb 0
 
 ;; ----------------------------------------------------------------------------
 ;; SoundInit: Silence all 3 AY channels and reset sound state
 ;; ----------------------------------------------------------------------------
 SoundInit:
     xor a
+    ld (music_playing), a
+    ld (music_step_timer), a
     ld (sfx_shot_timer), a
     ld (sfx_exp_timer), a
     ld (sfx_dive_timer), a
     ld (sfx_jingle_timer), a
+    ld (drone_active), a
+    ld (drone_timer), a
+    ld (drone_step), a
 
 
     ;; Set Reg 8, 9, 10 (Volumes) to 0
@@ -87,9 +110,10 @@ PlaySoundExplosion:
     ld e, 22
     call WriteAY
 
-    ;; Enable Noise on Channel C (Bit 5 of Reg 7 = 0)
+    ;; Enable Noise on Channel C (Bit 5 = 0), disable Tone on Channel C (Bit 2 = 1)
     ld a, (ay_mixer_val)
-    and %11011111
+    and %11011111           ; Bit 5 = 0 (Noise C enabled)
+    or  %00000100           ; Bit 2 = 1 (Tone C disabled during explosion)
     ld (ay_mixer_val), a
     ld e, a
     ld a, 7
@@ -102,13 +126,14 @@ PlaySoundExplosion:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; PlaySoundDive: Alien Dive-bombing Warble (Channel B)
+;; PlaySoundDive: Authentic Galaga Flying Enemy Warble (Channel B)
+;; (Transcribed directly from assets/dive.wav)
 ;; ----------------------------------------------------------------------------
 PlaySoundDive:
-    ld a, 18                ; 18 frames duration
+    xor a
+    ld (sfx_dive_type), a
+    ld a, 80                ; 80 frames duration (~1.6 seconds)
     ld (sfx_dive_timer), a
-    ld a, 120
-    ld (sfx_dive_pitch), a
 
     ;; Enable Tone on Channel B (Bit 1 of Reg 7 = 0)
     ld a, (ay_mixer_val)
@@ -118,9 +143,9 @@ PlaySoundDive:
     ld a, 7
     call WriteAY
 
-    ;; Channel B Volume = 11
+    ;; Channel B Volume = 12
     ld a, 9
-    ld e, 11
+    ld e, 12
     call WriteAY
     ret
 
@@ -128,6 +153,8 @@ PlaySoundDive:
 ;; PlaySoundTractor: Tractor Beam Pulsing Tone (Channel B)
 ;; ----------------------------------------------------------------------------
 PlaySoundTractor:
+    ld a, 1
+    ld (sfx_dive_type), a
     ld a, 8
     ld (sfx_dive_timer), a
     ld a, 90
@@ -167,8 +194,9 @@ PlaySoundRescue:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; PlaySoundExtraLife: High Ascending Fanfare (Channel A)
+;; PlaySoundExtraLife / PlaySoundStageStart: High Ascending Fanfare (Channel A)
 ;; ----------------------------------------------------------------------------
+PlaySoundStageStart:
 PlaySoundExtraLife:
     ld a, 40
     ld (sfx_jingle_timer), a
@@ -212,7 +240,16 @@ PlaySoundGameOver:
 ;; SoundUpdate: Called once per frame (50Hz) to advance envelopes and pitch
 ;; ----------------------------------------------------------------------------
 SoundUpdate:
-    ;; --- 0. Update Jingle / Fanfare (Channel A) ---
+    ;; --- 0. Update Background Music (Game Start Tune) ---
+    ld a, (music_playing)
+    or a
+    jr z, .no_music
+
+    call UpdateMusicPlayer
+    ret
+
+.no_music:
+    ;; --- 1. Update Jingle / Fanfare (Channel A) ---
     ld a, (sfx_jingle_timer)
     or a
     jr z, .check_shot
@@ -342,7 +379,7 @@ SoundUpdate:
     ;; --- 3. Update Dive Warble (Channel B) ---
     ld a, (sfx_dive_timer)
     or a
-    ret z
+    jr z, .check_drone
 
     dec a
     ld (sfx_dive_timer), a
@@ -358,24 +395,245 @@ SoundUpdate:
     ld e, a
     ld a, 7
     call WriteAY
-    ret
+    jr .check_drone
 
 .dive_continue:
-    ;; Warble pitch back and forth
-    and 3
-    cp 2
-    jr c, .dive_pitch_low
-    ld a, 110
-    jr .dive_apply_pitch
-.dive_pitch_low:
-    ld a, 160
+    ld a, (sfx_dive_type)
+    or a
+    jr nz, .tractor_sound_update
+
+    ;; --- Authentic Galaga Flying Enemy Dive Warble (from assets/dive.wav) ---
+    ;; Elapsed frames = 80 - sfx_dive_timer (0..79)
+    ld a, 80
+    ld hl, sfx_dive_timer
+    sub (hl)
+    ld c, a                 ; C = elapsed frames (0..79)
+
+    ;; Base pitch = 50 + C + (C/2) -> glides smoothly from 50 to 168
+    srl a                   ; C / 2
+    add a, c                ; 1.5 * C
+    add a, 50               ; A = base period (50..168)
+    ld c, a
+
+    ;; Octave warble: alternate every 2 frames
+    ld a, (sfx_dive_timer)
+    bit 1, a
+    jr z, .dive_apply_pitch
+    srl c                   ; High octave: C = base / 2 (25..84)
+
 .dive_apply_pitch:
-    ld (sfx_dive_pitch), a
-    ld e, a
+    ld e, c
     ld a, 2                 ; Reg 2: Channel B Fine Pitch
     call WriteAY
-    ld a, 3                 ; Reg 3: Channel B Coarse Pitch = 0
     ld e, 0
+    ld a, 3                 ; Reg 3: Channel B Coarse Pitch = 0
+    call WriteAY
+    jr .check_drone
+
+.tractor_sound_update:
+    ;; Tractor pulsing sound (alternating pitch)
+    ld a, (sfx_dive_timer)
+    and 3
+    cp 2
+    ld e, 90
+    jr c, .apply_tractor_pitch
+    ld e, 120
+.apply_tractor_pitch:
+    ld a, 2
+    call WriteAY
+    ld a, 3
+    ld e, 0
+    call WriteAY
+    jr .check_drone
+
+.check_drone:
+    ;; --- 4. Update Stage Background Drone / Hum (Channel C) ---
+    call UpdateDrone
+    ret
+
+;; ----------------------------------------------------------------------------
+;; UpdateDrone: Authentic Galaga Stage Background Drone / Hum (Channel C)
+;; Plays the classic 4-note bass motif (D2 -> F2 -> G2 -> F2)
+;; Dynamically accelerates as enemies are destroyed!
+;; ----------------------------------------------------------------------------
+UpdateDrone:
+    ;; 1. Check if Drone should be silent
+    ld a, (is_title_screen)
+    or a
+    jp nz, .silence_drone
+
+    ld a, (game_over)
+    or a
+    jp nz, .silence_drone
+
+    ld a, (stage_intro_state)
+    or a
+    jp nz, .silence_drone
+
+    ld a, (is_challenging_stage)
+    or a
+    jp nz, .silence_drone
+
+    ld a, (stage_clear_active)
+    or a
+    jp nz, .silence_drone
+
+    ld a, (stage_phase)
+    cp STAGE_PHASE_ATTACK
+    jp nz, .silence_drone
+
+    ;; Combat attack phase is active!
+    ld a, 1
+    ld (drone_active), a
+
+    ;; If an explosion is currently playing on Channel C, advance timer in background
+    ld a, (sfx_exp_timer)
+    or a
+    jp nz, .drone_exp_playing
+
+    ;; Decrement step timer
+    ld a, (drone_timer)
+    or a
+    jr z, .drone_next_step
+    dec a
+    ld (drone_timer), a
+
+    ;; Check staccato feel: mute in last frame of step for punchy note separation
+    cp 1
+    jr nz, .drone_apply_hardware
+
+    ld a, 10                ; Reg 10: Volume C = 0 for 1 frame
+    ld e, 0
+    call WriteAY
+    ret
+
+.drone_next_step:
+    ;; Advance to next note in 4-note motif (0..3)
+    ld a, (drone_step)
+    inc a
+    and 3
+    ld (drone_step), a
+
+    ;; If wrapped to 0 (new phrase), recalculate tempo based on remaining enemies!
+    or a
+    jr nz, .drone_step_tempo_ready
+
+    ;; Count alive enemies (1..20)
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+    ld c, 0
+.cnt_alive_loop:
+    ld a, (ix+0)
+    or a
+    jr z, .cnt_next
+    inc c
+.cnt_next:
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .cnt_alive_loop
+
+    ;; If no enemies left, silence
+    ld a, c
+    or a
+    jp z, .silence_drone
+
+    ;; Tempo scaling based on alive enemies count C:
+    ;; C >= 15: 12 frames (~0.96s per 4-note motif)
+    ;; 10 <= C < 15: 9 frames (~0.72s)
+    ;; 5 <= C < 10: 6 frames (~0.48s)
+    ;; C < 5: 4 frames (~0.32s rapid intense pulse!)
+    cp 15
+    ld a, 12
+    jr nc, .set_step_len
+    ld a, c
+    cp 10
+    ld a, 9
+    jr nc, .set_step_len
+    ld a, c
+    cp 5
+    ld a, 6
+    jr nc, .set_step_len
+    ld a, 4
+.set_step_len:
+    ld (drone_step_len), a
+
+.drone_step_tempo_ready:
+    ld a, (drone_step_len)
+    ld (drone_timer), a
+
+.drone_apply_hardware:
+    ;; If explosion is playing on Channel C, do not touch registers
+    ld a, (sfx_exp_timer)
+    or a
+    ret nz
+
+    ;; Enable Tone on Channel C (Bit 2 = 0) and disable Noise on Channel C (Bit 5 = 1)
+    ld a, (ay_mixer_val)
+    and %11111011           ; Bit 2 = 0 (Tone C enabled)
+    or  %00100000           ; Bit 5 = 1 (Noise C disabled)
+    ld (ay_mixer_val), a
+    ld e, a
+    ld a, 7
+    call WriteAY
+
+    ;; Fetch pitch for current drone_step
+    ld a, (drone_step)
+    add a, a                ; 2 bytes per pitch
+    ld e, a
+    ld d, 0
+    ld hl, drone_pitches
+    add hl, de
+
+    ;; Channel C Fine Pitch (Reg 4)
+    ld a, 4
+    ld e, (hl)
+    call WriteAY
+    inc hl
+
+    ;; Channel C Coarse Pitch (Reg 5)
+    ld a, 5
+    ld e, (hl)
+    call WriteAY
+
+    ;; Channel C Volume (Reg 10) = 8 (warm, rhythmic ambient bass)
+    ld a, 10
+    ld e, 8
+    call WriteAY
+    ret
+
+.drone_exp_playing:
+    ;; Advance timer in background so musical tempo stays synchronized
+    ld a, (drone_timer)
+    or a
+    jp z, .drone_next_step
+    dec a
+    ld (drone_timer), a
+    ret
+
+.silence_drone:
+    ld a, (drone_active)
+    or a
+    ret z                   ; Already silent
+
+    xor a
+    ld (drone_active), a
+    ld (drone_timer), a
+    ld (drone_step), a
+
+    ;; If explosion is playing, let explosion handle Channel C
+    ld a, (sfx_exp_timer)
+    or a
+    ret nz
+
+    ;; Silence Channel C Tone
+    ld a, 10
+    ld e, 0
+    call WriteAY
+    ld a, (ay_mixer_val)
+    or %00000100           ; Disable Tone C (Bit 2 = 1)
+    ld (ay_mixer_val), a
+    ld e, a
+    ld a, 7
     call WriteAY
     ret
 
@@ -426,3 +684,168 @@ WriteAY:
     pop af
     pop bc
     ret
+
+;; ============================================================================
+;; 3-Voice Polyphonic Music Player (Galaga Game Start Tune)
+;; ============================================================================
+
+;; ----------------------------------------------------------------------------
+;; PlayMusicGameStart: Start authentic 3-voice Galaga Game Start Tune
+;; (Transcribed from assets/game-start-tune.mid)
+;; ----------------------------------------------------------------------------
+PlayMusicGameStart:
+    ld hl, game_start_tune_data
+    jr PlayMusicFromHL
+
+;; ----------------------------------------------------------------------------
+;; PlayMusicChallengingStart: Start 3-voice Challenging Stage Intro Fanfare
+;; (Transcribed from assets/challenging_stage_start.wav)
+;; ----------------------------------------------------------------------------
+PlayMusicChallengingStart:
+    ld hl, challenging_start_tune_data
+    jr PlayMusicFromHL
+
+;; ----------------------------------------------------------------------------
+;; PlayMusicChallengingResults: Start 3-voice Challenging Stage Results Theme
+;; (Transcribed from assets/challenging_stage_results.wav)
+;; ----------------------------------------------------------------------------
+PlayMusicChallengingResults:
+    ld hl, challenging_results_tune_data
+    jr PlayMusicFromHL
+
+;; ----------------------------------------------------------------------------
+;; PlayMusicChallengingPerfect: Start 3-voice Challenging Stage Perfect Fanfare
+;; (Transcribed from assets/challenging_stage_perfect.wav)
+;; ----------------------------------------------------------------------------
+PlayMusicChallengingPerfect:
+    ld hl, challenging_perfect_tune_data
+    jr PlayMusicFromHL
+
+;; ----------------------------------------------------------------------------
+;; PlayMusicFromHL: Generic 3-Voice Music Starter from (HL)
+;; ----------------------------------------------------------------------------
+PlayMusicFromHL:
+    ;; Stop any running SFX
+    xor a
+    ld (sfx_shot_timer), a
+    ld (sfx_exp_timer), a
+    ld (sfx_dive_timer), a
+    ld (sfx_jingle_timer), a
+
+    ld a, 1
+    ld (music_playing), a
+    ld (music_step_timer), a    ; Step 0 triggers on next frame
+    ld (music_ptr), hl
+
+    ;; Set AY Mixer: Enable Tone on Channels A, B, C (bits 0, 1, 2 = 0)
+    ;; Disable Noise on all channels (bits 3, 4, 5 = 1) -> #38
+    ld a, #38
+    ld (ay_mixer_val), a
+    ld e, #38
+    ld a, 7
+    call WriteAY
+    ret
+
+;; ----------------------------------------------------------------------------
+;; StopMusic: Stop background music and silence all 3 channels
+;; ----------------------------------------------------------------------------
+StopMusic:
+    xor a
+    ld (music_playing), a
+    ld (music_step_timer), a
+
+    ;; Silence Volumes for Channels A, B, C
+    ld a, 8 : ld e, 0 : call WriteAY
+    ld a, 9 : ld e, 0 : call WriteAY
+    ld a, 10 : ld e, 0 : call WriteAY
+
+    ;; Disable all Tones and Noise (#3F)
+    ld a, #3F
+    ld (ay_mixer_val), a
+    ld e, #3F
+    ld a, 7
+    call WriteAY
+    ret
+
+;; ----------------------------------------------------------------------------
+;; UpdateMusicPlayer: Advance 3-channel music playback every frame (50Hz)
+;; ----------------------------------------------------------------------------
+UpdateMusicPlayer:
+    ld a, (music_step_timer)
+    dec a
+    ld (music_step_timer), a
+    jr z, .next_music_step
+
+    ;; Check staccato cutoff on the very last frame of each note
+    cp 1
+    ret nz
+
+    ;; 1-frame staccato articulation: silence volumes between notes
+    ld a, 8 : ld e, 0 : call WriteAY
+    ld a, 9 : ld e, 0 : call WriteAY
+    ld a, 10 : ld e, 0 : call WriteAY
+    ret
+
+.next_music_step:
+    ld hl, (music_ptr)
+    ld a, (hl)                  ; Duration byte
+    or a
+    jp z, StopMusic             ; 0 = End of song!
+
+    ld (music_step_timer), a
+    inc hl
+
+    ;; Channel A Period (Reg 0 = fine, Reg 1 = coarse)
+    ld e, (hl) : inc hl
+    ld d, (hl) : inc hl
+    ld a, e
+    or d
+    jr z, .music_step_rest      ; If Period A == 0, this step is a REST!
+
+    ld a, 0 : call WriteAY
+    ld e, d
+    ld a, 1 : call WriteAY
+
+    ;; Channel B Period (Reg 2 = fine, Reg 3 = coarse)
+    ld e, (hl) : inc hl
+    ld a, 2 : call WriteAY
+    ld e, (hl) : inc hl
+    ld a, 3 : call WriteAY
+
+    ;; Channel C Period (Reg 4 = fine, Reg 5 = coarse)
+    ld e, (hl) : inc hl
+    ld a, 4 : call WriteAY
+    ld e, (hl) : inc hl
+    ld a, 5 : call WriteAY
+
+    ;; Save updated music_ptr for next step
+    ld (music_ptr), hl
+
+    ;; Restore Tone mixer settings (#38 = Tone A, B, C enabled)
+    ld a, (ay_mixer_val)
+    and %11111000
+    ld (ay_mixer_val), a
+    ld e, a
+    ld a, 7
+    call WriteAY
+
+    ;; Set Channel Volumes (Lead=13, Harmony=10, Bass=13)
+    ld a, 8 : ld e, 13 : call WriteAY
+    ld a, 9 : ld e, 10 : call WriteAY
+    ld a, 10 : ld e, 13 : call WriteAY
+    ret
+
+.music_step_rest:
+    inc hl                      ; Skip Reg 2
+    inc hl                      ; Skip Reg 3
+    inc hl                      ; Skip Reg 4
+    inc hl                      ; Skip Reg 5
+    ld (music_ptr), hl
+
+    ;; Silence Volumes for Channels A, B, C during rest
+    ld a, 8 : ld e, 0 : call WriteAY
+    ld a, 9 : ld e, 0 : call WriteAY
+    ld a, 10 : ld e, 0 : call WriteAY
+    ret
+
+    include "tune_data.asm"
