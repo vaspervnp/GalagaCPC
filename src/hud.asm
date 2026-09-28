@@ -273,11 +273,18 @@ ClearPriorityText:
 ;; Ensures text always has priority ("Τα γράμματα έχουν πάντα προτεραιότητα")
 ;; ----------------------------------------------------------------------------
 RefreshPriorityText:
-    ;; 0. Check Stage Intro State (Level 1 Intro: banners are drawn on state change)
+    ;; 0. Check Stage Intro State (Level 1 Intro)
     ld a, (stage_intro_state)
     or a
-    ret nz
-
+    jr z, .rpt_check_custom
+    cp 1
+    jr nz, .rpt_intro_2
+    call DrawStageBanner
+    jr .rpt_check_custom
+.rpt_intro_2:
+    cp 2
+    jr nz, .rpt_check_custom
+    call DrawPlayerBanner
 
 .rpt_check_custom:
     ;; 1. Check custom registered priority text

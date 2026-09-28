@@ -23,6 +23,14 @@ transform_killed:       defb 0  ; Arcade rule: count kills in transform group
 attack_cycle:           defb 0  ; Arcade attack rotation (0=Bee, 1=Butterfly, 2=Boss, 3=Bee)
 transform_trigger_cnt:  defb 0  ; Cadence counter for Transform Trios
 
+;; Floating Bonus Score Popup Variables
+bonus_score_timer:      defb 0  ; Active if > 0 (6 frames duration)
+bonus_score_x:          defb 0
+bonus_score_y:          defb 0
+bonus_score_old_x:      defb 0
+bonus_score_old_y:      defb 0
+bonus_score_ptr:        defw 0  ; Pointer to bonus score sprite
+
 shots_fired:        defw 0  ; Arcade statistics: total missiles fired
 shots_hit:          defw 0  ; Arcade statistics: total missiles that hit enemies
 

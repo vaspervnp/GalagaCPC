@@ -172,6 +172,10 @@ CheckCollisions:
     ld (captured_fighter_active), a
     call PlaySoundRescue
     call AddPoints1000
+    ld a, BONUS_1000
+    ld b, (iy+2)
+    ld c, (iy+3)
+    call TriggerBonusScore
     jp .score_done
 
 .no_held_rescue:
@@ -181,6 +185,10 @@ CheckCollisions:
     cp 4                    ; Tractor beam hover
     jr z, .boss_in_flight
     call AddPoints150
+    ld a, BONUS_150
+    ld b, (iy+2)
+    ld c, (iy+3)
+    call TriggerBonusScore
     jp .score_done
 
 .boss_in_flight:
@@ -190,13 +198,25 @@ CheckCollisions:
     cp 1
     jr z, .boss_one_escort
     call AddPoints400
-    jr .score_done
+    ld a, BONUS_400
+    ld b, (iy+2)
+    ld c, (iy+3)
+    call TriggerBonusScore
+    jp .score_done
 .boss_one_escort:
     call AddPoints800
-    jr .score_done
+    ld a, BONUS_800
+    ld b, (iy+2)
+    ld c, (iy+3)
+    call TriggerBonusScore
+    jp .score_done
 .boss_two_escorts:
     call AddPoints1600
-    jr .score_done
+    ld a, BONUS_1600
+    ld b, (iy+2)
+    ld c, (iy+3)
+    call TriggerBonusScore
+    jp .score_done
 
 .pts_sasori:
     call AddPoints160
@@ -204,12 +224,16 @@ CheckCollisions:
     inc a
     ld (transform_killed), a
     cp 3
-    jr nz, .score_done
+    jp nz, .score_done
     xor a
     ld (transform_killed), a
     call AddPoints1000
     call PlaySoundExtraLife
-    jr .score_done
+    ld a, BONUS_1000
+    ld b, (iy+2)
+    ld c, (iy+3)
+    call TriggerBonusScore
+    jp .score_done
 
 .pts_stingray:
     call AddPoints160
@@ -217,12 +241,16 @@ CheckCollisions:
     inc a
     ld (transform_killed), a
     cp 3
-    jr nz, .score_done
+    jp nz, .score_done
     xor a
     ld (transform_killed), a
     call AddPoints2000
     call PlaySoundExtraLife
-    jr .score_done
+    ld a, BONUS_2000
+    ld b, (iy+2)
+    ld c, (iy+3)
+    call TriggerBonusScore
+    jp .score_done
 
 .pts_galboss:
     call AddPoints160
@@ -230,12 +258,16 @@ CheckCollisions:
     inc a
     ld (transform_killed), a
     cp 3
-    jr nz, .score_done
+    jp nz, .score_done
     xor a
     ld (transform_killed), a
     call AddPoints3000
     call PlaySoundExtraLife
-    jr .score_done
+    ld a, BONUS_3000
+    ld b, (iy+2)
+    ld c, (iy+3)
+    call TriggerBonusScore
+    jp .score_done
 
 .score_done:
     pop de
@@ -298,6 +330,7 @@ CheckCollisions:
     ld (captured_fighter_x), a
     ld (captured_fighter_y), a
 
+    push bc
     push ix
     push de
     call SpawnExplosion
@@ -305,6 +338,9 @@ CheckCollisions:
     call AddPoints1000
     pop de
     pop ix
+    pop bc
+    ld a, BONUS_1000
+    call TriggerBonusScore
     jp .destroy_missile
 
 .next_m:

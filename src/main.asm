@@ -69,6 +69,9 @@ GameLoop:
     ;; Update Explosions
     call UpdateExplosions
 
+    ;; Update Floating Bonus Score Popups
+    call UpdateBonusScore
+
     ;; Update AY-3-8912 Sound Envelopes & Pitch
     call SoundUpdate
 
@@ -152,6 +155,7 @@ RestartGame:
     ld (stage_phase), a
     ld (entry_spawn_idx), a
     ld (entry_spawn_timer), a
+    ld (bonus_score_timer), a
 
     ld hl, 0
     ld (shots_fired), hl
@@ -247,6 +251,7 @@ RestartGame:
     include "collisions.asm"
     include "explosions.asm"
     include "stars.asm"
+    include "bonus_score.asm"
     include "sound.asm"
     include "stages.asm"
     include "title.asm"
