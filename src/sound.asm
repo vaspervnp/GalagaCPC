@@ -51,6 +51,7 @@ drone_pitches:
 music_playing:      defb 0
 music_ptr:          defw 0
 music_step_timer:   defb 0
+entry_music_catchup: defb 0
 
 ;; ----------------------------------------------------------------------------
 ;; SoundInit: Silence all 3 AY channels and reset sound state
@@ -720,6 +721,16 @@ SoundUpdate:
     ;; --- 4. Update Stage Background Drone / Hum (Channel C) ---
     call UpdateDrone
     ret
+
+;; ----------------------------------------------------------------------------
+;; SoundMusicUpdate: Advance only the music sequencer between expensive
+;; enemy-entry render passes. Sound effects retain their normal frame tick.
+;; ----------------------------------------------------------------------------
+SoundMusicUpdate:
+    ld a, (music_playing)
+    or a
+    ret z
+    jp UpdateMusicPlayer
 
 ;; ----------------------------------------------------------------------------
 ;; UpdateDrone: Authentic Galaga Stage Background Drone / Hum (Channel C)
