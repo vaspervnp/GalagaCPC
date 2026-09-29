@@ -28,7 +28,7 @@ Hold the fire button for repeated shots. While paused, press `H` again to resume
 
 ## Difficulty
 
-Choose **Easy**, **Medium**, **Hard**, or **Hardest** on the title screen with the left/right arrows, `O` / `P`, or the joystick. **Easy** preserves the game's original behavior. Higher settings make enemies start attacking and firing on earlier stages, increase attack frequency, and add more firing enemies. The challenge continues to rise as you progress through the stages.
+Choose **Easy**, **Medium**, **Hard**, or **Hardest** on the title screen with the left/right arrows, `O` / `P`, or the joystick. **Easy** preserves the game's original behavior. Higher settings add enemy entry patterns from the center and lower sides, tighten the entry formation timing, bring attacks and firing to earlier stages, and add more firing enemies. The pressure increases further as you progress through the stages.
 
 ## Stages and enemies
 

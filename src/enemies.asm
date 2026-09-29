@@ -57,10 +57,12 @@ SelectEntryShooters:
     ld (hl), a
     ldir
 
-    ld a, (current_stage)
-    ld b, a
     ld a, (difficulty_level)
+    ld b, a
     add a, a
+    add a, b
+    ld b, a
+    ld a, (current_stage)
     add a, b
     jr nc, .effective_stage_ready
     ld a, 255
@@ -1048,6 +1050,12 @@ UpdateEntryPhase:
     jr z, .epath_0
     cp 1
     jr z, .epath_1
+    cp 3
+    jr z, .epath_center
+    cp 4
+    jr z, .epath_lower_left
+    cp 5
+    jr z, .epath_lower_right
 
     ;; Path 2: Upper-right entry (Zakos)
     ld a, (ix+3)
@@ -1074,6 +1082,28 @@ UpdateEntryPhase:
     cp 110
     jr c, .entry_steer_left
     jr .entry_steer_right
+
+.epath_center:
+    ld a, (ix+3)
+    cp 166
+    jr nc, .switch_to_returning
+    cp 112
+    jr c, .entry_steer_left
+    cp 142
+    jr c, .entry_steer_right
+    jr .entry_steer_left
+
+.epath_lower_left:
+    ld a, (ix+3)
+    cp 164
+    jr nc, .switch_to_returning
+    jr .entry_steer_right
+
+.epath_lower_right:
+    ld a, (ix+3)
+    cp 164
+    jr nc, .switch_to_returning
+    jr .entry_steer_left
 
 .entry_steer_left:
     ld a, (ix+2)
@@ -1299,6 +1329,8 @@ SpawnEntryEnemy:
     ld (ix+5), a
     ld a, (hl)              ; entry_path
     ld (ix+11), a
+    call SelectDifficultyEntryPath
+    ld (ix+11), a
     push hl
     ld a, (entry_spawn_idx)
     ld l, a
@@ -1353,13 +1385,88 @@ SpawnEntryEnemy:
     jr z, .pause_wave
     cp 22
     jr z, .pause_wave
-    ld a, 8                 ; 8 frames between enemies in wave
+    ld a, (difficulty_level)
+    add a, a
+    ld b, a
+    ld a, 8
+    sub b                   ; Higher settings tighten the entry formation.
     ld (entry_spawn_timer), a
     ret
 
 .pause_wave:
-    ld a, 22                ; 22 frames (~0.44s) pause between waves
+    ld a, (difficulty_level)
+    add a, a
+    add a, a
+    ld b, a
+    ld a, 22
+    sub b                   ; Reduce the pause between entry groups by tier.
     ld (entry_spawn_timer), a
+    ret
+
+;; Higher settings mix center and lower-edge approaches into the formation.
+;; A = table path; IX points to the enemy being initialized.
+SelectDifficultyEntryPath:
+    ld (ix+11), a
+    ld b, a
+    ld a, (difficulty_level)
+    or a
+    jr nz, .has_difficulty
+    ld a, b
+    ret
+
+.has_difficulty:
+    ld a, (entry_spawn_idx)
+    and 3
+    ld b, a
+    ld a, (difficulty_level)
+    cp 1
+    jr z, .medium
+    cp 2
+    jr z, .hard
+    ; Hardest: cycle center, lower-left, lower-right, and center approaches.
+    ld a, b
+    cp 1
+    jr z, .lower_left
+    cp 2
+    jr z, .lower_right
+    jr .center
+.hard:
+    ld a, b
+    or a
+    jr z, .center
+    cp 2
+    jr nz, .keep_path
+    ld a, (entry_spawn_idx)
+    bit 2, a
+    jr nz, .lower_right
+    jr .lower_left
+.medium:
+    ld a, b
+    or a
+    jr nz, .keep_path
+.center:
+    ld (ix+2), 44
+    ld (ix+4), 44
+    ld (ix+3), 64
+    ld (ix+5), 64
+    ld a, 3
+    ret
+.lower_left:
+    ld (ix+2), PLAY_X_MIN
+    ld (ix+4), PLAY_X_MIN
+    ld (ix+3), 92
+    ld (ix+5), 92
+    ld a, 4
+    ret
+.lower_right:
+    ld (ix+2), PLAY_X_MAX
+    ld (ix+4), PLAY_X_MAX
+    ld (ix+3), 92
+    ld (ix+5), 92
+    ld a, 5
+    ret
+.keep_path:
+    ld a, (ix+11)
     ret
 
 ;; ----------------------------------------------------------------------------

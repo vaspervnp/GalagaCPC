@@ -37,15 +37,22 @@ sfx_cap_destroy_pitch:  defb 0
 
 ;; Stage Background Drone State (Channel C)
 drone_active:       defb 0  ; 0 = inactive, 1 = active
-drone_step:         defb 0  ; Current note in pattern (0..3)
+drone_step:         defb 0  ; Current note in pattern (0..3, bonus music 0..15)
 drone_timer:        defb 0  ; Countdown for current step
 drone_step_len:     defb 12 ; Length of step in frames (based on remaining enemies)
+challenge_music_pitch: defw 0
 
 drone_pitches:
     defb #53, #03   ; Note 0: D2 (73.4 Hz, period 851)
     defb #CC, #02   ; Note 1: F2 (87.3 Hz, period 716)
     defb #7E, #02   ; Note 2: G2 (98.0 Hz, period 638)
     defb #CC, #02   ; Note 3: F2 (87.3 Hz, period 716)
+
+challenging_music_pitches:
+    defw #006A, #005F, #0050, #005F
+    defw #0077, #006A, #005F, #0047
+    defw #0050, #0047, #003C, #0047
+    defw #005F, #0050, #0047, #003C
 
 ;; 3-Voice Polyphonic Music Engine (Game Start Tune from assets/game-start-tune.mid)
 music_playing:      defb 0
@@ -753,7 +760,13 @@ UpdateDrone:
 
     ld a, (is_challenging_stage)
     or a
-    jp nz, .silence_drone
+    jr z, .normal_stage_music
+    ld a, (challenging_active)
+    cp 1
+    jp z, UpdateChallengingMusic
+    jp .silence_drone
+
+.normal_stage_music:
 
     ld a, (stage_clear_active)
     or a
@@ -917,6 +930,73 @@ UpdateDrone:
     ld a, 7
     call WriteAY
     ret
+
+;; Bonus-stage melody on Channel C. Channel A/B remain available for game SFX.
+UpdateChallengingMusic:
+    ld a, (drone_timer)
+    or a
+    jr z, .next_note
+    dec a
+    ld (drone_timer), a
+    ret nz
+
+.next_note:
+    ld a, (drone_step)
+    inc a
+    and 15
+    ld (drone_step), a
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, challenging_music_pitches
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (challenge_music_pitch), de
+    ld a, 6
+    ld (drone_timer), a
+
+    ;; Let the explosion SFX use Channel C, then resume on the next note.
+    ld a, (sfx_exp_timer)
+    or a
+    ret nz
+
+    ld a, (ay_mixer_val)
+    and %11111011
+    or %00100000
+    ld (ay_mixer_val), a
+    ld e, a
+    ld a, 7
+    call WriteAY
+    ld de, (challenge_music_pitch)
+    ld a, 4
+    call WriteAY
+    ld a, 5
+    ld e, d
+    call WriteAY
+    ld a, 10
+    ld e, 9
+    call WriteAY
+    ret
+
+StopChallengingMusic:
+    xor a
+    ld (drone_active), a
+    ld (drone_timer), a
+    ld (drone_step), a
+    ld a, (sfx_exp_timer)
+    or a
+    ret nz
+    ld a, 10
+    ld e, 0
+    call WriteAY
+    ld a, (ay_mixer_val)
+    or %00000100
+    ld (ay_mixer_val), a
+    ld e, a
+    ld a, 7
+    jp WriteAY
 
 ;; ----------------------------------------------------------------------------
 ;; WriteAY: Send byte E to AY-3-8912 register A

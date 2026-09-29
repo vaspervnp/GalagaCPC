@@ -18,13 +18,13 @@ InitAttackThreshold:
     jr z, .medium
     cp 2
     jr z, .hard
-    ld a, 70
+    ld a, 55
     jr .store
 .hard:
-    ld a, 90
+    ld a, 75
     jr .store
 .medium:
-    ld a, 110
+    ld a, 100
     jr .store
 .easy:
     ld a, 130
@@ -183,16 +183,23 @@ UpdateStageProgression:
     ;; Clear "STAGE X" banner
     call ClearStageBanner
 
-    ;; Increase attack frequency as stages advance. Easy retains its existing
-    ;; 50-frame floor; higher settings continue down to a 24-frame floor.
+    ;; Easy retains its original cadence. Higher tiers accelerate faster and
+    ;; can reach a 16-frame minimum attack interval.
     ld a, (difficulty_level)
     or a
     jr z, .easy_attack_speed
+    ld b, a
+    add a, a
+    add a, b
+    add a, 15
+    ld b, a
     ld a, (attack_threshold)
-    sub 15
-    cp 24
+    sub b
+    jr c, .hard_attack_floor
+    cp 16
     jr nc, .store_attack_speed
-    ld a, 24
+.hard_attack_floor:
+    ld a, 16
     jr .store_attack_speed
 .easy_attack_speed:
     ld a, (attack_threshold)
@@ -222,4 +229,3 @@ UpdateStageProgression:
     xor a
     ld (stage_clear_active), a
     ret
-
