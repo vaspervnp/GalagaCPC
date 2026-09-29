@@ -71,3 +71,23 @@ UpdateStars:
     jp nz, .star_loop
     ret
 
+;; Restore any background stars cleared while removing foreground sprites.
+RedrawStars:
+    ld ix, stars_data
+    ld b, NUM_STARS
+.redraw_star_loop:
+    push bc
+    ld b, (ix+0)
+    ld c, (ix+1)
+    call GetScreenAddr
+    ld a, (hl)
+    or a
+    jr nz, .redraw_star_done
+    ld a, (ix+2)
+    ld (hl), a
+.redraw_star_done:
+    pop bc
+    ld de, 4
+    add ix, de
+    djnz .redraw_star_loop
+    ret

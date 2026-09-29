@@ -1067,19 +1067,17 @@ PlayMusicChallengingStart:
     jr PlayMusicFromHL
 
 ;; ----------------------------------------------------------------------------
-;; PlayMusicChallengingResults: Start 3-voice Challenging Stage Results Theme
-;; (Transcribed from assets/challenging_stage_results.wav)
+;; PlayMusicChallengingResults: Start the 3-second Challenging Stage end tune
 ;; ----------------------------------------------------------------------------
 PlayMusicChallengingResults:
-    ld hl, challenging_results_tune_data
+    ld hl, challenging_end_tune_data
     jr PlayMusicFromHL
 
 ;; ----------------------------------------------------------------------------
-;; PlayMusicChallengingPerfect: Start 3-voice Challenging Stage Perfect Fanfare
-;; (Transcribed from assets/challenging_stage_perfect.wav)
+;; PlayMusicChallengingPerfect: Use the same end tune after a perfect stage
 ;; ----------------------------------------------------------------------------
 PlayMusicChallengingPerfect:
-    ld hl, challenging_perfect_tune_data
+    ld hl, challenging_end_tune_data
     jr PlayMusicFromHL
 
 ;; ----------------------------------------------------------------------------

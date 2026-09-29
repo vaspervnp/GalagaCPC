@@ -336,6 +336,9 @@ tractor_f3_ptrs:
 ;; Top tier: Y=126 (1 tile), Mid tier: Y=142 (3 tiles), Bot tier: Y=158 (3 tiles)
 ;; ----------------------------------------------------------------------------
 DrawTractorBeam:
+    ;; Clear the previous animation frame before drawing the next one.
+    call EraseTractorBeam
+
     ld a, (tractor_anim)
     inc a
     ld (tractor_anim), a
@@ -497,6 +500,7 @@ EraseTractorBeam:
     ld b, a
     ld c, 190
     call ClearSprite16x16
+    call RedrawStars
     ret
 
 

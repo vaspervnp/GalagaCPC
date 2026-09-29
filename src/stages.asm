@@ -103,7 +103,8 @@ UpdateStageProgression:
 
     ;; A wave CANNOT be cleared until all enemies have finished spawning!
     ld a, (entry_spawn_idx)
-    cp ENEMY_COUNT
+    ld hl, stage_enemy_total
+    cp (hl)
     ret c                   ; Still spawning enemies -> cannot be cleared!
 
 

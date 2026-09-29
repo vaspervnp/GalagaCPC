@@ -28,13 +28,13 @@ Hold the fire button for repeated shots. While paused, press `H` again to resume
 
 ## Difficulty
 
-The default is **Medium**. Choose **Easy**, **Medium**, **Hard**, or **Hardest** on the title screen with the left/right arrows, `O` / `P`, or the joystick. **Easy** preserves the game's original behavior. Higher settings add enemy entry patterns from the center and lower sides, tighten the entry formation timing, bring attacks and firing to earlier stages, and add more firing enemies. The pressure increases further as you progress through the stages.
+The default is **Medium**. Choose **Easy**, **Medium**, **Hard**, or **Hardest** on the title screen with the left/right arrows, `O` / `P`, or the joystick. **Easy** preserves the game's original behavior. From **Medium** onward, each group includes enemies that enter quickly from above and take their formation positions; center and lower-side entry patterns remain in the mix. Higher settings also bring attacks and firing to earlier stages and add more firing enemies. The pressure increases further as you progress through the stages.
 
 ## Stages and enemies
 
-- Each regular stage begins with a 28-enemy entry formation. Destroy every enemy to advance.
+- Regular stages start with 14 enemies and add two on each successive regular stage, up to 28. Bonus stages do not change this count. Entry groups arrive one at a time: the next group starts after the previous group has completed its entry. Destroy every enemy to advance.
 - Every fourth stage, starting at stage 3 (3, 7, 11, ...), is a bonus stage. Hit as many targets as possible before it ends.
-- On stages 10–19, one random enemy from each entry group fires. On stages 20–29, two fire; from stage 30 onward, three fire.
+- On Easy, one random enemy from each entry group fires on stages 10–19, two on stages 20–29, and three from stage 30 onward. Higher difficulties enable more shooters earlier.
 - From stage 40 onward, enemy shots also travel diagonally.
 - Enemy point values are shown on the title screen. Scores vary by enemy type and whether it is destroyed in formation or while attacking.
 
