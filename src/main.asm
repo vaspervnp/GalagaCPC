@@ -87,7 +87,6 @@ GameLoop:
 ;; HandleGameOver: Frozen gameplay loop during Game Over, waiting for restart
 ;; ----------------------------------------------------------------------------
 HandleGameOver:
-    call WaitVSync
     call SoundUpdate
     call UpdateExplosions
     call RefreshPriorityText

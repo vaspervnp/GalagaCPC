@@ -166,6 +166,15 @@ DrawEnemyIY:
     ret
 
 UpdateEnemies:
+    ;; Check if Results Screen is active during Game Over
+    ld a, (game_over)
+    or a
+    jr z, .not_results_freeze
+    ld a, (game_over_phase)
+    cp 1
+    ret z       ; Freeze all enemy updates during Results Screen!
+.not_results_freeze:
+
     ;; Check if Stage Intro is running (Level 1 Intro)
     ld a, (stage_intro_state)
     or a

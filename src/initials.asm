@@ -475,7 +475,9 @@ DrawTitleHallOfFame:
     ld h, (ix+1)
     ld a, (ix+2)
     ld b, 36
+    push ix
     call Print6Digits
+    pop ix
 
     ;; C. Draw Initials (3 chars) at X=60, Y=C
     pop bc
@@ -509,7 +511,7 @@ DrawTitleHallOfFame:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; ClearTitleMiddle: Clear middle area between Y=104 and Y=214 (X=20..76)
+;; ClearTitleMiddle: Clear middle area between Y=104 and Y=214 (X=20..84)
 ;; ----------------------------------------------------------------------------
 ClearTitleMiddle:
     ld c, 104
@@ -519,7 +521,7 @@ ClearTitleMiddle:
     push bc
     ld b, 20
     call GetScreenAddr
-    ld b, 56                    ; 56 bytes wide
+    ld b, 64                    ; 64 bytes wide (covers X=20..83)
     xor a
 .ctm_byte:
     ld (hl), a

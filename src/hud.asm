@@ -54,6 +54,7 @@ PrintHighScore:
 ;; Print6Digits - Format 24-bit (A:HL) into 6 decimal digits at (B=X, C=Y)
 ;; ----------------------------------------------------------------------------
 Print6Digits:
+    push ix
     push bc
     ld (digit_buf_temp_a), a
 
@@ -126,6 +127,7 @@ Print6Digits:
     ld b, a
     dec d
     jr nz, .draw_d6_loop
+    pop ix
     ret
 
 .div_digit_6:
@@ -143,6 +145,7 @@ Print6Digits:
 ;; Print5Digits - Format 16-bit HL into 5 decimal digits at (B=X, C=Y)
 ;; ----------------------------------------------------------------------------
 Print5Digits:
+    push ix
     push bc
     ld de, 10000 : call .div_digit : ld (digit_buf+0), a
     ld de, 1000  : call .div_digit : ld (digit_buf+1), a
@@ -167,6 +170,7 @@ Print5Digits:
     ld b, a
     dec d
     jr nz, .draw_d_loop
+    pop ix
     ret
 
 .div_digit:
@@ -385,14 +389,19 @@ RefreshPriorityText:
     pop bc
 
 .rpt_check_game_over:
-    ;; 2. Check Game Over banner (Phase 0)
+    ;; 2. Check Game Over banner (Phase 0) or Results Screen (Phase 1)
     ld a, (game_over)
     or a
     jr z, .rpt_check_stage_clear
     ld a, (game_over_phase)
     or a
-    jr nz, .rpt_check_stage_clear
+    jr nz, .rpt_check_results
     call DrawGameOverText
+    ret
+.rpt_check_results:
+    cp 1
+    jr nz, .rpt_check_stage_clear
+    call DrawResultsScreen
     ret
 
 .rpt_check_stage_clear:
