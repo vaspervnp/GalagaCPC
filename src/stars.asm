@@ -73,6 +73,8 @@ UpdateStars:
 
 ;; Restore any background stars cleared while removing foreground sprites.
 RedrawStars:
+    push ix
+    push bc
     ld ix, stars_data
     ld b, NUM_STARS
 .redraw_star_loop:
@@ -90,4 +92,6 @@ RedrawStars:
     ld de, 4
     add ix, de
     djnz .redraw_star_loop
+    pop bc
+    pop ix
     ret
