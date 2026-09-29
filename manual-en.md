@@ -33,6 +33,8 @@ The default is **Medium**. Choose **Easy**, **Medium**, **Hard**, or **Hardest**
 ## Stages and enemies
 
 - Regular stages start with 14 enemies and add two on each successive regular stage, up to 28. Bonus stages do not change this count. Entry groups arrive one at a time: the next group starts after the previous group has completed its entry. Destroy every enemy to advance.
+- Enemies already in formation can attack while later groups are still entering. The chance of an attack at each interval increases with the selected difficulty.
+- Enemies that fire while entering have two extra firing opportunities, each with about a 10% chance on Easy, 20% on Medium, 35% on Hard, and 50% on Hardest.
 - Every fourth stage, starting at stage 3 (3, 7, 11, ...), is a bonus stage. Hit as many targets as possible before it ends.
 - On Easy, one random enemy from each entry group fires on stages 10–19, two on stages 20–29, and three from stage 30 onward. Higher difficulties enable more shooters earlier.
 - During dives, each enemy randomly chooses its horizontal speed: about one third are 33% faster, one third are 33% slower, and the rest move at normal speed. Faster divers may briefly overshoot to the other side of the player.
