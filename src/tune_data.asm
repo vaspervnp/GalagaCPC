@@ -57,8 +57,28 @@ challenging_start_tune_data:
 
 
 ;; ============================================================================
-;; Challenging Stage Results Theme (from assets/challenging_stage_results.wav)
-;; 3-Voice Polyphonic: Plays on Results screen when hits < 40
+;; Original Challenging Stage End Melody
+;; 3 voices, 15 steps x 10 frames = 150 frames (3 seconds at 50Hz).
+;; Channel A = melody, B = harmony, C = bass.
+challenging_end_tune_data:
+    defb 10 : defw #0077, #00BD, #01DE ; C major
+    defb 10 : defw #005F, #009F, #01DE
+    defb 10 : defw #0050, #0077, #027E
+    defb 10 : defw #005F, #009F, #01DE
+    defb 10 : defw #006A, #00B2, #027E
+    defb 10 : defw #0077, #00B2, #02D5 ; F major
+    defb 10 : defw #008E, #0077, #02D5
+    defb 10 : defw #009F, #008E, #01DE
+    defb 10 : defw #00B2, #008E, #02D5
+    defb 10 : defw #00BD, #009F, #01DE
+    defb 10 : defw #009F, #007F, #027E ; G major
+    defb 10 : defw #007F, #006A, #027E
+    defb 10 : defw #006A, #009F, #01AA
+    defb 10 : defw #007F, #009F, #027E
+    defb 10 : defw #0077, #00BD, #01DE ; C major cadence
+    defb 0  ; End of tune marker
+
+;; Older transcriptions retained as reference data.
 ;; ============================================================================
 challenging_results_tune_data:
     defb 15 : defw #0050, #013F, #013F  ; Lead N79, Harm N55, Bass N55
@@ -261,5 +281,4 @@ fighter_captured_tune_data:
     defb  2 : defw #002F, #0086, #01C3  ; Lead N88, Harm N70, Bass N49
     defb 22 : defw #002F, #007F, #01C3  ; Lead N88, Harm N71, Bass N49
     defb  0  ; End marker
-
 

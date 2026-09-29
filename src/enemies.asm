@@ -12,6 +12,7 @@ InitEnemies:
     ld (stage_phase), a         ; STAGE_PHASE_ENTRY = 0
     ld (entry_spawn_idx), a
     ld (entry_music_catchup), a
+    call SetStageEnemyTotal
     call SelectEntryShooters
 
     ;; Clear all enemies in enemy_data
@@ -45,6 +46,26 @@ InitEnemies:
     ld a, 1
     ld (entry_spawn_timer), a   ; Spawn first enemy on next frame!
     call PlaySoundStageStart
+    ret
+
+SetStageEnemyTotal:
+    ld a, (current_stage)
+    cp 10
+    jr nc, .max_enemy_total
+    ld b, a
+    srl a
+    srl a
+    ld c, a
+    ld a, b
+    sub c
+    dec a
+    add a, a
+    add a, 14
+    jr .store_enemy_total
+.max_enemy_total:
+    ld a, 28
+.store_enemy_total:
+    ld (stage_enemy_total), a
     ret
 
 ;; Easy uses stages 10/20/30 for 1/2/3 shooters; higher difficulties
@@ -972,8 +993,12 @@ UpdateEntryPhase:
 .entry_chk_spawn:
     ;; 2. Spawn next enemy from entry_enemy_defs
     ld a, (entry_spawn_idx)
-    cp ENEMY_COUNT          ; 10 enemies
+    ld hl, stage_enemy_total
+    cp (hl)
     jr nc, .entry_spawns_done
+
+    call WaitForEntryWave
+    jr c, .entry_spawns_done
 
     ld a, (entry_spawn_timer)
     dec a
@@ -1201,7 +1226,19 @@ UpdateEntryPhase:
     ld (ix+3), a
     jr .ret_e_draw
 .ret_e_inc_y:
+    ld a, (ix+11)
+    and #7
+    cp 6
+    jr nz, .ret_e_step_y
+    ld a, (ix+3)
+    add a, 4
+    cp c
+    jr c, .ret_e_step_y_store
+    ld a, c
+    jr .ret_e_step_y_store
+.ret_e_step_y:
     inc a
+.ret_e_step_y_store:
     ld (ix+3), a
     jr .ret_e_draw
 
@@ -1233,7 +1270,8 @@ UpdateEntryPhase:
 
     ;; 4. Check if Entry Phase is complete
     ld a, (entry_spawn_idx)
-    cp ENEMY_COUNT
+    ld hl, stage_enemy_total
+    cp (hl)
     jr c, .entry_phase_exit ; Still spawning
 
     ;; Check if all alive enemies are in STATE_FORMATION (0)
@@ -1347,6 +1385,12 @@ SpawnEntryEnemy:
     ld a, (global_anim)
     ld (ix+6), a            ; anim_frame
     ld (ix+8), STATE_ENTRY  ; state = 6
+    ld a, (ix+11)
+    and #7
+    cp 6
+    jr nz, .entry_state_ready
+    ld (ix+8), STATE_RETURNING
+.entry_state_ready:
 
     ;; Draw initial sprite
     call DrawEnemyIX
@@ -1385,34 +1429,114 @@ SpawnEntryEnemy:
     jr z, .pause_wave
     cp 22
     jr z, .pause_wave
-    ld a, (difficulty_level)
-    add a, a
-    ld b, a
-    ld a, 8
-    sub b                   ; Higher settings tighten the entry formation.
+    ld a, 8                 ; Keep entry rendering bounded on every difficulty.
     ld (entry_spawn_timer), a
     ret
 
 .pause_wave:
-    ld a, (difficulty_level)
-    add a, a
-    add a, a
-    ld b, a
-    ld a, 22
-    sub b                   ; Reduce the pause between entry groups by tier.
+    ld a, 22                ; Pause before the next group can enter.
     ld (entry_spawn_timer), a
     ret
 
-;; Higher settings mix center and lower-edge approaches into the formation.
+;; At each entry-group boundary, hold the next group until the current group
+;; has docked or been destroyed. Carry is set while any member is still flying.
+WaitForEntryWave:
+    ld a, (entry_spawn_idx)
+    cp 4
+    jr z, .first_wave
+    cp 10
+    jr z, .second_wave
+    cp 16
+    jr z, .third_wave
+    cp 22
+    jr z, .fourth_wave
+    or a
+    ret
+
+.first_wave:
+    ld ix, enemy_data
+    ld b, 4
+    jr .check_wave
+.second_wave:
+    ld ix, enemy_data + (4 * ENEMY_SIZE)
+    ld b, 6
+    jr .check_wave
+.third_wave:
+    ld ix, enemy_data + (10 * ENEMY_SIZE)
+    ld b, 6
+    jr .check_wave
+.fourth_wave:
+    ld ix, enemy_data + (16 * ENEMY_SIZE)
+    ld b, 6
+.check_wave:
+    ld a, (ix+0)
+    or a
+    jr z, .next_wave_enemy
+    ld a, (ix+8)
+    or a
+    jr nz, .wave_still_flying
+.next_wave_enemy:
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .check_wave
+    or a
+    ret
+.wave_still_flying:
+    scf
+    ret
+
+;; Higher settings mix quick top, center, and lower-side approaches.
 ;; A = table path; IX points to the enemy being initialized.
 SelectDifficultyEntryPath:
     ld (ix+11), a
-    ld b, a
     ld a, (difficulty_level)
     or a
-    jr nz, .has_difficulty
-    ld a, b
+    jr nz, .check_top_entry
+    ld a, (ix+11)
     ret
+
+.check_top_entry:
+    ld a, (entry_spawn_idx)
+    cp 4
+    jr c, .first_wave_index
+    cp 10
+    jr c, .second_wave_index
+    cp 16
+    jr c, .third_wave_index
+    cp 22
+    jr c, .fourth_wave_index
+    sub 22
+    jr .entry_wave_index_ready
+.first_wave_index:
+    or a
+    jr .entry_wave_index_ready
+.second_wave_index:
+    sub 4
+    jr .entry_wave_index_ready
+.third_wave_index:
+    sub 10
+    jr .entry_wave_index_ready
+.fourth_wave_index:
+    sub 16
+.entry_wave_index_ready:
+    ld c, a
+    ld a, (difficulty_level)
+    cp 1
+    jr z, .medium_top_limit
+    cp 2
+    jr z, .hard_top_limit
+    ld a, 4
+    jr .check_top_limit
+.hard_top_limit:
+    ld a, 3
+    jr .check_top_limit
+.medium_top_limit:
+    ld a, 1
+.check_top_limit:
+    ld b, a
+    ld a, c
+    cp b
+    jr c, .use_top_route
 
 .has_difficulty:
     ld a, (entry_spawn_idx)
@@ -1467,6 +1591,14 @@ SelectDifficultyEntryPath:
     ret
 .keep_path:
     ld a, (ix+11)
+    ret
+.use_top_route:
+    ld a, (ix+7)
+    ld (ix+2), a
+    ld (ix+4), a
+    ld (ix+3), 36
+    ld (ix+5), 36
+    ld a, 6
     ret
 
 ;; ----------------------------------------------------------------------------

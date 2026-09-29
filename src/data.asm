@@ -110,7 +110,8 @@ attack_timer:       defb 0
 
 ;; Stage Phase & Entry Wave Variables
 stage_phase:        defb 0  ; 0 = Entry Phase, 1 = Attack Phase
-entry_spawn_idx:    defb 0  ; Enemies spawned in entry (0..ENEMY_COUNT)
+entry_spawn_idx:    defb 0  ; Enemies spawned in entry (0..stage_enemy_total)
+stage_enemy_total:  defb 28 ; Active enemies for this stage (14..28, grows by stage)
 entry_spawn_timer:  defb 0  ; Delay between entry spawns
 random_seed:        defb 1
 entry_shooter_quota: defb 0
