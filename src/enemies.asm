@@ -1401,18 +1401,20 @@ UpdateEntryPhase:
 ;; SpawnEntryEnemy: Spawn 1 enemy for the Entry Swarm
 ;; ----------------------------------------------------------------------------
 SpawnEntryEnemy:
-    ;; 1. Point IX to enemy_data + (entry_spawn_idx * 12)
+    ;; 1. Point IX to enemy_data + (entry_spawn_idx * ENEMY_SIZE)
     ld a, (entry_spawn_idx)
     ld l, a
     ld h, 0                 ; HL = idx
     add hl, hl              ; * 2
-    ld e, l
-    ld d, h                 ; DE = idx * 2
+    ld d, h
+    ld e, l                 ; DE = idx * 2
     add hl, hl              ; * 4
-    add hl, de              ; * 6
-    add hl, hl              ; * 12 (16-bit safe, up to 28 * 12 = 336)
+    add hl, hl              ; * 8
+    add hl, hl              ; * 16
+    or a
+    sbc hl, de              ; * 14 (16-bit safe, up to 27 * 14 = 378)
     ld de, enemy_data
-    add hl, de              ; HL = enemy_data + (idx * 12)
+    add hl, de              ; HL = enemy_data + (idx * ENEMY_SIZE)
     push hl
     pop ix                  ; IX -> enemy slot
 
