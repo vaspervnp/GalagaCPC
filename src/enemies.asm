@@ -179,6 +179,13 @@ DrawEnemyIX:
     or a
     ret z
 
+    ;; Enemy sprites must remain below the HUD and above the lower border.
+    ld a, (ix+3)
+    cp 36
+    ret c
+    cp 232
+    ret nc
+
     ;; Choose sprite based on type, hp, and anim_frame
     ld a, (ix+1)            ; type
     cp 8
@@ -792,11 +799,38 @@ UpdateEnemies:
 .handle_returning:
     ;; --- State 2: RETURNING TO FORMATION ---
     ;; 1. Erase old sprite
+    ld a, (ix+5)
+    cp 36
+    jr c, .skip_return_erase
+    cp 232
+    jr nc, .skip_return_erase
     push bc
     ld b, (ix+4)
     ld c, (ix+5)
     call ClearSprite16x16
     pop bc
+.skip_return_erase:
+
+    ;; Recover an invalid Y coordinate so the enemy cannot cover the HUD or
+    ;; remain outside the playfield and hold an entry group indefinitely.
+    ld a, (ix+3)
+    cp 36
+    jr c, .recover_return_y
+    cp 232
+    jr c, .return_y_valid
+.recover_return_y:
+    ld a, (ix+7)
+    ld (ix+2), a
+    ld (ix+4), a
+    ld a, 36
+    ld (ix+3), a
+    ld (ix+5), a
+    push bc
+    push ix
+    call InitHUD
+    pop ix
+    pop bc
+.return_y_valid:
 
     ;; 2. Steer X toward target X (base_x + sway_offset)
     ld a, (ix+7)            ; base_x
@@ -1105,6 +1139,11 @@ UpdateEntryPhase:
 
 .do_erase_m:
     set 6, (ix+11)           ; Track sprites drawn during this update.
+    ld a, (ix+5)
+    cp 36
+    jr c, .next_erase_m
+    cp 232
+    jr nc, .next_erase_m
     push bc
     ld b, (ix+4)
     ld c, (ix+5)
@@ -1294,6 +1333,25 @@ UpdateEntryPhase:
     jp .next_entry_slot
 
 .move_entry_returning:
+    ;; Recover invalid vertical positions and keep old-sprite erasure out of HUD.
+    ld a, (ix+3)
+    cp 36
+    jr c, .entry_recover_return_y
+    cp 232
+    jr c, .entry_return_y_valid
+.entry_recover_return_y:
+    ld a, (ix+7)
+    ld (ix+2), a
+    ld (ix+4), a
+    ld a, 36
+    ld (ix+3), a
+    ld (ix+5), a
+    push bc
+    push ix
+    call InitHUD
+    pop ix
+    pop bc
+.entry_return_y_valid:
     ;; Steer X toward base_x
     ld a, (ix+7)            ; base_x
     ld c, a
