@@ -1694,6 +1694,22 @@ str_revive8bit_copyright:
 str_title_prompt:
     defw f_c_P, f_c_U, f_c_S, f_c_H, f_c_SPACE, f_c_F, f_c_I, f_c_R, f_c_E, f_c_SPACE, f_c_B, f_c_U, f_c_T, f_c_T, f_c_O, f_c_N, 0
 
+str_title_difficulty_easy:
+    defw f_c_D, f_c_I, f_c_F, f_c_F, f_c_I, f_c_C, f_c_U, f_c_L, f_c_T, f_c_Y, f_c_SPACE
+    defw f_c_E, f_c_A, f_c_S, f_c_Y, 0
+
+str_title_difficulty_medium:
+    defw f_c_D, f_c_I, f_c_F, f_c_F, f_c_I, f_c_C, f_c_U, f_c_L, f_c_T, f_c_Y, f_c_SPACE
+    defw f_c_M, f_c_E, f_c_D, f_c_I, f_c_U, f_c_M, 0
+
+str_title_difficulty_hard:
+    defw f_c_D, f_c_I, f_c_F, f_c_F, f_c_I, f_c_C, f_c_U, f_c_L, f_c_T, f_c_Y, f_c_SPACE
+    defw f_c_H, f_c_A, f_c_R, f_c_D, 0
+
+str_title_difficulty_hardest:
+    defw f_c_D, f_c_I, f_c_F, f_c_F, f_c_I, f_c_C, f_c_U, f_c_L, f_c_T, f_c_Y, f_c_SPACE
+    defw f_c_H, f_c_A, f_c_R, f_c_D, f_c_E, f_c_S, f_c_T, 0
+
 str_title_points_hdr:
     defw f_c_DASH, f_c_SPACE, f_c_P, f_c_O, f_c_I, f_c_N, f_c_T, f_c_SPACE, f_c_V, f_c_A, f_c_L, f_c_U, f_c_E, f_c_S, f_c_SPACE, f_c_DASH, 0
 

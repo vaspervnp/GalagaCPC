@@ -9,6 +9,29 @@ attack_threshold:       defb 130        ; Decreases as stages advance
 stage_intro_state:      defb 0          ; 0=none, 1=STAGE 1, 2=PLAYER 1
 stage_intro_timer:      defb 0          ; Countdown timer
 
+;; Set the first dive-attack interval for the selected difficulty.
+InitAttackThreshold:
+    ld a, (difficulty_level)
+    or a
+    jr z, .easy
+    cp 1
+    jr z, .medium
+    cp 2
+    jr z, .hard
+    ld a, 70
+    jr .store
+.hard:
+    ld a, 90
+    jr .store
+.medium:
+    ld a, 110
+    jr .store
+.easy:
+    ld a, 130
+.store:
+    ld (attack_threshold), a
+    ret
+
 txt_stage_label:        defb "STAGE ", 0
 txt_blank_stage:        defb "        ", 0
 
@@ -160,13 +183,24 @@ UpdateStageProgression:
     ;; Clear "STAGE X" banner
     call ClearStageBanner
 
-    ;; Increase difficulty: Faster attacks (down to min 50 frames)
+    ;; Increase attack frequency as stages advance. Easy retains its existing
+    ;; 50-frame floor; higher settings continue down to a 24-frame floor.
+    ld a, (difficulty_level)
+    or a
+    jr z, .easy_attack_speed
+    ld a, (attack_threshold)
+    sub 15
+    cp 24
+    jr nc, .store_attack_speed
+    ld a, 24
+    jr .store_attack_speed
+.easy_attack_speed:
     ld a, (attack_threshold)
     sub 15
     cp 50
-    jr nc, .attack_speed_ok
+    jr nc, .store_attack_speed
     ld a, 50
-.attack_speed_ok:
+.store_attack_speed:
     ld (attack_threshold), a
 
     ;; Respawn authentic formation
@@ -188,5 +222,4 @@ UpdateStageProgression:
     xor a
     ld (stage_clear_active), a
     ret
-
 
