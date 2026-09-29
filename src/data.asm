@@ -30,7 +30,7 @@ current_slot:           defb 0
 entry_blink:            defb 0
 title_display_mode:     defb 0      ; 0 = Point Values, 1 = Top 5 Hall of Fame
 title_mode_timer:       defb 0      ; Alternates screen mode every ~250 frames
-difficulty_level:       defb 0      ; 0 = Easy (current rules), 1 = Medium, 2 = Hard, 3 = Hardest
+difficulty_level:       defb 1      ; 0 = Easy, 1 = Medium (default), 2 = Hard, 3 = Hardest
 player_lives:           defb 3
 extra_life_count:       defb 0  ; Milestone count: 1=20k, 2=70k, 3=140k...
 next_extra_life_lo:     defw 20000
