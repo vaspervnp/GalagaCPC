@@ -21,6 +21,14 @@ ReadInput:
 
     call read_controls
 
+    ;; Check Pause key ('H')
+    ld a, (ctl_pressed)
+    bit CTL_PAUSE, a
+    jr z, .no_pause
+    call HandlePause
+    ret
+
+.no_pause:
     ;; Check Left
     ld a, (ctl_now)
     bit CTL_LEFT, a
@@ -293,4 +301,27 @@ RespawnPlayer:
     ld c, DEFAULT_PLAYER_Y
     ld hl, player_sprite
     call DrawSprite16x16
+    ret
+
+;; ----------------------------------------------------------------------------
+;; HandlePause - Pause gameplay, display "PAUSE" banner, mute audio until 'H'
+;; ----------------------------------------------------------------------------
+HandlePause:
+    ld a, 1
+    ld (pause_active), a
+    call DrawPauseBanner
+    call SoundMute
+
+.pause_loop:
+    call WaitVSync
+    call read_controls
+    ld a, (ctl_pressed)
+    bit CTL_PAUSE, a
+    jr z, .pause_loop
+
+    ;; Unpause!
+    xor a
+    ld (pause_active), a
+    call ClearPauseBanner
+    call SoundUnmute
     ret

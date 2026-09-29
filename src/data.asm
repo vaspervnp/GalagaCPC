@@ -19,6 +19,7 @@ extra_life_count:       defb 0  ; Milestone count: 1=20k, 2=70k, 3=140k...
 next_extra_life_lo:     defw 20000
 next_extra_life_hi:     defb 0
 game_over:          defb 0
+pause_active:       defb 0
 restart_debounce:   defb 0
 game_over_timer:    defb 0
 game_over_phase:    defb 0  ; 0=Game Over text, 1=Results Screen

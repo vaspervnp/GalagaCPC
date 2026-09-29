@@ -134,6 +134,7 @@ RestartGame:
     ;; 1. Reset state flags
     xor a
     ld (game_over), a
+    ld (pause_active), a
     ld (restart_debounce), a
     ld (game_over_timer), a
     ld (game_over_phase), a

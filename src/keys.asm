@@ -8,6 +8,7 @@ CTL_LEFT        EQU 1
 CTL_RIGHT       EQU 2
 CTL_UP          EQU 3
 CTL_DOWN        EQU 4
+CTL_PAUSE       EQU 5
 
 key_rows:       defs 10, #FF
 ctl_now:        defb 0
@@ -53,13 +54,16 @@ ctl_map:
     defb 5, #80, 1 << CTL_FIRE  ; Spacebar
     defb 9, #10, 1 << CTL_FIRE  ; Joystick Fire 1
     defb 1, #01, 1 << CTL_LEFT  ; Cursor Left
+    defb 4, #04, 1 << CTL_LEFT  ; 'O' key (Line 4, Bit 2)
     defb 9, #04, 1 << CTL_LEFT  ; Joystick Left
     defb 0, #02, 1 << CTL_RIGHT ; Cursor Right
+    defb 3, #08, 1 << CTL_RIGHT ; 'P' key (Line 3, Bit 3)
     defb 9, #08, 1 << CTL_RIGHT ; Joystick Right
     defb 0, #01, 1 << CTL_UP    ; Cursor Up
     defb 9, #01, 1 << CTL_UP    ; Joystick Up
     defb 0, #04, 1 << CTL_DOWN  ; Cursor Down
     defb 9, #02, 1 << CTL_DOWN  ; Joystick Down
+    defb 5, #10, 1 << CTL_PAUSE ; 'H' key (Pause / Halt: Line 5, Bit 4)
     defb #FF
 
 ;; ---------------------------------------------------------------------------

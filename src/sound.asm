@@ -91,6 +91,26 @@ SoundInit:
     ret
 
 ;; ----------------------------------------------------------------------------
+;; SoundMute: Silence all 3 AY channels during Pause
+;; ----------------------------------------------------------------------------
+SoundMute:
+    ld a, 8 : ld e, 0 : call WriteAY
+    ld a, 9 : ld e, 0 : call WriteAY
+    ld a, 10 : ld e, 0 : call WriteAY
+    ld a, 7 : ld e, #3F : call WriteAY
+    ret
+
+;; ----------------------------------------------------------------------------
+;; SoundUnmute: Restore AY channel mixer after Pause
+;; ----------------------------------------------------------------------------
+SoundUnmute:
+    ld a, (ay_mixer_val)
+    ld e, a
+    ld a, 7
+    call WriteAY
+    ret
+
+;; ----------------------------------------------------------------------------
 ;; PlaySoundShot: Classic Galaga Laser Firing Chirp (Channel A)
 ;; ----------------------------------------------------------------------------
 PlaySoundShot:

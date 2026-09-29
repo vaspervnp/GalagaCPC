@@ -212,6 +212,23 @@ ClearGameOverText:
     jp ClearTextRect
 
 ;; ----------------------------------------------------------------------------
+;; DrawPauseBanner - Display "PAUSE" in Cyan at X=41, Y=110
+;; ----------------------------------------------------------------------------
+DrawPauseBanner:
+    ld b, 41 : ld c, 110 : ld hl, f_c_P : call DrawGlyph
+    ld b, 44 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
+    ld b, 47 : ld c, 110 : ld hl, f_c_U : call DrawGlyph
+    ld b, 50 : ld c, 110 : ld hl, f_c_S : call DrawGlyph
+    ld b, 53 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
+    ret
+
+ClearPauseBanner:
+    ld b, 41
+    ld c, 110
+    ld d, 15
+    jp ClearTextRect
+
+;; ----------------------------------------------------------------------------
 ;; DrawStageBanner - Display "STAGE " + current_stage in Cyan at X=38, Y=110
 ;; ----------------------------------------------------------------------------
 DrawStageBanner:
@@ -364,6 +381,14 @@ ClearPriorityText:
 ;; Ensures text always has priority ("Τα γράμματα έχουν πάντα προτεραιότητα")
 ;; ----------------------------------------------------------------------------
 RefreshPriorityText:
+    ;; Check if game is paused
+    ld a, (pause_active)
+    or a
+    jr z, .rpt_not_paused
+    call DrawPauseBanner
+    ret
+
+.rpt_not_paused:
     ;; 0. Check Stage Intro State (Level 1 Intro)
     ld a, (stage_intro_state)
     or a
