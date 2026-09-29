@@ -203,8 +203,8 @@ initial_enemies:
     defb 1, 0, 57, 116, 1
     defb 1, 0, 67, 116, 1
 
-;; Enemy data structure: 28 enemies x 12 bytes
-;; [alive, type, x, y, old_x, old_y, anim_frame, base_x, state, hp, base_y, pad]
+;; Enemy data structure: 28 enemies x ENEMY_SIZE bytes
+;; [alive, type, x, y, old_x, old_y, anim_frame, base_x, state, hp, base_y, path, dive_speed, dive_speed_phase]
 enemy_data:
     defs ENEMY_SIZE * ENEMY_COUNT, 0
 
