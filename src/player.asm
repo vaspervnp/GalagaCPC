@@ -113,59 +113,10 @@ UpdatePlayer:
     ld c, a
     ld a, (old_player_x)
     cp c
-    jr nz, .move_player_single_or_dual
-    ret
-
-.move_player_single_or_dual:
-    ld a, (is_dual_fighter)
-    or a
-    jr nz, .move_player_dual
-
-    ld a, (player_x)
-    ld b, a
-    ld a, (player_y)
-    ld c, a
-    ld hl, player_sprite
-    call DrawSprite16x16
-    jr .clear_player_exposed_edge
-
-.move_player_dual:
-    ld a, (player_x)
-    ld b, a
-    ld a, (player_y)
-    ld c, a
-    ld hl, player_sprite
-    call DrawSprite16x16
-    ld a, (player_x)
-    add a, 8
-    ld b, a
-    ld a, (player_y)
-    ld c, a
-    ld hl, player_sprite
-    call DrawSprite16x16
-
-.clear_player_exposed_edge:
-    ;; The ships move horizontally by one byte, so only one old column is exposed.
-    ld a, (player_x)
-    ld c, a
-    ld a, (old_player_x)
-    cp c
-    jr c, .clear_player_left_edge
-    add a, 7
-    jr .clear_player_edge
-.clear_player_left_edge:
-    ld a, (old_player_x)
-.clear_player_edge:
-    ld b, a
-    ld a, (player_y)
-    ld c, a
-    call ClearSpriteColumn16
-    ld a, (player_x)
-    ld (old_player_x), a
+    jr nz, .redraw_player
     ret
 
 .redraw_player:
-
     ld a, (is_dual_fighter)
     or a
     jr nz, .update_dual
