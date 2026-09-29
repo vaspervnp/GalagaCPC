@@ -958,11 +958,13 @@ CheckAndRestoreDockedEnemies:
 
     ;; Overlap! Redraw this docked enemy (IY)
     push bc
+    push ix
     push iy
     pop ix
     ld a, (global_anim)
     ld (ix+6), a
     call DrawEnemyIX
+    pop ix
     pop bc
 
 .card_next:
