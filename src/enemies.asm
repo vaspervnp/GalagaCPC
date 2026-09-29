@@ -327,8 +327,11 @@ UpdateEnemies:
     ;; Check if in Entry Phase (stage_phase == STAGE_PHASE_ENTRY)
     ld a, (stage_phase)
     or a
-    jp z, UpdateEntryPhase
+    jr nz, .attack_phase
+    call UpdateEntryPhase
+    jp .check_dive_trigger
 
+.attack_phase:
     ;; --- Attack Phase ---
 
     ;; --- 1. Check Wing Flap Timer ---
@@ -448,6 +451,16 @@ UpdateEnemies:
     xor a
     ld (attack_timer), a
 
+    ;; Existing formation enemies can attack while later entry groups arrive.
+    ;; Chance per attack interval rises with difficulty: 1/8, 2/8, 4/8, 6/8.
+    ld a, (stage_phase)
+    or a
+    jr nz, .attack_interval_ready
+    call ShouldAttackDuringEntry
+    or a
+    jp z, .update_diving
+
+.attack_interval_ready:
     ;; Check if Boss Galaga should initiate tractor beam
     call CheckTractorTrigger
     jp c, .update_diving
@@ -1229,7 +1242,36 @@ UpdateEntryPhase:
     cp 110
     jr z, .entry_fire
     cp 150
+    jr z, .entry_fire
+    cp 90
+    jr z, .entry_extra_fire_check
+    cp 130
     jr nz, .entry_no_shot
+.entry_extra_fire_check:
+    push bc
+    call GetRandomByte
+    ld b, a
+    ld a, (difficulty_level)
+    or a
+    ld a, 26                 ; Easy: ~10% chance at each extra firing point.
+    jr z, .entry_fire_chance_ready
+    ld a, (difficulty_level)
+    cp 1
+    ld a, 52                 ; Medium: ~20%.
+    jr z, .entry_fire_chance_ready
+    cp 2
+    ld a, 90                 ; Hard: ~35%.
+    jr z, .entry_fire_chance_ready
+    ld a, 128                ; Hardest: ~50%.
+.entry_fire_chance_ready:
+    cp b
+    jr c, .entry_extra_fire_skip
+    jr z, .entry_extra_fire_skip
+    pop bc
+    jr .entry_fire
+.entry_extra_fire_skip:
+    pop bc
+    jr .entry_no_shot
 .entry_fire:
     push bc
     push ix
@@ -1394,7 +1436,33 @@ UpdateEntryPhase:
     ld (entry_music_catchup), a
 
 .entry_music_catchup_done:
-    call UpdateCapturedFighter
+    ret
+
+;; Returns A=nonzero when an early attack is allowed at this interval.
+ShouldAttackDuringEntry:
+    call GetRandomByte
+    and 7
+    ld b, a
+    ld a, (difficulty_level)
+    or a
+    ld a, 1
+    ret z
+    ld a, (difficulty_level)
+    cp 1
+    ld a, 2
+    jr z, .check_roll
+    cp 2
+    ld a, 4
+    jr z, .check_roll
+    ld a, 6
+.check_roll:
+    cp b
+    jr c, .attack_not_allowed
+    jr z, .attack_not_allowed
+    ld a, 1
+    ret
+.attack_not_allowed:
+    xor a
     ret
 
 ;; ----------------------------------------------------------------------------
