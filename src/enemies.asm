@@ -301,6 +301,17 @@ DrawEnemyIY:
     ret
 
 UpdateEnemies:
+    ;; Keep the opaque beam in place while active; the end-of-frame draw
+    ;; replaces the whole beam image. Erase and restore its background once
+    ;; it has been switched off.
+    ld a, (tractor_beam_active)
+    cp 1
+    jr z, .keep_tractor_beam
+    cp 2
+    jr z, .keep_tractor_beam
+    call EraseTractorBeam
+.keep_tractor_beam:
+
     ;; Check if Results Screen is active during Game Over
     ld a, (game_over)
     or a

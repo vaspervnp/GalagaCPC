@@ -60,6 +60,8 @@ shots_hit:          defw 0  ; Arcade statistics: total missiles that hit enemies
 tractor_beam_active:        defb 0
 tractor_boss_x:             defb 0
 tractor_boss_y:             defb 0
+tractor_beam_x:             defb 0
+tractor_beam_drawn:         defb 0
 tractor_timer:              defb 0
 tractor_anim:               defb 0
 tractor_trigger_cnt:        defb 0
