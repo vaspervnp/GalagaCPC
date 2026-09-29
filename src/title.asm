@@ -43,6 +43,8 @@ ShowTitleScreen:
     ld hl, str_revive8bit_footer
     call DrawGlyphString
 
+    call DrawTitleDifficulty
+
 TitleLoop:
     call WaitVSync
 
@@ -98,14 +100,74 @@ TitleLoop:
 .no_cycle_mode:
     call read_controls
     ld a, (ctl_pressed)
+    bit CTL_LEFT, a
+    jp nz, .difficulty_left
+    bit CTL_RIGHT, a
+    jp nz, .difficulty_right
+    jr .check_start
+
+.difficulty_left:
+    ld a, (difficulty_level)
+    or a
+    jr nz, .difficulty_decrement
+    ld a, 4
+.difficulty_decrement:
+    dec a
+    ld (difficulty_level), a
+    call DrawTitleDifficulty
+    jr .check_start
+
+.difficulty_right:
+    ld a, (difficulty_level)
+    inc a
+    cp 4
+    jr c, .store_difficulty
+    xor a
+.store_difficulty:
+    ld (difficulty_level), a
+    call DrawTitleDifficulty
+
+.check_start:
+    ld a, (ctl_pressed)
     bit CTL_FIRE, a
-    jr z, TitleLoop
+    jp z, TitleLoop
 
     ;; *** FIRE PRESSED! START GAME! ***
     xor a
     ld (is_title_screen), a
     call RestartGame            ; Fresh game initialization (plays game start tune)
     jp GameLoop
+
+;; ----------------------------------------------------------------------------
+;; DrawTitleDifficulty: Show the current menu selection
+;; ----------------------------------------------------------------------------
+DrawTitleDifficulty:
+    ld b, 21
+    ld c, 94
+    ld d, 54
+    call ClearTextRect
+
+    ld a, (difficulty_level)
+    or a
+    jr z, .easy
+    cp 1
+    jr z, .medium
+    cp 2
+    jr z, .hard
+    ld hl, str_title_difficulty_hardest
+    jr .draw
+.hard:
+    ld hl, str_title_difficulty_hard
+    jr .draw
+.medium:
+    ld hl, str_title_difficulty_medium
+    jr .draw
+.easy:
+    ld hl, str_title_difficulty_easy
+.draw:
+    ld b, 21
+    ld c, 94
+    jp DrawGlyphString
 
 ;; ----------------------------------------------------------------------------
 ;; DrawTitlePointValues: Render enemy point values demonstration

@@ -179,8 +179,7 @@ RestartGame:
     ld a, 1
     ld (current_stage), a
 
-    ld a, 130
-    ld (attack_threshold), a
+    call InitAttackThreshold
 
     ;; Reset player score (24-bit)
     ld hl, 0

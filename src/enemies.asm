@@ -47,8 +47,8 @@ InitEnemies:
     call PlaySoundStageStart
     ret
 
-;; Select a fixed number of random shooters in each entry group.
-;; Stages 10-19: 1 per group; 20-29: 2; 30+: 3.
+;; Easy uses stages 10/20/30 for 1/2/3 shooters; higher difficulties
+;; shift these thresholds earlier and add one shooter per difficulty tier.
 SelectEntryShooters:
     ld hl, entry_shooter_flags
     ld de, entry_shooter_flags + 1
@@ -58,6 +58,13 @@ SelectEntryShooters:
     ldir
 
     ld a, (current_stage)
+    ld b, a
+    ld a, (difficulty_level)
+    add a, a
+    add a, b
+    jr nc, .effective_stage_ready
+    ld a, 255
+.effective_stage_ready:
     cp 10
     ret c
     cp 20
@@ -65,12 +72,19 @@ SelectEntryShooters:
     cp 30
     jr c, .two_shooters
     ld a, 3
-    jr .store_quota
+    jr .store_base_quota
 .two_shooters:
     ld a, 2
-    jr .store_quota
+    jr .store_base_quota
 .one_shooter:
     ld a, 1
+.store_base_quota:
+    ld b, a
+    ld a, (difficulty_level)
+    add a, b
+    cp 5
+    jr c, .store_quota
+    ld a, 4
 .store_quota:
     ld (entry_shooter_quota), a
 
@@ -405,7 +419,7 @@ UpdateEnemies:
     inc a
     ld (attack_timer), a
     ld hl, attack_threshold
-    cp (hl)                 ; Dynamic threshold based on current stage
+    cp (hl)                 ; Dynamic threshold based on stage and difficulty
     jp c, .update_diving
 
     xor a

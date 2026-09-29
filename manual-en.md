@@ -13,7 +13,7 @@ Pilot your fighter, destroy the alien formations, and score as many points as po
 1. Start the Amstrad CPC or emulator with the game disk inserted.
 2. At the Locomotive BASIC `Ready` prompt, type `RUN"galaga.bas` and press Enter.
 3. The intro screen appears. Press **Space** or wait 10 seconds for the game to load.
-4. At the title screen, press **Space** or joystick **Fire 1** to begin playing.
+4. At the title screen, choose a difficulty with left/right, then press **Space** or joystick **Fire 1** to begin playing.
 
 ## Controls
 
@@ -25,6 +25,10 @@ Pilot your fighter, destroy the alien formations, and score as many points as po
 | Pause / resume | `H` | — |
 
 Hold the fire button for repeated shots. While paused, press `H` again to resume.
+
+## Difficulty
+
+Choose **Easy**, **Medium**, **Hard**, or **Hardest** on the title screen with the left/right arrows, `O` / `P`, or the joystick. **Easy** preserves the game's original behavior. Higher settings make enemies start attacking and firing on earlier stages, increase attack frequency, and add more firing enemies. The challenge continues to rise as you progress through the stages.
 
 ## Stages and enemies
 
