@@ -31,6 +31,11 @@
 | Πυροβολισμός | `Space` | Fire 1 |
 | Παύση | `H` | — |
 
+## Εγχειρίδιο
+
+- [Εγχειρίδιο στα Ελληνικά](manual-el.md) ([PDF](manual-el.pdf))
+- [Game manual in English](manual-en.md) ([PDF](manual-en.pdf))
+
 ## Build
 
 Από τη ρίζα του repository, εκτελέστε σε Windows:
