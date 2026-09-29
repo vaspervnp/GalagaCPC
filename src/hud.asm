@@ -10,35 +10,25 @@ InitHUD:
     ;; 1. Draw '1UP' in Red at X=16, Y=6
     ld b, 16
     ld c, 6
-    ld hl, f_r_1
-    call DrawGlyph
-    ld b, 19
-    ld c, 6
-    ld hl, f_r_U
-    call DrawGlyph
-    ld b, 22
-    ld c, 6
-    ld hl, f_r_P
-    call DrawGlyph
+    ld hl, str_1up_hdr
+    call DrawGlyphString
 
     ;; 2. Draw 'HIGH SCORE' in Red at X=46, Y=6
     ld b, 46
     ld c, 6
-    ld hl, f_r_H : call DrawGlyph : ld b, 49 : ld c, 6
-    ld hl, f_r_I : call DrawGlyph : ld b, 52 : ld c, 6
-    ld hl, f_r_G : call DrawGlyph : ld b, 55 : ld c, 6
-    ld hl, f_r_H : call DrawGlyph : ld b, 58 : ld c, 6
-    ld hl, f_r_SPACE : call DrawGlyph : ld b, 61 : ld c, 6
-    ld hl, f_r_S : call DrawGlyph : ld b, 64 : ld c, 6
-    ld hl, f_r_C : call DrawGlyph : ld b, 67 : ld c, 6
-    ld hl, f_r_O : call DrawGlyph : ld b, 70 : ld c, 6
-    ld hl, f_r_R : call DrawGlyph : ld b, 73 : ld c, 6
-    ld hl, f_r_E : call DrawGlyph
+    ld hl, str_high_score_hdr
+    call DrawGlyphString
 
     ;; 3. Initial Scores in White at Y=16
     call PrintScore
     call PrintHighScore
     ret
+
+str_1up_hdr:
+    defw f_r_1, f_r_U, f_r_P, 0
+
+str_high_score_hdr:
+    defw f_r_H, f_r_I, f_r_G, f_r_H, f_r_SPACE, f_r_S, f_r_C, f_r_O, f_r_R, f_r_E, 0
 
 ;; ----------------------------------------------------------------------------
 ;; PrintScore - Print player_score at X=14, Y=16 in White (6 digits)
@@ -194,16 +184,10 @@ Print5Digits:
 ;; DrawGameOverText - Display "GAME OVER" in Cyan at X=35, Y=110
 ;; ----------------------------------------------------------------------------
 DrawGameOverText:
-    ld b, 35 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
-    ld b, 38 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
-    ld b, 41 : ld c, 110 : ld hl, f_c_M : call DrawGlyph
-    ld b, 44 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
-    ld b, 47 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
-    ld b, 50 : ld c, 110 : ld hl, f_c_O : call DrawGlyph
-    ld b, 53 : ld c, 110 : ld hl, f_c_V : call DrawGlyph
-    ld b, 56 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
-    ld b, 59 : ld c, 110 : ld hl, f_c_R : call DrawGlyph
-    ret
+    ld b, 35
+    ld c, 110
+    ld hl, str_game_over_banner
+    jp DrawGlyphString
 
 ClearGameOverText:
     ld b, 35
@@ -215,12 +199,10 @@ ClearGameOverText:
 ;; DrawPauseBanner - Display "PAUSE" in Cyan at X=41, Y=110
 ;; ----------------------------------------------------------------------------
 DrawPauseBanner:
-    ld b, 41 : ld c, 110 : ld hl, f_c_P : call DrawGlyph
-    ld b, 44 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
-    ld b, 47 : ld c, 110 : ld hl, f_c_U : call DrawGlyph
-    ld b, 50 : ld c, 110 : ld hl, f_c_S : call DrawGlyph
-    ld b, 53 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
-    ret
+    ld b, 41
+    ld c, 110
+    ld hl, str_pause_banner
+    jp DrawGlyphString
 
 ClearPauseBanner:
     ld b, 41
@@ -232,12 +214,10 @@ ClearPauseBanner:
 ;; DrawStageBanner - Display "STAGE " + current_stage in Cyan at X=38, Y=110
 ;; ----------------------------------------------------------------------------
 DrawStageBanner:
-    ld b, 38 : ld c, 110 : ld hl, f_c_S : call DrawGlyph
-    ld b, 41 : ld c, 110 : ld hl, f_c_T : call DrawGlyph
-    ld b, 44 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
-    ld b, 47 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
-    ld b, 50 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
-    ld b, 53 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
+    ld b, 38
+    ld c, 110
+    ld hl, str_stage_banner
+    call DrawGlyphString
     ld a, (current_stage)
     cp 10
     jr nc, .dsb_2digits
@@ -257,13 +237,10 @@ ClearStageBanner:
 ;; DrawPlayerBanner - Display "PLAYER 1" in Cyan at X=36, Y=110
 ;; ----------------------------------------------------------------------------
 DrawPlayerBanner:
-    ld b, 36 : ld c, 110 : ld hl, f_c_P : call DrawGlyph
-    ld b, 39 : ld c, 110 : ld hl, f_c_L : call DrawGlyph
-    ld b, 42 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
-    ld b, 45 : ld c, 110 : ld hl, f_c_Y : call DrawGlyph
-    ld b, 48 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
-    ld b, 51 : ld c, 110 : ld hl, f_c_R : call DrawGlyph
-    ld b, 54 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
+    ld b, 36
+    ld c, 110
+    ld hl, str_player_banner
+    call DrawGlyphString
     ld b, 57 : ld c, 110
     ld a, 1
     jp DrawWhiteDigit
@@ -278,24 +255,10 @@ ClearPlayerBanner:
 ;; DrawChallengingBanner - Display "CHALLENGING STAGE" in Cyan at X=23, Y=110
 ;; ----------------------------------------------------------------------------
 DrawChallengingBanner:
-    ld b, 23 : ld c, 110 : ld hl, f_c_C : call DrawGlyph
-    ld b, 26 : ld c, 110 : ld hl, f_c_H : call DrawGlyph
-    ld b, 29 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
-    ld b, 32 : ld c, 110 : ld hl, f_c_L : call DrawGlyph
-    ld b, 35 : ld c, 110 : ld hl, f_c_L : call DrawGlyph
-    ld b, 38 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
-    ld b, 41 : ld c, 110 : ld hl, f_c_N : call DrawGlyph
-    ld b, 44 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
-    ld b, 47 : ld c, 110 : ld hl, f_c_I : call DrawGlyph
-    ld b, 50 : ld c, 110 : ld hl, f_c_N : call DrawGlyph
-    ld b, 53 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
-    ld b, 56 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
-    ld b, 59 : ld c, 110 : ld hl, f_c_S : call DrawGlyph
-    ld b, 62 : ld c, 110 : ld hl, f_c_T : call DrawGlyph
-    ld b, 65 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
-    ld b, 68 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
-    ld b, 71 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
-    ret
+    ld b, 23
+    ld c, 110
+    ld hl, str_challenging_banner
+    jp DrawGlyphString
 
 ClearChallengingBanner:
     ld b, 23
@@ -307,23 +270,28 @@ ClearChallengingBanner:
 ;; DrawFighterCapturedBanner - Display "FIGHTER CAPTURED" in Cyan at X=24, Y=110
 ;; ----------------------------------------------------------------------------
 DrawFighterCapturedBanner:
-    ld b, 24 : ld c, 110 : ld hl, f_c_F : call DrawGlyph
-    ld b, 27 : ld c, 110 : ld hl, f_c_I : call DrawGlyph
-    ld b, 30 : ld c, 110 : ld hl, f_c_G : call DrawGlyph
-    ld b, 33 : ld c, 110 : ld hl, f_c_H : call DrawGlyph
-    ld b, 36 : ld c, 110 : ld hl, f_c_T : call DrawGlyph
-    ld b, 39 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
-    ld b, 42 : ld c, 110 : ld hl, f_c_R : call DrawGlyph
-    ld b, 45 : ld c, 110 : ld hl, f_c_SPACE : call DrawGlyph
-    ld b, 48 : ld c, 110 : ld hl, f_c_C : call DrawGlyph
-    ld b, 51 : ld c, 110 : ld hl, f_c_A : call DrawGlyph
-    ld b, 54 : ld c, 110 : ld hl, f_c_P : call DrawGlyph
-    ld b, 57 : ld c, 110 : ld hl, f_c_T : call DrawGlyph
-    ld b, 60 : ld c, 110 : ld hl, f_c_U : call DrawGlyph
-    ld b, 63 : ld c, 110 : ld hl, f_c_R : call DrawGlyph
-    ld b, 66 : ld c, 110 : ld hl, f_c_E : call DrawGlyph
-    ld b, 69 : ld c, 110 : ld hl, f_c_D : call DrawGlyph
-    ret
+    ld b, 24
+    ld c, 110
+    ld hl, str_fighter_captured_banner
+    jp DrawGlyphString
+
+str_game_over_banner:
+    defw f_c_G, f_c_A, f_c_M, f_c_E, f_c_SPACE, f_c_O, f_c_V, f_c_E, f_c_R, 0
+
+str_pause_banner:
+    defw f_c_P, f_c_A, f_c_U, f_c_S, f_c_E, 0
+
+str_stage_banner:
+    defw f_c_S, f_c_T, f_c_A, f_c_G, f_c_E, f_c_SPACE, 0
+
+str_player_banner:
+    defw f_c_P, f_c_L, f_c_A, f_c_Y, f_c_E, f_c_R, f_c_SPACE, 0
+
+str_challenging_banner:
+    defw f_c_C, f_c_H, f_c_A, f_c_L, f_c_L, f_c_E, f_c_N, f_c_G, f_c_I, f_c_N, f_c_G, f_c_SPACE, f_c_S, f_c_T, f_c_A, f_c_G, f_c_E, 0
+
+str_fighter_captured_banner:
+    defw f_c_F, f_c_I, f_c_G, f_c_H, f_c_T, f_c_E, f_c_R, f_c_SPACE, f_c_C, f_c_A, f_c_P, f_c_T, f_c_U, f_c_R, f_c_E, f_c_D, 0
 
 ClearFighterCapturedBanner:
     ld b, 24
@@ -941,6 +909,7 @@ f_w_9:
     defb #00, #55
     defb #55, #AA
     defb #00, #00
+font_alpha_white:
 f_w_A:
     defb #55, #AA
     defb #AA, #55
@@ -1023,22 +992,22 @@ f_w_I:
     defb #FF, #FF
     defb #00, #00
 f_w_J:
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
+    defb #00, #55
+    defb #00, #55
+    defb #00, #55
+    defb #00, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
     defb #00, #00
 f_w_K:
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
+    defb #AA, #55
+    defb #AA, #AA
+    defb #FF, #00
+    defb #FF, #00
+    defb #AA, #AA
+    defb #AA, #55
+    defb #AA, #55
     defb #00, #00
 f_w_L:
     defb #AA, #00
@@ -1085,14 +1054,14 @@ f_w_P:
     defb #AA, #00
     defb #AA, #00
     defb #00, #00
-f_w_U:
-    defb #AA, #55
-    defb #AA, #55
+f_w_Q:
+    defb #55, #AA
     defb #AA, #55
     defb #AA, #55
     defb #AA, #55
     defb #AA, #55
     defb #55, #AA
+    defb #00, #55
     defb #00, #00
 f_w_R:
     defb #FF, #AA
@@ -1121,6 +1090,15 @@ f_w_T:
     defb #55, #AA
     defb #55, #AA
     defb #00, #00
+f_w_U:
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #00, #00
 f_w_V:
     defb #AA, #55
     defb #AA, #55
@@ -1129,6 +1107,42 @@ f_w_V:
     defb #AA, #55
     defb #55, #AA
     defb #55, #AA
+    defb #00, #00
+f_w_W:
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #FF, #FF
+    defb #FF, #FF
+    defb #AA, #55
+    defb #00, #00
+f_w_X:
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #AA, #55
+    defb #AA, #55
+    defb #00, #00
+f_w_Y:
+    defb #AA, #55
+    defb #AA, #55
+    defb #AA, #55
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #00, #00
+f_w_Z:
+    defb #FF, #FF
+    defb #00, #55
+    defb #00, #AA
+    defb #55, #AA
+    defb #55, #00
+    defb #AA, #00
+    defb #FF, #FF
     defb #00, #00
 f_w_SPACE:
     defb #00, #00
@@ -1148,17 +1162,26 @@ f_w_DOT:
     defb #55, #AA
     defb #55, #AA
     defb #00, #00
-
-;; --- Red Font (Pen 2) ---
-f_r_0:
-    defb #04, #08
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #04, #08
+f_w_DASH:
     defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #FF, #FF
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+    defb #00, #00
+f_w_EXCL:
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #55, #AA
+    defb #00, #00
+    defb #55, #AA
+    defb #55, #AA
+    defb #00, #00
+
+;; --- Red Font (Pen 2 - essential HUD headers) ---
 f_r_1:
     defb #00, #08
     defb #04, #08
@@ -1167,96 +1190,6 @@ f_r_1:
     defb #00, #08
     defb #00, #08
     defb #04, #0C
-    defb #00, #00
-f_r_2:
-    defb #04, #08
-    defb #08, #04
-    defb #00, #04
-    defb #00, #08
-    defb #04, #00
-    defb #08, #00
-    defb #0C, #0C
-    defb #00, #00
-f_r_3:
-    defb #0C, #08
-    defb #00, #04
-    defb #00, #04
-    defb #04, #08
-    defb #00, #04
-    defb #00, #04
-    defb #0C, #08
-    defb #00, #00
-f_r_4:
-    defb #00, #08
-    defb #04, #08
-    defb #08, #08
-    defb #0C, #0C
-    defb #00, #08
-    defb #00, #08
-    defb #00, #08
-    defb #00, #00
-f_r_5:
-    defb #0C, #0C
-    defb #08, #00
-    defb #0C, #08
-    defb #00, #04
-    defb #00, #04
-    defb #08, #04
-    defb #04, #08
-    defb #00, #00
-f_r_6:
-    defb #04, #08
-    defb #08, #00
-    defb #0C, #08
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #04, #08
-    defb #00, #00
-f_r_7:
-    defb #0C, #0C
-    defb #00, #04
-    defb #00, #08
-    defb #00, #08
-    defb #04, #00
-    defb #04, #00
-    defb #04, #00
-    defb #00, #00
-f_r_8:
-    defb #04, #08
-    defb #08, #04
-    defb #08, #04
-    defb #04, #08
-    defb #08, #04
-    defb #08, #04
-    defb #04, #08
-    defb #00, #00
-f_r_9:
-    defb #04, #08
-    defb #08, #04
-    defb #08, #04
-    defb #04, #0C
-    defb #00, #04
-    defb #00, #04
-    defb #04, #08
-    defb #00, #00
-f_r_A:
-    defb #04, #08
-    defb #08, #04
-    defb #08, #04
-    defb #0C, #0C
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #00, #00
-f_r_B:
-    defb #0C, #08
-    defb #08, #04
-    defb #08, #04
-    defb #0C, #08
-    defb #08, #04
-    defb #08, #04
-    defb #0C, #08
     defb #00, #00
 f_r_C:
     defb #04, #0C
@@ -1267,15 +1200,6 @@ f_r_C:
     defb #08, #00
     defb #04, #0C
     defb #00, #00
-f_r_D:
-    defb #0C, #08
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #0C, #08
-    defb #00, #00
 f_r_E:
     defb #0C, #0C
     defb #08, #00
@@ -1284,15 +1208,6 @@ f_r_E:
     defb #08, #00
     defb #08, #00
     defb #0C, #0C
-    defb #00, #00
-f_r_F:
-    defb #0C, #0C
-    defb #08, #00
-    defb #08, #00
-    defb #0C, #08
-    defb #08, #00
-    defb #08, #00
-    defb #08, #00
     defb #00, #00
 f_r_G:
     defb #04, #0C
@@ -1321,51 +1236,6 @@ f_r_I:
     defb #04, #08
     defb #0C, #0C
     defb #00, #00
-f_r_J:
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-f_r_K:
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-f_r_L:
-    defb #08, #00
-    defb #08, #00
-    defb #08, #00
-    defb #08, #00
-    defb #08, #00
-    defb #08, #00
-    defb #0C, #0C
-    defb #00, #00
-f_r_M:
-    defb #08, #04
-    defb #0C, #0C
-    defb #0C, #0C
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #00, #00
-f_r_N:
-    defb #08, #04
-    defb #0C, #04
-    defb #08, #0C
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #00, #00
 f_r_O:
     defb #04, #08
     defb #08, #04
@@ -1383,15 +1253,6 @@ f_r_P:
     defb #08, #00
     defb #08, #00
     defb #08, #00
-    defb #00, #00
-f_r_U:
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #08, #04
-    defb #04, #08
     defb #00, #00
 f_r_R:
     defb #0C, #08
@@ -1411,22 +1272,13 @@ f_r_S:
     defb #00, #04
     defb #0C, #08
     defb #00, #00
-f_r_T:
-    defb #0C, #0C
-    defb #04, #08
-    defb #04, #08
-    defb #04, #08
-    defb #04, #08
-    defb #04, #08
-    defb #04, #08
-    defb #00, #00
-f_r_V:
+f_r_U:
     defb #08, #04
     defb #08, #04
     defb #08, #04
     defb #08, #04
     defb #08, #04
-    defb #04, #08
+    defb #08, #04
     defb #04, #08
     defb #00, #00
 f_r_SPACE:
@@ -1438,15 +1290,73 @@ f_r_SPACE:
     defb #00, #00
     defb #00, #00
     defb #00, #00
-f_r_DOT:
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #04, #08
-    defb #04, #08
-    defb #00, #00
+
+;; ----------------------------------------------------------------------------
+;; DrawCharWhite: Draw character in A ('A'..'Z', '0'..'9', ' ', '.') in White
+;; Input:  A = ASCII char, B = X, C = Y
+;; Destroys: AF, HL, DE
+;; ----------------------------------------------------------------------------
+DrawCharWhite:
+    cp 'A'
+    jr c, .dcw_not_upper
+    cp 'Z' + 1
+    jr nc, .dcw_not_upper
+    sub 'A'
+    ld l, a
+    ld h, 0
+    add hl, hl          ; *2
+    add hl, hl          ; *4
+    add hl, hl          ; *8
+    add hl, hl          ; *16
+    ld de, font_alpha_white
+    add hl, de
+    jp DrawGlyph
+
+.dcw_not_upper:
+    cp '0'
+    jr c, .dcw_not_digit
+    cp '9' + 1
+    jr nc, .dcw_not_digit
+    sub '0'
+    jp DrawWhiteDigit
+
+.dcw_not_digit:
+    cp '.'
+    jr nz, .dcw_not_dot
+    ld hl, f_w_DOT
+    jp DrawGlyph
+.dcw_not_dot:
+    cp '-'
+    jr nz, .dcw_not_dash
+    ld hl, f_w_DASH
+    jp DrawGlyph
+.dcw_not_dash:
+    cp '!'
+    jr nz, .dcw_space
+    ld hl, f_w_EXCL
+    jp DrawGlyph
+.dcw_space:
+    ld hl, f_w_SPACE
+    jp DrawGlyph
+
+;; ----------------------------------------------------------------------------
+;; DrawStringWhite: Draw null-terminated ASCII string at B=X, C=Y in White
+;; Input:  HL = string ptr, B = X, C = Y
+;; Destroys: AF, HL, DE, BC
+;; ----------------------------------------------------------------------------
+DrawStringWhite:
+.dsw_loop:
+    ld a, (hl)
+    or a
+    ret z
+    inc hl
+    push hl
+    call DrawCharWhite
+    pop hl
+    ld a, b
+    add a, 3            ; X advance (2 bytes + 1 space)
+    ld b, a
+    jr .dsw_loop
 
 ;; --- Cyan Font (Pen 4) ---
 f_c_0:
@@ -1458,15 +1368,6 @@ f_c_0:
     defb #20, #10
     defb #10, #20
     defb #00, #00
-f_c_1:
-    defb #00, #20
-    defb #10, #20
-    defb #00, #20
-    defb #00, #20
-    defb #00, #20
-    defb #00, #20
-    defb #10, #30
-    defb #00, #00
 f_c_2:
     defb #10, #20
     defb #20, #10
@@ -1475,24 +1376,6 @@ f_c_2:
     defb #10, #00
     defb #20, #00
     defb #30, #30
-    defb #00, #00
-f_c_3:
-    defb #30, #20
-    defb #00, #10
-    defb #00, #10
-    defb #10, #20
-    defb #00, #10
-    defb #00, #10
-    defb #30, #20
-    defb #00, #00
-f_c_4:
-    defb #00, #20
-    defb #10, #20
-    defb #20, #20
-    defb #30, #30
-    defb #00, #20
-    defb #00, #20
-    defb #00, #20
     defb #00, #00
 f_c_5:
     defb #30, #30
@@ -1512,15 +1395,6 @@ f_c_6:
     defb #20, #10
     defb #10, #20
     defb #00, #00
-f_c_7:
-    defb #30, #30
-    defb #00, #10
-    defb #00, #20
-    defb #00, #20
-    defb #10, #00
-    defb #10, #00
-    defb #10, #00
-    defb #00, #00
 f_c_8:
     defb #10, #20
     defb #20, #10
@@ -1528,15 +1402,6 @@ f_c_8:
     defb #10, #20
     defb #20, #10
     defb #20, #10
-    defb #10, #20
-    defb #00, #00
-f_c_9:
-    defb #10, #20
-    defb #20, #10
-    defb #20, #10
-    defb #10, #30
-    defb #00, #10
-    defb #00, #10
     defb #10, #20
     defb #00, #00
 f_c_A:
@@ -1619,24 +1484,6 @@ f_c_I:
     defb #10, #20
     defb #10, #20
     defb #30, #30
-    defb #00, #00
-f_c_J:
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-f_c_K:
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
-    defb #00, #00
     defb #00, #00
 f_c_L:
     defb #20, #00

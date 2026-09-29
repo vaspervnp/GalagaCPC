@@ -12,8 +12,24 @@ player_invincible_timer: defb 0 ; Respawn invincibility countdown (100 frames = 
 fire_button_state:  defb 0
 player_score:           defw 0
 player_score_hi:        defb 0
-high_score:             defw 20000
+high_score:             defw 30000
 high_score_hi:          defb 0
+
+;; Top 5 Hall of Fame / High Score Table (5 entries x 6 bytes = 30 bytes)
+;; Each entry: Score Lo Word (2), Score Hi Byte (1), 3 Initials chars (3)
+top5_table:
+    defw 30000 : defb 0 : defb 'V', 'A', 'S'  ; 1ST
+    defw 20000 : defb 0 : defb 'C', 'P', 'C'  ; 2ND
+    defw 15000 : defb 0 : defb 'N', 'A', 'M'  ; 3RD
+    defw 10000 : defb 0 : defb 'G', 'A', 'L'  ; 4TH
+    defw  5000 : defb 0 : defb 'A', 'A', 'A'  ; 5TH
+
+qualify_rank:           defb 0
+entered_initials:       defb 'A', 'A', 'A'
+current_slot:           defb 0
+entry_blink:            defb 0
+title_display_mode:     defb 0      ; 0 = Point Values, 1 = Top 5 Hall of Fame
+title_mode_timer:       defb 0      ; Alternates screen mode every ~250 frames
 player_lives:           defb 3
 extra_life_count:       defb 0  ; Milestone count: 1=20k, 2=70k, 3=140k...
 next_extra_life_lo:     defw 20000

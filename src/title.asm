@@ -29,44 +29,14 @@ ShowTitleScreen:
     ld hl, title_logo_data
     call DrawBitmapRect
 
-    ;; 5. Draw "- POINT VALUES -" at X=24, Y=106 in Bright Cyan
-    ld b, 24
-    ld c, 106
-    ld hl, str_title_points_hdr
-    call DrawGlyphString
+    xor a
+    ld (title_display_mode), a
+    ld (title_mode_timer), a
 
-    ;; 6. Draw Enemy Point Value Demonstration
-    ;; Row 1: Zako Bee at X=22, Y=126
-    ld b, 22
-    ld c, 126
-    ld hl, zako_bee_1
-    call DrawSprite16x16
-    ld b, 34
-    ld c, 130
-    ld hl, str_pts_50_100
-    call DrawGlyphString
+    ;; 5. Draw initial mode: Point Values Demonstration
+    call DrawTitlePointValues
 
-    ;; Row 2: Goei Butterfly at X=22, Y=148
-    ld b, 22
-    ld c, 148
-    ld hl, goei_butterfly_1
-    call DrawSprite16x16
-    ld b, 34
-    ld c, 152
-    ld hl, str_pts_80_160
-    call DrawGlyphString
-
-    ;; Row 3: Boss Galaga at X=22, Y=170
-    ld b, 22
-    ld c, 170
-    ld hl, boss_galaga_1
-    call DrawSprite16x16
-    ld b, 34
-    ld c, 174
-    ld hl, str_pts_150_400
-    call DrawGlyphString
-
-    ;; 7. Draw Bottom Signature in Lower Border:
+    ;; 6. Draw Bottom Signature in Lower Border:
     ;; "REVIVE8BIT - 2026 - VASPER" at X=9, Y=244
     ld b, 9
     ld c, 244
@@ -93,7 +63,7 @@ TitleLoop:
     ld c, 82
     ld hl, str_title_prompt
     call DrawGlyphString
-    jr .check_start_key
+    jr .check_cycle_mode
 
 .hide_prompt:
     ld b, 24
@@ -101,7 +71,31 @@ TitleLoop:
     ld d, 48                    ; 16 chars * 3 bytes
     call ClearTextRect
 
-.check_start_key:
+.check_cycle_mode:
+    ;; Cycle between Point Values and Hall of Fame every 250 frames (~5 seconds)
+    ld a, (title_mode_timer)
+    inc a
+    ld (title_mode_timer), a
+    cp 250
+    jr c, .no_cycle_mode
+
+    xor a
+    ld (title_mode_timer), a
+    ld a, (title_display_mode)
+    xor 1
+    ld (title_display_mode), a
+    call ClearTitleMiddle
+
+    ld a, (title_display_mode)
+    or a
+    jr nz, .cycle_to_hof
+    call DrawTitlePointValues
+    jr .no_cycle_mode
+
+.cycle_to_hof:
+    call DrawTitleHallOfFame
+
+.no_cycle_mode:
     call read_controls
     ld a, (ctl_pressed)
     bit CTL_FIRE, a
@@ -112,3 +106,44 @@ TitleLoop:
     ld (is_title_screen), a
     call RestartGame            ; Fresh game initialization (plays game start tune)
     jp GameLoop
+
+;; ----------------------------------------------------------------------------
+;; DrawTitlePointValues: Render enemy point values demonstration
+;; ----------------------------------------------------------------------------
+DrawTitlePointValues:
+    ;; 1. Draw "- POINT VALUES -" at X=24, Y=106 in Bright Cyan
+    ld b, 24
+    ld c, 106
+    ld hl, str_title_points_hdr
+    call DrawGlyphString
+
+    ;; 2. Row 1: Zako Bee at X=22, Y=126
+    ld b, 22
+    ld c, 126
+    ld hl, zako_bee_1
+    call DrawSprite16x16
+    ld b, 34
+    ld c, 130
+    ld hl, str_pts_50_100
+    call DrawGlyphString
+
+    ;; 3. Row 2: Goei Butterfly at X=22, Y=148
+    ld b, 22
+    ld c, 148
+    ld hl, goei_butterfly_1
+    call DrawSprite16x16
+    ld b, 34
+    ld c, 152
+    ld hl, str_pts_80_160
+    call DrawGlyphString
+
+    ;; 4. Row 3: Boss Galaga at X=22, Y=170
+    ld b, 22
+    ld c, 170
+    ld hl, boss_galaga_1
+    call DrawSprite16x16
+    ld b, 34
+    ld c, 174
+    ld hl, str_pts_150_400
+    call DrawGlyphString
+    ret

@@ -125,6 +125,10 @@ HandleGameOver:
     bit CTL_FIRE, a
     jp z, GameLoop
 
+    ;; Player pressed Fire! Check if score qualifies for Top 5 Hall of Fame:
+    call CheckHighScoreQualify
+    jp nc, EnterInitialsScreen  ; Qualified (Carry clear)!
+
     jp ShowTitleScreen
 
 ;; ----------------------------------------------------------------------------
@@ -262,6 +266,7 @@ RestartGame:
     include "sound.asm"
     include "stages.asm"
     include "title.asm"
+    include "initials.asm"
     include "data.asm"
     include "sprites.asm"
 

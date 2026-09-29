@@ -232,14 +232,14 @@ GetChallengingStageEnemyType:
     ret
 
 challenging_stage_types:
-    defb 0  ; Stage 3: Zako
-    defb 1  ; Stage 7: Goei
-    defb 3  ; Stage 11: Tonbo
-    defb 6  ; Stage 15: Ogawamushi (Sasori)
-    defb 4  ; Stage 19: Momiji
-    defb 7  ; Stage 23: Ei (Midori Stingray)
-    defb 8  ; Stage 27: Galboss
-    defb 5  ; Stage 31: Enterprise
+    defb 0  ; Stage 3:  Zako & Goei (Bees & Butterflies)
+    defb 6  ; Stage 7:  Sasori (Yellow Scorpions)
+    defb 4  ; Stage 11: Momiji (Satellites)
+    defb 5  ; Stage 15: Enterprise
+    defb 3  ; Stage 19: Tonbo (Dragonfly)
+    defb 7  ; Stage 23: Midori (Stingray)
+    defb 8  ; Stage 27: Galboss (Flagship)
+    defb 6  ; Stage 31: Sasori (Cycle repeats)
 
 ;; ----------------------------------------------------------------------------
 ;; SpawnChallengingEnemy: Spawn 1 enemy for current wave pattern
@@ -266,6 +266,19 @@ SpawnChallengingEnemy:
     ;; Set signature enemy for current challenging stage
     call GetChallengingStageEnemyType
     ld (ix+1), a
+
+    ;; In Stage 3 (Challenging Stage 1): Waves 1-2 = Bees (0), Waves 3-5 = Butterflies (1)
+    ld a, (current_stage)
+    cp 3
+    jr nz, .not_st3_mix
+    ld a, (challenging_wave)
+    cp 3
+    jr c, .st3_zako
+    ld (ix+1), 1            ; Goei Butterfly for Waves 3, 4, 5
+    jr .not_st3_mix
+.st3_zako:
+    ld (ix+1), 0            ; Zako Bee for Waves 1, 2
+.not_st3_mix:
 
     ;; Set enemy type and starting coordinates according to wave
     ld a, (challenging_wave)
@@ -463,6 +476,14 @@ MoveChallengingEnemies:
     jr .ch_draw_now
 
 .ch_draw_now:
+    ;; Animated wing flap / sprite alternation every 8 scanlines of flight
+    ld a, (ix+3)
+    srl a
+    srl a
+    srl a
+    and 1
+    ld (ix+6), a
+
     ld a, (ix+2)
     ld (ix+4), a
     ld a, (ix+3)
