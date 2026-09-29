@@ -51,42 +51,48 @@ SpawnEBullet:
 .got_target_x:
     sub (ix+1)              ; A = Target_X - Bullet_X (signed)
 
-    ;; Classify into 5 angle bands:
-    ;; A < -16: fast left (-2)
-    ;; -16 <= A < -4: gentle left (-1)
-    ;; -4 <= A <= 4: straight down (0)
-    ;; 4 < A <= 16: gentle right (+1)
-    ;; A > 16: fast right (+2)
-    or a
-    jp p, .delta_pos        ; Delta >= 0 (positive or zero)
+    ;; Enemy fire remains vertical until stage 40, then always has diagonal drift.
+    ld c, a
+    ld a, (current_stage)
+    cp 40
+    ld a, c
+    jr nc, .stage_40_diagonal
+    xor a
+    jr .store_dx
 
-    ;; Delta is negative (target is to the left)
-    neg                     ; A = abs(Delta)
-    cp 5
-    jr c, .dx_zero          ; abs(Delta) < 5 -> straight down
+.stage_40_diagonal:
+    or a
+    jr z, .force_diagonal
+    jp p, .diagonal_right
+    neg
     cp 17
-    jr c, .dx_gentle_left   ; 5 <= abs(Delta) < 17 -> gentle left
-    ld a, -2                ; abs(Delta) >= 17 -> fast left
+    jr c, .dx_gentle_left
+    ld a, -2
+    jr .store_dx
+
+.diagonal_right:
+    cp 17
+    jr c, .dx_gentle_right
+    ld a, 2
+    jr .store_dx
+
+.force_diagonal:
+    ld a, (player_x)
+    cp 48
+    jr c, .force_diagonal_left
+    ld a, 1
+    jr .store_dx
+.force_diagonal_left:
+    ld a, -1
     jr .store_dx
 
 .dx_gentle_left:
     ld a, -1
     jr .store_dx
 
-.delta_pos:
-    cp 5
-    jr c, .dx_zero          ; Delta < 5 -> straight down
-    cp 17
-    jr c, .dx_gentle_right  ; 5 <= Delta < 17 -> gentle right
-    ld a, 2                 ; Delta >= 17 -> fast right
-    jr .store_dx
-
 .dx_gentle_right:
     ld a, 1
     jr .store_dx
-
-.dx_zero:
-    xor a
 
 .store_dx:
     ld (ix+6), a            ; dx (-2, -1, 0, 1, 2)
@@ -286,4 +292,3 @@ EraseEBullet:
     pop de
     pop bc
     ret
-

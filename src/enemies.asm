@@ -11,6 +11,7 @@ InitEnemies:
     ld (transform_killed), a
     ld (stage_phase), a         ; STAGE_PHASE_ENTRY = 0
     ld (entry_spawn_idx), a
+    call SelectEntryShooters
 
     ;; Clear all enemies in enemy_data
     ld hl, enemy_data
@@ -43,6 +44,96 @@ InitEnemies:
     ld a, 1
     ld (entry_spawn_timer), a   ; Spawn first enemy on next frame!
     call PlaySoundStageStart
+    ret
+
+;; Select a fixed number of random shooters in each entry group.
+;; Stages 10-19: 1 per group; 20-29: 2; 30+: 3.
+SelectEntryShooters:
+    ld hl, entry_shooter_flags
+    ld de, entry_shooter_flags + 1
+    ld bc, ENEMY_COUNT - 1
+    xor a
+    ld (hl), a
+    ldir
+
+    ld a, (current_stage)
+    cp 10
+    ret c
+    cp 20
+    jr c, .one_shooter
+    cp 30
+    jr c, .two_shooters
+    ld a, 3
+    jr .store_quota
+.two_shooters:
+    ld a, 2
+    jr .store_quota
+.one_shooter:
+    ld a, 1
+.store_quota:
+    ld (entry_shooter_quota), a
+
+    xor a
+    ld b, 4
+    call SelectEntryGroupShooters
+    ld a, 4
+    ld b, 6
+    call SelectEntryGroupShooters
+    ld a, 10
+    ld b, 6
+    call SelectEntryGroupShooters
+    ld a, 16
+    ld b, 6
+    call SelectEntryGroupShooters
+    ld a, 22
+    ld b, 6
+    jp SelectEntryGroupShooters
+
+;; Input: A=first enemy index, B=group size.
+SelectEntryGroupShooters:
+    ld (entry_shooter_start), a
+    ld a, b
+    ld (entry_shooter_size), a
+    ld a, (entry_shooter_quota)
+    ld (entry_shooter_left), a
+.choose_next:
+    ld a, (entry_shooter_left)
+    or a
+    ret z
+    call GetRandomByte
+    ld hl, entry_shooter_size
+.reduce_to_group:
+    cp (hl)
+    jr c, .group_offset_ready
+    sub (hl)
+    jr .reduce_to_group
+.group_offset_ready:
+    ld hl, entry_shooter_start
+    add a, (hl)
+    ld l, a
+    ld h, 0
+    ld de, entry_shooter_flags
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .choose_next
+    inc a
+    ld (hl), a
+    ld hl, entry_shooter_left
+    dec (hl)
+    jr .choose_next
+
+;; Mix the changing Z80 refresh register into a small non-zero PRNG state.
+GetRandomByte:
+    ld a, r
+    ld hl, random_seed
+    xor (hl)
+    rlca
+    xor #A7
+    jr nz, .store_random
+    inc a
+.store_random:
+    ld (hl), a
     ret
 
 DrawEnemyIX:
@@ -934,6 +1025,7 @@ UpdateEntryPhase:
 
     ;; Check entry path: (ix+11)
     ld a, (ix+11)
+    and #7
     or a
     jr z, .epath_0
     cp 1
@@ -989,6 +1081,26 @@ UpdateEntryPhase:
 .entry_store_x:
     ld (ix+2), a
 
+    ;; Selected entry enemies fire while crossing the playfield.
+    bit 7, (ix+11)
+    jr z, .entry_no_shot
+    ld a, (enemy_fire_freeze)
+    or a
+    jr nz, .entry_no_shot
+    ld a, (ix+3)
+    cp 110
+    jr z, .entry_fire
+    cp 150
+    jr nz, .entry_no_shot
+.entry_fire:
+    push bc
+    push ix
+    ld b, (ix+2)
+    ld c, (ix+3)
+    call SpawnEBullet
+    pop ix
+    pop bc
+.entry_no_shot:
     ;; Update old coordinates and draw at new position
     ld a, (ix+2)
     ld (ix+4), a
@@ -1154,6 +1266,18 @@ SpawnEntryEnemy:
     ld (ix+5), a
     ld a, (hl)              ; entry_path
     ld (ix+11), a
+    push hl
+    ld a, (entry_spawn_idx)
+    ld l, a
+    ld h, 0
+    ld de, entry_shooter_flags
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .entry_not_shooter
+    set 7, (ix+11)
+.entry_not_shooter:
+    pop hl
 
     ld a, (global_anim)
     ld (ix+6), a            ; anim_frame
@@ -1247,4 +1371,3 @@ entry_enemy_defs:
     defb 0, 1, 47, 116, 66, 36, 0  ; Slot 25: Zako 10 (target 47, 116)
     defb 0, 1, 57, 116, 66, 36, 0  ; Slot 26: Zako 11 (target 57, 116)
     defb 0, 1, 67, 116, 66, 36, 0  ; Slot 27: Zako 12 (target 67, 116)
-
