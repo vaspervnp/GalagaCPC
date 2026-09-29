@@ -36,6 +36,13 @@ StartChallengingStage:
     ld (is_dual_fighter), a
 .no_ch_rescue_dock:
     call ClearCapturedFighterSprite
+    call StopMusic
+    ld a, 1
+    ld (drone_active), a
+    ld a, 15
+    ld (drone_step), a
+    ld a, 1
+    ld (drone_timer), a
     ret
 
 UpdateChallengingStage:
@@ -112,6 +119,7 @@ UpdateChallengingStage:
 
     ;; *** ALL 5 WAVES COMPLETED (40 ENEMIES)! ***
     ;; Switch to Results Screen sequence
+    call StopChallengingMusic
     ld a, 2
     ld (challenging_active), a
     ld a, 40                ; ~0.8 second pause after music finishes
