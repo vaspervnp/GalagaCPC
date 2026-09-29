@@ -31,6 +31,9 @@ str_score_label:
 str_registered:
     defb "REGISTERED!", 0
 
+str_disk_save_failed:
+    defb "DISK SAVE FAILED", 0
+
 ;; ----------------------------------------------------------------------------
 ;; GetRankStringPtr: Return HL = pointer to "1ST", "2ND", etc. for rank A (0..4)
 ;; ----------------------------------------------------------------------------
@@ -322,6 +325,14 @@ EnterInitialsScreen:
 
     ;; Insert new record into top5_table!
     call InsertTop5Entry
+    call HighScoreSave
+    jr nc, .disk_save_ok
+
+    ld b, 22
+    ld c, 214
+    ld hl, str_disk_save_failed
+    call DrawStringWhite
+.disk_save_ok:
 
     ;; Display "REGISTERED!" at X=32, Y=196
     ld b, 32
