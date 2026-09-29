@@ -567,6 +567,8 @@ UpdateEnemies:
 
 .start_dive:
     ld (ix+8), 1            ; state = 1 (diving)
+    ld (ix+12), 0           ; Choose a fresh horizontal dive speed.
+    ld (ix+13), 0
     call PlaySoundDive
 
     ;; Check if enemy is Boss Galaga (Type 2)
@@ -592,6 +594,8 @@ UpdateEnemies:
     jr nz, .next_esc_cand
     ;; Found a Goei escort!
     ld (iy+8), 1            ; state = 1 (dive with boss!)
+    ld (iy+12), 0           ; Each escort gets an independent dive speed.
+    ld (iy+13), 0
     inc d
     ld a, d
     cp 2                    ; max 2 escorts
@@ -634,6 +638,57 @@ UpdateEnemies:
     call ClearSprite16x16
     pop bc
 
+    ;; Pick each diver's speed once per dive: 1/3 faster, 1/3 normal,
+    ;; and 1/3 slower. Fractional steps preserve those average speeds.
+    ld a, (ix+12)
+    or a
+    jr nz, .dive_speed_ready
+    call GetRandomByte
+    cp 85
+    jr c, .dive_speed_fast
+    cp 170
+    jr c, .dive_speed_normal
+    ld a, 3
+    jr .store_dive_speed
+.dive_speed_fast:
+    ld a, 1
+    jr .store_dive_speed
+.dive_speed_normal:
+    ld a, 2
+.store_dive_speed:
+    ld (ix+12), a
+    xor a
+    ld (ix+13), a
+.dive_speed_ready:
+    ld d, 1
+    ld a, (ix+12)
+    cp 1
+    jr z, .dive_speed_accumulate
+    cp 3
+    jr nz, .dive_speed_move
+    ld a, (ix+13)
+    inc a
+    cp 3
+    jr z, .dive_speed_slow_skip
+    ld (ix+13), a
+    jr .dive_speed_move
+.dive_speed_slow_skip:
+    xor a
+    ld (ix+13), a
+    ld d, 0
+    jr .dive_speed_move
+.dive_speed_accumulate:
+    ld a, (ix+13)
+    inc a
+    cp 3
+    jr z, .dive_speed_extra
+    ld (ix+13), a
+    jr .dive_speed_move
+.dive_speed_extra:
+    xor a
+    ld (ix+13), a
+    inc d
+.dive_speed_move:
     ;; 2. Move Y down by 2 scanlines
     ld a, (ix+3)
     add a, 2
@@ -649,14 +704,18 @@ UpdateEnemies:
     cp c
     jr z, .dive_x_done
     jr c, .dive_steer_left
-    inc c                   ; move right
+    ld a, c
+    add a, d                ; Faster divers may overshoot the player's X.
+    ld c, a
     ld a, c
     cp PLAY_X_MAX + 1
     jr c, .dive_store_x
     ld c, PLAY_X_MAX
     jr .dive_store_x
 .dive_steer_left:
-    dec c                   ; move left
+    ld a, c
+    sub d
+    ld c, a
     ld a, c
     cp PLAY_X_MIN
     jr nc, .dive_store_x
@@ -903,6 +962,8 @@ StartTransformTrio:
     ;; Found a bee for the trio!
     ld (iy+1), c            ; Set type to transform alien!
     ld (iy+8), 1            ; Set state = 1 (diving!)
+    ld (iy+12), 0
+    ld (iy+13), 0
 
     dec d
     jr z, .trio_found_all

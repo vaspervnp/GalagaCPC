@@ -12,7 +12,7 @@ EBULLET_SIZE    equ 8
 MAX_EBULLETS    equ 8
 
 ENEMY_COUNT     equ 28
-ENEMY_SIZE      equ 12
+ENEMY_SIZE      equ 14
 
 MAX_EXPLOSIONS  equ 3
 EXPLOSION_SIZE  equ 4
