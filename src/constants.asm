@@ -9,7 +9,7 @@ DEFAULT_PLAYER_Y equ 222
 
 
 EBULLET_SIZE    equ 8
-MAX_EBULLETS    equ 4
+MAX_EBULLETS    equ 8
 
 ENEMY_COUNT     equ 28
 ENEMY_SIZE      equ 12
@@ -31,4 +31,3 @@ STATE_ENTRY         equ 6
 ;; Stage Phases:
 STAGE_PHASE_ENTRY   equ 0
 STAGE_PHASE_ATTACK  equ 1
-

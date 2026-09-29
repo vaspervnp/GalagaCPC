@@ -360,8 +360,8 @@ CheckCollisions:
     ret nz
 
     ld a, (tractor_beam_active)
-    or a
-    ret nz                  ; Immune while beam active or being captured!
+    cp 2
+    ret z                   ; The player is already held in the beam.
 
     ld a, (capture_delay)
     or a
@@ -594,4 +594,3 @@ apply_points:
     call PrintHighScore
 .no_high_update:
     ret
-
