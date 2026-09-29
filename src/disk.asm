@@ -104,11 +104,13 @@ HighScoreSave:
     djnz .compare
     call fdc_off
     xor a
+    ei
     ret
 
 .failed:
     call fdc_off
     scf
+    ei
     ret
 
 hs_validate:
