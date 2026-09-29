@@ -30,6 +30,19 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b %ERRORLEVEL%
 )
 
+REM Add the CPC screen with its standard screen-memory load address
+wsl --cd "%CD%" -e iDSK build/galaga.dsk -i assets/revive8b.scr -t 1 -c C000 -e C000
+if %ERRORLEVEL% NEQ 0 (
+    echo Could not add REVIVE8B.SCR to the DSK!
+    exit /b %ERRORLEVEL%
+)
+
+wsl --cd "%CD%" -e iDSK build/galaga.dsk -i galaga.bas -t 0
+if %ERRORLEVEL% NEQ 0 (
+    echo Could not add GALAGA.BAS to the DSK!
+    exit /b %ERRORLEVEL%
+)
+
 wsl --cd "%CD%" -e iDSK build/galaga.dsk -i build/galaga.bin -t 1 -c 2000 -e 2000 -f
 if %ERRORLEVEL% NEQ 0 (
     echo Could not add GALAGA.BIN to the DSK!
