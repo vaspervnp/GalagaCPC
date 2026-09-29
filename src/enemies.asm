@@ -379,19 +379,25 @@ UpdateEnemies:
     cp c
     jr z, .next_sway
 
-    ;; Erase at old position
-    push bc
-    ld b, (ix+4)
-    ld c, (ix+5)
-    call ClearSprite16x16
-    pop bc
-
+    ;; Draw at the new position before clearing only the exposed old column.
+    ld a, (ix+4)
+    push af
     ld (ix+2), c
     ld (ix+4), c
 
     push bc
     call DrawEnemyIX
     pop bc
+    pop af
+
+    ;; A formation sway shifts every enemy by one byte horizontally.
+    cp c
+    jr c, .clear_sway_edge
+    add a, 7
+.clear_sway_edge:
+    ld b, a
+    ld c, (ix+5)
+    call ClearSpriteColumn16
 
 .next_sway:
     ld de, ENEMY_SIZE

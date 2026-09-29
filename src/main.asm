@@ -63,17 +63,16 @@ GameLoop:
     or a
     jp nz, HandleGameOver
 
-    ;; Read Keyboard/Joystick input (Left, Right, Fire)
+    ;; Update the player before other lower-screen sprites so its scanlines
+    ;; are ready well before the raster reaches the bottom of the display.
     call ReadInput
+    call UpdatePlayer
 
     ;; Update Player Missiles
     call UpdateMissiles
 
     ;; Update Enemy Bullets
     call UpdateEBullets
-
-    ;; Update Player Ship (at Y=DEFAULT_PLAYER_Y, bottom of screen)
-    call UpdatePlayer
 
     ;; Update Explosions
     call UpdateExplosions

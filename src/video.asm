@@ -186,6 +186,37 @@ ClearSprite16x16:
     pop ix
     ret
 
+;; Clear one exposed byte column of a 16-scanline sprite.
+;; Input: B = X byte column, C = Y scanline. Preserves IX and BC.
+ClearSpriteColumn16:
+    push ix
+    push bc
+    ld e, c
+    ld d, 0
+    sla e
+    rl d
+    ld ix, line_tab
+    add ix, de
+    ld c, 16
+.column_loop:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b
+    add a, e
+    ld e, a
+    jr nc, .column_no_carry
+    inc d
+.column_no_carry:
+    xor a
+    ld (de), a
+    dec c
+    jr nz, .column_loop
+    pop bc
+    pop ix
+    ret
+
 ;; ---------------------------------------------------------------------------
 ;; DrawBitmapRect: Draw bitmap of D bytes wide x E scanlines high from HL to (B=X, C=Y)
 ;; Input:  B = X (0..95)
