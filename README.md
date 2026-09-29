@@ -11,6 +11,7 @@
 - **Ήχος:** PSG AY-3-8912.
 - **Είσοδος:** Πληκτρολόγιο ή joystick μέσω του matrix πληκτρολογίου CPC.
 - **Μέσο διανομής:** Extended DSK image.
+- **Εισαγωγική οθόνη:** Εκτέλεση `RUN"galaga.bas` από BASIC δεσμεύει τη μνήμη από `&2000` και πάνω για το παιχνίδι, εμφανίζει την οθόνη Revive 8-bit με την παλέτα της και ξεκινά το παιχνίδι με Space ή αυτόματα μετά από 10 δευτερόλεπτα.
 - **High scores:** Αποθηκεύονται μόνιμα στη δισκέτα σε αποκλειστικό raw sector· κατά την αποθήκευση γίνεται επαλήθευση με ανάγνωση.
 - **Κώδικας:** Χωρισμένος σε modules για video, χειρισμό παίκτη, εχθρούς, βολές, συγκρούσεις, στάδια, ήχο και αποθήκευση δισκέτας.
 
@@ -38,7 +39,7 @@
 build.bat
 ```
 
-Το script απαιτεί Python 3, το `rasm_w64.exe` στη διαδρομή `G:\Amstrad` και WSL με εγκατεστημένο το `iDSK`. Παράγει τα `build\galaga.bin`, `build\galaga.sym` και `build\galaga.dsk`.
+Το script απαιτεί Python 3, το `rasm_w64.exe` στη διαδρομή `G:\Amstrad` και WSL με εγκατεστημένο το `iDSK`. Παράγει τα `build\galaga.bin`, `build\galaga.sym` και `build\galaga.dsk`, το οποίο περιλαμβάνει το απλό ASCII πρόγραμμα Locomotive BASIC από το `galaga.bas`. Μετά την εκκίνηση του DSK, τρέξτε `RUN"galaga.bas` από το BASIC.
 
 Οι εικόνες των badges βρίσκονται στο `assets\badgesMap.png`. Για αναδημιουργία του αντίστοιχου assembly asset απαιτείται επίσης το Pillow:
 
