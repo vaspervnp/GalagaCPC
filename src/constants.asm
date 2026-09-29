@@ -9,7 +9,7 @@ DEFAULT_PLAYER_Y equ 222
 
 
 EBULLET_SIZE    equ 8
-MAX_EBULLETS    equ 8
+MAX_EBULLETS    equ 5
 
 ENEMY_COUNT     equ 28
 ENEMY_SIZE      equ 14
