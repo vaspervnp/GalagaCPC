@@ -921,8 +921,8 @@ StartTransformTrio:
 
 ;; ----------------------------------------------------------------------------
 ;; CheckAndRestoreDockedEnemies:
-;; Checks if the moving enemy just erased at (ix+4, ix+5) overlapped any docked enemy.
-;; If so, immediately redraws that docked enemy.
+;; Checks if the sprite footprint at (ix+4, ix+5) overlaps any docked enemy.
+;; If so, redraws that docked enemy above the overlapping sprite.
 ;; Prevents background holes without redrawing all docked enemies every frame!
 ;; ----------------------------------------------------------------------------
 CheckAndRestoreDockedEnemies:
@@ -1016,6 +1016,7 @@ UpdateEntryPhase:
     ld ix, enemy_data
     ld b, ENEMY_COUNT
 .erase_moving_loop:
+    res 6, (ix+11)           ; Clear the transient redraw marker.
     ld a, (ix+0)            ; alive?
     or a
     jr z, .next_erase_m
@@ -1027,6 +1028,7 @@ UpdateEntryPhase:
     jr nz, .next_erase_m
 
 .do_erase_m:
+    set 6, (ix+11)           ; Track sprites drawn during this update.
     push bc
     ld b, (ix+4)
     ld c, (ix+5)
@@ -1267,6 +1269,22 @@ UpdateEntryPhase:
     add ix, de
     dec b
     jp nz, .entry_move_loop
+
+    ;; Moving sprites draw after docked enemies. Restore crossed formation
+    ;; sprites after every mover has drawn, including enemies that just docked.
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+.restore_docked_loop:
+    bit 6, (ix+11)
+    jr z, .next_restore_docked
+    push bc
+    call CheckAndRestoreDockedEnemies
+    pop bc
+    res 6, (ix+11)
+.next_restore_docked:
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .restore_docked_loop
 
     ;; 4. Check if Entry Phase is complete
     ld a, (entry_spawn_idx)
