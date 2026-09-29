@@ -599,233 +599,153 @@ DrawStageHUD:
     ld b, 70 : ld c, BADGES_Y : call ClearSprite16x16
     ld b, 78 : ld c, BADGES_Y : call ClearSprite16x16
 
-    ;; Calculate number of 10s, 5s, 1s from current_stage
+    ;; Decompose the stage into the six badge values, largest first.
     ld a, (current_stage)
-    ld c, 0             ; 10s count
-.cnt_10:
+    ld b, 0
+.count_50:
+    cp 50
+    jr c, .store_50
+    sub 50
+    inc b
+    jr .count_50
+.store_50:
+    push af
+    ld a, b
+    ld (stage_badge_50_count), a
+    pop af
+    ld b, 0
+.count_30:
+    cp 30
+    jr c, .store_30
+    sub 30
+    inc b
+    jr .count_30
+.store_30:
+    push af
+    ld a, b
+    ld (stage_badge_30_count), a
+    pop af
+    ld b, 0
+.count_20:
+    cp 20
+    jr c, .store_20
+    sub 20
+    inc b
+    jr .count_20
+.store_20:
+    push af
+    ld a, b
+    ld (stage_badge_20_count), a
+    pop af
+    ld b, 0
+.count_10:
     cp 10
-    jr c, .done_10
+    jr c, .store_10
     sub 10
-    inc c
-    jr .cnt_10
-.done_10:
-    ld b, 0             ; 5s count
+    inc b
+    jr .count_10
+.store_10:
+    push af
+    ld a, b
+    ld (stage_badge_10_count), a
+    pop af
+    ld b, 0
+.count_5:
     cp 5
-    jr c, .done_5
+    jr c, .store_5
     sub 5
     inc b
-.done_5:
-    ld (stage_ones), a
+    jr .count_5
+.store_5:
+    push af
     ld a, b
-    ld (stage_fives), a
-    ld a, c
-    ld (stage_tens), a
+    ld (stage_badge_5_count), a
+    pop af
+    ld (stage_badge_1_count), a
 
-    ;; Start drawing flags from right to left: initial X = 80
-    ld a, 80
+    ;; Place the largest badges at the right; smaller badges follow to the left.
+    ld a, 78
     ld (badge_draw_x), a
+    ld a, (stage_badge_50_count)
+    ld hl, badge_stage_50
+    ld d, badge_stage_50_width
+    ld e, badge_stage_50_height
+    call DrawStageBadgeGroup
+    ld a, (stage_badge_30_count)
+    ld hl, badge_stage_30
+    ld d, badge_stage_30_width
+    ld e, badge_stage_30_height
+    call DrawStageBadgeGroup
+    ld a, (stage_badge_20_count)
+    ld hl, badge_stage_20
+    ld d, badge_stage_20_width
+    ld e, badge_stage_20_height
+    call DrawStageBadgeGroup
+    ld a, (stage_badge_10_count)
+    ld hl, badge_stage_10
+    ld d, badge_stage_10_width
+    ld e, badge_stage_10_height
+    call DrawStageBadgeGroup
+    ld a, (stage_badge_5_count)
+    ld hl, badge_stage_5
+    ld d, badge_stage_5_width
+    ld e, badge_stage_5_height
+    call DrawStageBadgeGroup
+    ld a, (stage_badge_1_count)
+    ld hl, badge_stage_1
+    ld d, badge_stage_1_width
+    ld e, badge_stage_1_height
+    call DrawStageBadgeGroup
+    ret
 
-    ;; Draw 10-Stage Flags
-    ld a, (stage_tens)
-    or a
-    jr z, .chk_fives
-.loop_tens:
-    ld a, (badge_draw_x)
-    cp 54
-    jr c, .chk_fives
-    push de
-    ld b, a
-    ld c, BADGES_Y
-    ld hl, flag_10
-    call DrawSprite16x16
-    ld a, (badge_draw_x)
-    sub 9               ; flag_10 is 8 bytes + 1 space
-    ld (badge_draw_x), a
-    pop de
-    dec d
-    jr nz, .loop_tens
-
-.chk_fives:
-    ;; Draw 5-Stage Flags
-    ld a, (stage_fives)
-    or a
-    jr z, .chk_ones
-    ld d, a
-.loop_fives:
-    ld a, (badge_draw_x)
-    cp 54
-    jr c, .chk_ones
-    push de
-    ld b, a
-    ld c, BADGES_Y + 1
-    ld hl, flag_5
-    call DrawBadge5
-    ld a, (badge_draw_x)
-    sub 8               ; flag_5 is 7 bytes + 1 space
-    ld (badge_draw_x), a
-    pop de
-    dec d
-    jr nz, .loop_fives
-
-.chk_ones:
-    ;; Draw 1-Stage Flags
-    ld a, (stage_ones)
+;; Draw a group of identical badges from right to left.
+;; Input: A=count, HL=sprite data, D=byte width, E=height.
+DrawStageBadgeGroup:
+    ld (badge_group_count), a
+    ld (badge_group_sprite), hl
+    ld a, d
+    ld (badge_group_width), a
+    ld a, e
+    ld (badge_group_height), a
+.next_badge:
+    ld a, (badge_group_count)
     or a
     ret z
-    ld d, a
-.loop_ones:
     ld a, (badge_draw_x)
     cp 54
     ret c
-    push de
     ld b, a
-    ld c, BADGES_Y + 1
-    ld hl, flag_1
-    call DrawBadge1
+    ld c, BADGES_Y
+    ld a, (badge_group_width)
+    ld d, a
+    ld a, (badge_group_height)
+    ld e, a
+    ld hl, (badge_group_sprite)
+    call DrawBitmapRect
+
     ld a, (badge_draw_x)
-    sub 5               ; flag_1 is 4 bytes + 1 space
+    ld b, a
+    ld a, (badge_group_width)
+    inc a
+    ld c, a
+    ld a, b
+    sub c
     ld (badge_draw_x), a
-    pop de
-    dec d
-    jr nz, .loop_ones
-    ret
+    ld hl, badge_group_count
+    dec (hl)
+    jr .next_badge
 
-stage_tens:     defb 0
-stage_fives:    defb 0
-stage_ones:     defb 0
-badge_draw_x:   defb 0
-
-;; ----------------------------------------------------------------------------
-;; DrawBadge5 - Draw 7x14 flag_5 at B=X, C=Y
-;; ----------------------------------------------------------------------------
-DrawBadge5:
-    push ix
-    push bc
-    push hl
-    ld e, c
-    ld d, 0
-    sla e
-    rl d                ; DE = Y * 2 (16-bit safe for Y up to 271)
-    ld ix, line_tab
-    add ix, de
-    pop hl
-    ld c, 14            ; 14 lines
-.b5_row:
-    ld e, (ix+0)
-    ld d, (ix+1)
-    inc ix
-    inc ix
-    ld a, b
-    add a, e
-    ld e, a
-    jr nc, .b5_nc
-    inc d
-.b5_nc:
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl
-    dec c
-    jr nz, .b5_row
-    pop bc
-    pop ix
-    ret
-
-;; ----------------------------------------------------------------------------
-;; DrawBadge1 - Draw 4x14 flag_1 at B=X, C=Y
-;; ----------------------------------------------------------------------------
-DrawBadge1:
-    push ix
-    push bc
-    push hl
-    ld e, c
-    ld d, 0
-    sla e
-    rl d                ; DE = Y * 2 (16-bit safe for Y up to 271)
-    ld ix, line_tab
-    add ix, de
-    pop hl
-    ld c, 14            ; 14 lines
-.b1_row:
-    ld e, (ix+0)
-    ld d, (ix+1)
-    inc ix
-    inc ix
-    ld a, b
-    add a, e
-    ld e, a
-    jr nc, .b1_nc
-    inc d
-.b1_nc:
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl
-    dec c
-    jr nz, .b1_row
-    pop bc
-    pop ix
-    ret
-
-;; ----------------------------------------------------------------------------
-;; Authentic Galaga Stage Flags
-;; ----------------------------------------------------------------------------
-;; Badge Flag: flag_10 (16x16)
-flag_10:
-    defb #F0, #F0, #F0, #F0, #F0, #F0, #F0, #A0
-    defb #F0, #F0, #F0, #E4, #F0, #F0, #F0, #A0
-    defb #F0, #F0, #F0, #CC, #D8, #F0, #F0, #A0
-    defb #F0, #E4, #D8, #E4, #F0, #CC, #F0, #A0
-    defb #F0, #CC, #CC, #E4, #E4, #CC, #D8, #A0
-    defb #E4, #D8, #E4, #CC, #CC, #F0, #CC, #A0
-    defb #E4, #F0, #F0, #CC, #D8, #F0, #E4, #A0
-    defb #E4, #D8, #F0, #E4, #F0, #F0, #CC, #A0
-    defb #F0, #CC, #F0, #E4, #F0, #E4, #D8, #A0
-    defb #50, #E4, #D8, #F0, #F0, #CC, #F0, #00
-    defb #00, #F0, #CC, #CC, #CC, #D8, #A0, #00
-    defb #00, #50, #E4, #F0, #E4, #F0, #00, #00
-    defb #00, #00, #E4, #CC, #CC, #A0, #00, #00
-    defb #00, #00, #50, #F0, #F0, #00, #00, #00
-    defb #00, #00, #00, #F0, #A0, #00, #00, #00
-    defb #00, #00, #00, #50, #00, #00, #00, #00
-
-;; Badge Flag: flag_5 (14x14)
-flag_5:
-    defb #C0, #C0, #C0, #C0, #C0, #C0, #80
-    defb #C0, #C0, #C0, #C8, #C0, #C0, #80
-    defb #C0, #C0, #C4, #CC, #C0, #C0, #80
-    defb #C4, #CC, #C0, #C8, #C4, #CC, #80
-    defb #C0, #C4, #C8, #C8, #CC, #C0, #80
-    defb #C0, #CC, #CC, #CC, #CC, #C8, #80
-    defb #C0, #C0, #CC, #CC, #C8, #C0, #80
-    defb #C0, #C4, #C8, #C8, #CC, #C0, #80
-    defb #40, #C0, #C8, #C8, #C8, #C0, #00
-    defb #00, #C0, #C8, #C8, #C8, #80, #00
-    defb #00, #40, #C0, #C8, #C0, #00, #00
-    defb #00, #00, #C0, #C0, #80, #00, #00
-    defb #00, #00, #40, #C0, #00, #00, #00
-    defb #00, #00, #00, #80, #00, #00, #00
-
-;; Badge Flag: flag_1 (8x14)
-flag_1:
-    defb #FF, #FF, #FF, #AA
-    defb #0C, #0C, #0C, #08
-    defb #5D, #FF, #FF, #08
-    defb #5D, #AE, #0C, #08
-    defb #5D, #FF, #FF, #08
-    defb #0C, #0C, #FF, #08
-    defb #5D, #FF, #FF, #08
-    defb #0C, #0C, #0C, #08
-    defb #FF, #FF, #FF, #AA
-    defb #FF, #FF, #FF, #AA
-    defb #EA, #FF, #EA, #AA
-    defb #55, #D5, #D5, #00
-    defb #00, #EA, #AA, #00
-    defb #00, #55, #00, #00
-
+badge_draw_x:        defb 0
+badge_group_count:   defb 0
+badge_group_width:   defb 0
+badge_group_height:  defb 0
+badge_group_sprite:  defw 0
+stage_badge_50_count: defb 0
+stage_badge_30_count: defb 0
+stage_badge_20_count: defb 0
+stage_badge_10_count: defb 0
+stage_badge_5_count:  defb 0
+stage_badge_1_count:  defb 0
 
 ;; --- White Font (Pen 15) ---
 f_w_0:
@@ -1793,4 +1713,3 @@ str_revive8bit_footer:
     defw f_c_SPACE, f_c_DASH, f_c_SPACE
     defw f_c_V, f_c_A, f_c_S, f_c_P, f_c_E, f_c_R
     defw 0
-

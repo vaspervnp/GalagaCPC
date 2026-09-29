@@ -2,3 +2,4 @@ scratch/
 __pycache__/
 *.pyc
 *.tmp
+build/highscore_seed.bin

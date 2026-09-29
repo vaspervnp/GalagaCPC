@@ -17,6 +17,12 @@ start:
     ld bc, #7F8C                ; Mode 0, Upper ROM off, Lower ROM off
     out (c), c
 
+    ;; Copy disk routines out of the load image into unused low RAM.
+    ld hl, disk_reloc_src
+    ld de, HS_DISK_ORG
+    ld bc, DISK_CODE_SIZE
+    ldir
+
     ;; 2. Precompute scanline table spanning Page 2 and Page 3
     call build_line_tab
 
@@ -29,6 +35,9 @@ start:
 
     ;; 5. Initialize AY-3-8912 PSG Sound Driver
     call SoundInit
+
+    ;; Restore the saved Hall of Fame before drawing the title screen.
+    call HighScoreLoad
 
     ;; 6. Jump to Title Screen & Attract Mode!
     jp ShowTitleScreen
@@ -252,6 +261,7 @@ RestartGame:
     include "keys.asm"
     include "video.asm"
     include "hud.asm"
+    include "badges.asm"
     include "player.asm"
     include "missiles.asm"
     include "ebullets.asm"
@@ -269,8 +279,15 @@ RestartGame:
     include "data.asm"
     include "sprites.asm"
 
+;; Disk code is embedded in the load image and relocated to low RAM at boot.
+disk_reloc_src:
+    include "disk.asm"
+DISK_CODE_SIZE equ disk_code_end-HS_DISK_ORG
+    assert disk_code_end <= #2000
+    org disk_reloc_src+DISK_CODE_SIZE, disk_reloc_src+DISK_CODE_SIZE
+
 ;; ----------------------------------------------------------------------------
 ;; Export to DSK Virtual Disk
 ;; ----------------------------------------------------------------------------
 end_program:
-    save "GALAGA.BIN", #2000, end_program-#2000, DSK, "build/galaga.dsk", start
+    ; The build script packages the binary and raw save sector into the DSK.
