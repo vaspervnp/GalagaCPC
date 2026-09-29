@@ -11,7 +11,6 @@ InitEnemies:
     ld (transform_killed), a
     ld (stage_phase), a         ; STAGE_PHASE_ENTRY = 0
     ld (entry_spawn_idx), a
-    ld (entry_music_catchup), a
     call SetStageEnemyTotal
     call SelectEntryShooters
 
@@ -1158,9 +1157,6 @@ UpdateEntryPhase:
     add ix, de
     djnz .erase_moving_loop
 
-    ;; The entry erase pass is CPU-heavy; keep the music moving before redraw.
-    call SoundMusicUpdate
-
     ;; ------------------------------------------------------------------------
     ;; Pass 2: Move and Draw all MOVING enemies at their new coordinates
     ;; ------------------------------------------------------------------------
@@ -1479,21 +1475,6 @@ UpdateEntryPhase:
     ld (sway_offset), a
 
 .entry_phase_exit:
-    ;; Entry animation still runs behind heavy sprite drawing. Add one small
-    ;; catch-up tick every four frames to smooth the remaining tempo dip.
-    ld a, (entry_music_catchup)
-    inc a
-    cp 4
-    jr c, .entry_music_catchup_store
-    xor a
-    ld (entry_music_catchup), a
-    call SoundMusicUpdate
-    jr .entry_music_catchup_done
-
-.entry_music_catchup_store:
-    ld (entry_music_catchup), a
-
-.entry_music_catchup_done:
     ret
 
 ;; Returns A=nonzero when an early attack is allowed at this interval.

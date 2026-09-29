@@ -58,7 +58,8 @@ challenging_music_pitches:
 music_playing:      defb 0
 music_ptr:          defw 0
 music_step_timer:   defb 0
-entry_music_catchup: defb 0
+sound_irq_divider:  defb 0
+sound_clock_pending: defb 0
 
 ;; ----------------------------------------------------------------------------
 ;; SoundInit: Silence all 3 AY channels and reset sound state
@@ -77,7 +78,7 @@ SoundInit:
     ld (drone_active), a
     ld (drone_timer), a
     ld (drone_step), a
-
+    ld (sound_clock_pending), a
 
     ;; Set Reg 8, 9, 10 (Volumes) to 0
     ld a, 8
@@ -376,9 +377,29 @@ PlaySoundGameOver:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; SoundUpdate: Called once per frame (50Hz) to advance envelopes and pitch
+;; SoundUpdate: Consume fixed 50Hz sound ticks accumulated by SoundInterrupt.
 ;; ----------------------------------------------------------------------------
 SoundUpdate:
+    ;; Consume 50 Hz ticks accumulated by the CPC's 300 Hz Gate Array IRQ.
+    ;; PSG writes remain in the main loop rather than running in interrupt context.
+    di
+    ld a, (sound_clock_pending)
+    ld b, a
+    xor a
+    ld (sound_clock_pending), a
+    ei
+    ld a, b
+    or a
+    ret z
+.sound_tick_loop:
+    push bc
+    call SoundUpdateTick
+    pop bc
+    djnz .sound_tick_loop
+    ret
+
+;; Advance sound state by one fixed-clock tick.
+SoundUpdateTick:
     ;; --- 0. Update Background Music (Game Start Tune, Rescue, Capture, etc.) ---
     ld a, (music_playing)
     or a
@@ -729,15 +750,40 @@ SoundUpdate:
     call UpdateDrone
     ret
 
-;; ----------------------------------------------------------------------------
-;; SoundMusicUpdate: Advance only the music sequencer between expensive
-;; enemy-entry render passes. Sound effects retain their normal frame tick.
-;; ----------------------------------------------------------------------------
-SoundMusicUpdate:
-    ld a, (music_playing)
-    or a
-    ret z
-    jp UpdateMusicPlayer
+;; Install an IM 1 handler. The CPC Gate Array interrupts at 300 Hz;
+;; accumulate one sound tick for every six interrupts (50 Hz).
+SoundInterruptInit:
+    xor a
+    ld (sound_irq_divider), a
+    ld (sound_clock_pending), a
+    ld a, #C3
+    ld (#0038), a
+    ld hl, SoundInterrupt
+    ld (#0039), hl
+    im 1
+    ei
+    ret
+
+SoundInterrupt:
+    push af
+    push hl
+    ld hl, sound_irq_divider
+    inc (hl)
+    ld a, (hl)
+    cp 6
+    jr c, .sound_irq_done
+    xor a
+    ld (hl), a
+    ld hl, sound_clock_pending
+    ld a, (hl)
+    cp 8
+    jr nc, .sound_irq_done
+    inc (hl)
+.sound_irq_done:
+    pop hl
+    pop af
+    ei
+    reti
 
 ;; ----------------------------------------------------------------------------
 ;; UpdateDrone: Authentic Galaga Stage Background Drone / Hum (Channel C)

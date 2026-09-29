@@ -38,6 +38,7 @@ start:
 
     ;; Restore the saved Hall of Fame before drawing the title screen.
     call HighScoreLoad
+    call SoundInterruptInit
 
     ;; 6. Jump to Title Screen & Attract Mode!
     jp ShowTitleScreen
