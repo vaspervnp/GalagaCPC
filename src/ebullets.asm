@@ -10,6 +10,26 @@ SpawnEBullet:
     push de
     push bc
 
+    ;; Difficulty sets the maximum number of enemy bullets on screen:
+    ;; Easy=2, Medium=3, Hard=4, Hardest=5.
+    ld ix, ebullet_data
+    ld b, MAX_EBULLETS
+    ld c, 0
+.count_active_bullets:
+    ld a, (ix+0)
+    or a
+    jr z, .next_active_bullet
+    inc c
+.next_active_bullet:
+    ld de, EBULLET_SIZE
+    add ix, de
+    djnz .count_active_bullets
+    ld a, (difficulty_level)
+    add a, 2
+    cp c
+    jr c, .bullet_limit_reached
+    jr z, .bullet_limit_reached
+
     ;; Find free bullet slot in ebullet_data (MAX_EBULLETS slots)
     ld ix, ebullet_data
     ld b, MAX_EBULLETS
@@ -20,6 +40,12 @@ SpawnEBullet:
     ld de, EBULLET_SIZE
     add ix, de
     djnz .find_eb_slot
+    pop bc
+    pop de
+    pop ix
+    ret
+
+.bullet_limit_reached:
     pop bc
     pop de
     pop ix
