@@ -43,7 +43,7 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b %ERRORLEVEL%
 )
 
-wsl --cd "%CD%" -e iDSK build/galaga.dsk -i build/galaga.bin -t 1 -c 2000 -e 2000 -f
+wsl --cd "%CD%" -e iDSK build/galaga.dsk -i build/galaga.bin -t 1 -c 0600 -e 0600 -f
 if %ERRORLEVEL% NEQ 0 (
     echo Could not add GALAGA.BIN to the DSK!
     exit /b %ERRORLEVEL%

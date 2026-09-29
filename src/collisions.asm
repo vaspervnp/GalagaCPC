@@ -61,31 +61,28 @@ CheckCollisions:
 .kill_enemy:
     ld (iy+0), 0            ; alive = 0
 
-    ;; If tractor boss is killed during beam or capture, cancel beam & free player!
+    ;; If tractor boss is killed during an active beam, cancel it.
     ld a, (tractor_beam_active)
     or a
     jr z, .no_tractor_kill
     ld a, (iy+1)
     cp 2
     jr nz, .no_tractor_kill
-    call EraseTractorBeam
     ld a, (tractor_beam_active)
-    cp 2                    ; was capturing player?
-    jr nz, .clear_tractor_flags
+    cp 2
+    jr nz, .cancel_tractor_beam
+    ;; A destroyed captor releases a ship that is still being lifted.
     ld a, (player_x)
     ld b, a
     ld a, (player_y)
     ld c, a
     call ClearSprite16x16
+    call EraseTractorBeam
     ld a, DEFAULT_PLAYER_Y
     ld (player_y), a
     ld (old_player_y), a
-    ld a, (player_x)
-    ld b, a
-    ld c, DEFAULT_PLAYER_Y
-    ld hl, player_sprite
-    call DrawSprite16x16
-.clear_tractor_flags:
+.cancel_tractor_beam:
+    call EraseTractorBeam
     xor a
     ld (tractor_beam_active), a
     ld (capture_delay), a
@@ -358,10 +355,6 @@ CheckCollisions:
     ld a, (is_challenging_stage)
     or a
     ret nz
-
-    ld a, (tractor_beam_active)
-    cp 2
-    ret z                   ; The player is already held in the beam.
 
     ld a, (capture_delay)
     or a

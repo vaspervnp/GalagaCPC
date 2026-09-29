@@ -243,3 +243,54 @@ DrawBitmapRect:
 
 .dbr_lines: defb 0
 .dbr_width: defb 0
+
+;; ClearBitmapRect: Clear a rectangle to Pen 0.
+;; Input: B=X byte, C=Y scanline, D=width bytes, E=height scanlines.
+;; Preserves: IX, BC
+ClearBitmapRect:
+    push ix
+    push bc
+    ld a, e
+    ld (.cbr_lines), a
+    ld a, d
+    ld (.cbr_width), a
+
+    ld e, c
+    ld d, 0
+    sla e
+    rl d
+    ld ix, line_tab
+    add ix, de
+
+.cbr_row:
+    ld e, (ix+0)
+    ld d, (ix+1)
+    inc ix
+    inc ix
+    ld a, b
+    add a, e
+    ld e, a
+    jr nc, .cbr_nc
+    inc d
+.cbr_nc:
+    push bc
+    ld a, (.cbr_width)
+    ld b, a
+    xor a
+.cbr_col:
+    ld (de), a
+    inc de
+    djnz .cbr_col
+    pop bc
+
+    ld a, (.cbr_lines)
+    dec a
+    ld (.cbr_lines), a
+    jr nz, .cbr_row
+
+    pop bc
+    pop ix
+    ret
+
+.cbr_lines: defb 0
+.cbr_width: defb 0

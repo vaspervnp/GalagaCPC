@@ -4,15 +4,15 @@
 ;; ============================================================================
 
 ReadInput:
+    ;; Player control is locked while the tractor beam is lifting the ship.
+    ld a, (tractor_beam_active)
+    cp 2
+    ret z
+
     ;; Check if stage intro is active (input locked during Level 1 intro)
     ld a, (stage_intro_state)
     or a
     ret nz
-
-    ;; Check if player is being tractor-beamed (input locked)
-    ld a, (tractor_beam_active)
-    cp 2
-    ret z
 
     ;; Check if waiting for replacement fighter to spawn
     ld a, (capture_delay)
@@ -89,11 +89,12 @@ UpdatePlayer:
     or a
     ret nz
 
-    ;; If player is being captured or replacement is delayed: skip UpdatePlayer
+    ;; The capture animation owns the player's position and drawing.
     ld a, (tractor_beam_active)
     cp 2
     ret z
 
+    ;; If replacement is delayed after capture: skip UpdatePlayer.
     ld a, (capture_delay)
     or a
     ret nz
@@ -190,6 +191,11 @@ UpdatePlayer:
     ret
 
 HitPlayer:
+    ;; The tractor beam controls the ship during its capture animation.
+    ld a, (tractor_beam_active)
+    cp 2
+    ret z
+
     ;; Immune while invincible
     ld a, (player_invincible_timer)
     or a

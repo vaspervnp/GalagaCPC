@@ -110,37 +110,6 @@ explosion_boxes = [
     ("explosion_4", 391, 1, 423, 33, "Explosion Frame 4"),
 ]
 
-# Tractor Beam 16x16 Tiles (3 animation frames, 7 tiles per frame):
-# Top tier: 1 tile (center)
-# Mid tier: 3 tiles (left, center, right)
-# Bot tier: 3 tiles (left, center, right)
-tractor_tiles = [
-    # Frame 1
-    ("tractor_f1_top", 17, 2, 0, "Tractor F1 Top Center"),
-    ("tractor_f1_mid_l", 16, 3, 0, "Tractor F1 Mid Left"),
-    ("tractor_f1_mid_c", 17, 3, 0, "Tractor F1 Mid Center"),
-    ("tractor_f1_mid_r", 18, 3, 0, "Tractor F1 Mid Right"),
-    ("tractor_f1_bot_l", 16, 4, 0, "Tractor F1 Bot Left"),
-    ("tractor_f1_bot_c", 17, 4, 0, "Tractor F1 Bot Center"),
-    ("tractor_f1_bot_r", 18, 4, 0, "Tractor F1 Bot Right"),
-    # Frame 2
-    ("tractor_f2_top", 20, 2, 0, "Tractor F2 Top Center"),
-    ("tractor_f2_mid_l", 19, 3, 0, "Tractor F2 Mid Left"),
-    ("tractor_f2_mid_c", 20, 3, 0, "Tractor F2 Mid Center"),
-    ("tractor_f2_mid_r", 21, 3, 0, "Tractor F2 Mid Right"),
-    ("tractor_f2_bot_l", 19, 4, 0, "Tractor F2 Bot Left"),
-    ("tractor_f2_bot_c", 20, 4, 0, "Tractor F2 Bot Center"),
-    ("tractor_f2_bot_r", 21, 4, 0, "Tractor F2 Bot Right"),
-    # Frame 3
-    ("tractor_f3_top", 23, 2, 0, "Tractor F3 Top Center"),
-    ("tractor_f3_mid_l", 22, 3, 0, "Tractor F3 Mid Left"),
-    ("tractor_f3_mid_c", 23, 3, 0, "Tractor F3 Mid Center"),
-    ("tractor_f3_mid_r", 24, 3, 0, "Tractor F3 Mid Right"),
-    ("tractor_f3_bot_l", 22, 4, 0, "Tractor F3 Bot Left"),
-    ("tractor_f3_bot_c", 23, 4, 0, "Tractor F3 Bot Center"),
-    ("tractor_f3_bot_r", 24, 4, 0, "Tractor F3 Bot Right"),
-]
-
 all_asm = [";; ============================================================================",
            ";; Galaga CPC - Complete Authentic Spritesheet",
            ";; Auto-generated from assets/galagaSpriteMap.png",
@@ -176,20 +145,6 @@ for label, x1, y1, x2, y2, desc in explosion_boxes:
     preview.save(f"assets/{label}.bmp")
     all_asm.append(tile_to_cpc_asm(tile, label) + "\n")
 
-# 3. Convert Tractor Beam 16x16 Tiles
-all_asm.append(";; --- Tractor Beam 16x16 Tiles ---")
-for label, col, row, rot, desc in tractor_tiles:
-    tile = extract_tile(col, row, rot)
-    preview = Image.new('RGB', (16, 16), (0, 0, 0))
-    for y in range(16):
-        for x in range(16):
-            idx = tile.getpixel((x, y))
-            r, g, b = palette[idx*3:idx*3+3]
-            if (r, g, b) not in [(0,0,0), (64,64,64)]:
-                preview.putpixel((x, y), (r, g, b))
-    preview.save(f"assets/{label}.bmp")
-    all_asm.append(tile_to_cpc_asm(tile, label) + "\n")
-
 with open('src/sprites.asm', 'w') as f:
     f.write("\n".join(all_asm))
 
@@ -198,4 +153,4 @@ player_tile = extract_tile(0, 0, 270)
 with open('src/player_sprite.asm', 'w') as f:
     f.write(tile_to_cpc_asm(player_tile, "player_sprite"))
 
-print("SUCCESS: Generated src/sprites.asm with all 16x16 sprites and tractor tiles!")
+print("SUCCESS: Generated src/sprites.asm with all 16x16 sprites!")

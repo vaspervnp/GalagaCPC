@@ -4,7 +4,7 @@
 ;; Based on LoukoumasCPC overscan architecture
 ;; ============================================================================
 
-    org #2000
+    org #0600
 
     include "config.asm"
     include "constants.asm"
@@ -80,6 +80,19 @@ GameLoop:
 
     ;; Update Floating Bonus Score Popups
     call UpdateBonusScore
+
+    ;; Draw the beam last so stars and later-updated sprites cannot show through it.
+    ld a, (tractor_beam_active)
+    cp 1
+    jr z, .draw_tractor_beam
+    cp 2
+    jr nz, .skip_tractor_beam
+.draw_tractor_beam:
+    call DrawTractorBeam
+    ld a, (tractor_beam_active)
+    cp 2
+    call z, DrawTractorCaptureFighter
+.skip_tractor_beam:
 
     ;; Update AY-3-8912 Sound Envelopes & Pitch
     call SoundUpdate
@@ -160,6 +173,8 @@ RestartGame:
     ld (is_dual_fighter), a
     ld (extra_life_count), a
     ld (tractor_beam_active), a
+    ld (tractor_beam_drawn), a
+    ld (tractor_anim), a
     ld (tractor_trigger_cnt), a
     ld (captured_fighter_active), a
     ld (captured_old_x), a
@@ -277,16 +292,18 @@ RestartGame:
     include "initials.asm"
     include "data.asm"
     include "sprites.asm"
+    include "tractor_beam_data.asm"
 
 ;; Disk code is embedded in the load image and relocated to low RAM at boot.
 disk_reloc_src:
     include "disk.asm"
 DISK_CODE_SIZE equ disk_code_end-HS_DISK_ORG
-    assert disk_code_end <= #2000
+    assert disk_code_end <= #0600
     org disk_reloc_src+DISK_CODE_SIZE, disk_reloc_src+DISK_CODE_SIZE
 
 ;; ----------------------------------------------------------------------------
 ;; Export to DSK Virtual Disk
 ;; ----------------------------------------------------------------------------
 end_program:
+    assert end_program <= #8000
     ; The build script packages the binary and raw save sector into the DSK.

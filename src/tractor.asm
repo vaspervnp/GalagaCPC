@@ -128,6 +128,13 @@ UpdateTractorState:
     ld (tractor_timer), a
     ld a, (ix+2)
     ld (tractor_boss_x), a
+    sub 8
+    jr nc, .beam_x_ok
+    xor a
+.beam_x_ok:
+    ld (tractor_beam_x), a
+    ld a, (ix+3)
+    ld (tractor_boss_y), a
 
 .dive_down_ok:
     ld a, (ix+2)
@@ -142,27 +149,26 @@ UpdateTractorState:
 .handle_tractor_beam:
     ;; Emitting beam while hovering at Y=142
     call PlaySoundTractor
-    call DrawTractorBeam
 
     ;; Check if player is caught in beam
     ld a, (player_invincible_timer)
     or a
-    jr nz, .beam_timer_tick     ; Immune while invincible!
+    jp nz, .beam_timer_tick     ; Immune while invincible!
 
-    ;; Beam bottom width: (tractor_boss_x - 3) to (tractor_boss_x + 9)
-    ld a, (tractor_boss_x)
-    sub 3
+    ;; Capture when the player's 8-byte-wide sprite overlaps the 24-byte beam.
+    ld a, (player_x)
+    add a, 8
+    ld c, a
+    ld a, (tractor_beam_x)
+    cp c
+    jp nc, .beam_timer_tick
+
+    ld a, (tractor_beam_x)
+    add a, 24
     ld c, a
     ld a, (player_x)
     cp c
-    jr c, .beam_timer_tick
-
-    ld a, (tractor_boss_x)
-    add a, 9
-    ld c, a
-    ld a, (player_x)
-    cp c
-    jr nc, .beam_timer_tick
+    jp nc, .beam_timer_tick
 
     ;; *** PLAYER CAUGHT IN TRACTOR BEAM! ***
     ;; Cleanly erase player from ALL previous positions before centering!
@@ -200,25 +206,50 @@ UpdateTractorState:
     call ClearSprite16x16
 
 .cap_not_dual:
-    ;; Center player directly under Boss
+    ;; Center the captured ship under the beam and begin a gradual lift.
     ld a, (tractor_boss_x)
     ld (player_x), a
     ld (old_player_x), a
-    ld a, DEFAULT_PLAYER_Y
-    ld (player_y), a
-    ld (old_player_y), a
-
-    ;; Draw player cleanly at new centered position
-    ld a, (player_x)
-    ld b, a
-    ld c, DEFAULT_PLAYER_Y
-    ld hl, player_sprite
-    call DrawSprite16x16
-
     ld (ix+8), STATE_CAPTURING
     ld a, 2
     ld (tractor_beam_active), a
+    jp .handle_capturing
+
+.handle_capturing:
+    ;; Move the ship upward two pixels per frame until it reaches the Boss.
+    ld a, (player_x)
+    ld b, a
+    ld a, (player_y)
+    ld c, a
+    call ClearSprite16x16
+
+    ld a, (player_y)
+    cp 158
+    jr c, .capture_reached_boss
+    jr z, .capture_reached_boss
+    sub 2
+    cp 158
+    jr nc, .capture_y_ready
+    ld a, 158
+.capture_y_ready:
+    ld (player_y), a
+    ld (old_player_y), a
     ret
+
+.capture_reached_boss:
+    ;; The ship is fully lifted; clear the beam before docking it by the Boss.
+    ld (ix+8), STATE_RETURNING
+    ld a, (player_x)
+    ld b, a
+    ld a, (player_y)
+    ld c, a
+    call ClearSprite16x16
+    push ix
+    call EraseTractorBeam
+    pop ix
+    xor a
+    ld (tractor_beam_active), a
+    jp CompleteTractorCapture
 
 .beam_timer_tick:
     ld a, (tractor_timer)
@@ -233,53 +264,20 @@ UpdateTractorState:
     ld (ix+8), STATE_DIVING
     ret
 
-.handle_capturing:
-    ;; 1. Erase player at current position BEFORE redrawing beam
-    ld a, (player_x)
-    ld b, a
-    ld a, (player_y)
-    ld c, a
-    call ClearSprite16x16
-
-    ;; 2. Keep tractor beam active & animated while player is ascending!
-    call PlaySoundTractor
-    call DrawTractorBeam
-
-    ;; 3. Ascend player upward toward Boss by 1 scanline
-    ld a, (player_y)
-    dec a
-    ld (player_y), a
-    cp 158
-    jr nc, .draw_ascending_player
-
-
-    ;; *** FIGHTER DOCKED UNDER BOSS! CAPTURE COMPLETE! ***
-    ;; Erase tractor beam
-    call EraseTractorBeam
-
-    ;; Erase player at scanline 158 (it is now docked with Boss as captured fighter)
-    ld a, (player_x)
-    ld b, a
-    ld c, 158
-    call ClearSprite16x16
-
-    ;; Dock captured fighter with Boss
+CompleteTractorCapture:
+    ;; Dock captured fighter next to the Boss and charge the lost life.
     ld a, 1
     ld (captured_fighter_active), a
-    xor a
-    ld (tractor_beam_active), a
-    ld (ix+8), STATE_RETURNING
-
     ;; Decrease player lives with underflow prevention
     ld a, (player_lives)
     or a
-    jr z, .captured_game_over
+    jr z, .capture_game_over
     dec a
     ld (player_lives), a
     call DrawLivesHUD
 
     or a
-    jr z, .captured_game_over
+    jr z, .capture_game_over
 
     ;; Display "FIGHTER CAPTURED" banner in Cyan
     call DrawFighterCapturedBanner
@@ -288,7 +286,7 @@ UpdateTractorState:
     ld (capture_delay), a
     ret
 
-.captured_game_over:
+.capture_game_over:
     call ClearCapturedBanner
     ld a, 1
     ld (game_over), a
@@ -298,211 +296,111 @@ UpdateTractorState:
     call PlaySoundGameOver
     ret
 
-.draw_ascending_player:
-    ;; Alternate between normal sprite and red captured sprite (spinning)
-    ld a, (player_y)
-    and 4
-    jr nz, .draw_red_spin
-    ld hl, player_sprite
-    jr .do_draw_asc
-.draw_red_spin:
-    ld hl, captured_player_sprite
-.do_draw_asc:
+ClearCapturedBanner:
+    jp ClearFighterCapturedBanner
+
+;; ----------------------------------------------------------------------------
+;; DrawTractorBeam: Render the native frames from tractorSpriteMap.png.
+;; ----------------------------------------------------------------------------
+DrawTractorBeam:
+    ld a, (tractor_anim)
+    inc a
+    cp 12
+    jr c, .store_anim
+    xor a
+.store_anim:
+    ld (tractor_anim), a
+
+    ld a, (tractor_anim)
+    cp 4
+    jr c, .frame_1
+    cp 8
+    jr c, .frame_2
+    ld hl, tractor_beam_frame_3
+    jr .draw
+.frame_1:
+    ld hl, tractor_beam_frame_1
+    jr .draw
+.frame_2:
+    ld hl, tractor_beam_frame_2
+.draw:
+    ld de, 384                ; Skip the 16 scanlines hidden by the Boss sprite.
+    add hl, de
+    ld a, (tractor_beam_x)
+    ld b, a
+    ld c, 158
+    ld d, 24
+    ld e, 64
+    call DrawBitmapRect
+    ld a, 1
+    ld (tractor_beam_drawn), a
+    ret
+
+DrawTractorCaptureFighter:
     ld a, (player_x)
     ld b, a
     ld a, (player_y)
     ld c, a
-    call DrawSprite16x16
-    ret
-
-ClearCapturedBanner:
-    jp ClearFighterCapturedBanner
-
-;; Pointer tables for the 7 16x16 tiles of each animation frame
-tractor_f1_ptrs:
-    defw tractor_f1_top, tractor_f1_mid_l, tractor_f1_mid_c, tractor_f1_mid_r
-    defw tractor_f1_bot_l, tractor_f1_bot_c, tractor_f1_bot_r
-
-tractor_f2_ptrs:
-    defw tractor_f2_top, tractor_f2_mid_l, tractor_f2_mid_c, tractor_f2_mid_r
-    defw tractor_f2_bot_l, tractor_f2_bot_c, tractor_f2_bot_r
-
-tractor_f3_ptrs:
-    defw tractor_f3_top, tractor_f3_mid_l, tractor_f3_mid_c, tractor_f3_mid_r
-    defw tractor_f3_bot_l, tractor_f3_bot_c, tractor_f3_bot_r
+    ld hl, captured_player_sprite
+    jp DrawSprite16x16
 
 ;; ----------------------------------------------------------------------------
-;; DrawTractorBeam: Render 7 authentic 16x16 tiles from galagaSpriteMap.png
-;; Top tier: Y=126 (1 tile), Mid tier: Y=142 (3 tiles), Bot tier: Y=158 (3 tiles)
-;; ----------------------------------------------------------------------------
-DrawTractorBeam:
-    ;; Clear the previous animation frame before drawing the next one.
-    call EraseTractorBeam
-
-    ld a, (tractor_anim)
-    inc a
-    ld (tractor_anim), a
-    rrca
-    rrca                    ; Animate frame every 4 game ticks
-    and 3
-    cp 2
-    jr z, .use_f3
-    cp 1
-    jr z, .use_f2
-    ld iy, tractor_f1_ptrs
-    jr .render_tiles
-.use_f2:
-    ld iy, tractor_f2_ptrs
-    jr .render_tiles
-.use_f3:
-    ld iy, tractor_f3_ptrs
-
-.render_tiles:
-    ;; 1. Tier 1: Top Center (boss_x, 158)
-    ld a, (tractor_boss_x)
-    ld b, a
-    ld c, 158
-    ld l, (iy+0)
-    ld h, (iy+1)
-    call DrawSprite16x16
-
-    ;; 2. Tier 2: Mid Left (boss_x - 8, 174)
-    ld a, (tractor_boss_x)
-    sub 8
-    cp PLAY_X_MIN
-    jr nc, .m1_x
-    ld a, PLAY_X_MIN
-.m1_x:
-    ld b, a
-    ld c, 174
-    ld l, (iy+2)
-    ld h, (iy+3)
-    call DrawSprite16x16
-
-    ;; 3. Tier 2: Mid Center (boss_x, 174)
-    ld a, (tractor_boss_x)
-    ld b, a
-    ld c, 174
-    ld l, (iy+4)
-    ld h, (iy+5)
-    call DrawSprite16x16
-
-    ;; 4. Tier 2: Mid Right (boss_x + 8, 174)
-    ld a, (tractor_boss_x)
-    add a, 8
-    cp PLAY_X_MAX + 1
-    jr c, .m2_x
-    ld a, PLAY_X_MAX
-.m2_x:
-    ld b, a
-    ld c, 174
-    ld l, (iy+6)
-    ld h, (iy+7)
-    call DrawSprite16x16
-
-    ;; 5. Tier 3: Bot Left (boss_x - 8, 190)
-    ld a, (tractor_boss_x)
-    sub 8
-    cp PLAY_X_MIN
-    jr nc, .b1_x
-    ld a, PLAY_X_MIN
-.b1_x:
-    ld b, a
-    ld c, 190
-    ld l, (iy+8)
-    ld h, (iy+9)
-    call DrawSprite16x16
-
-    ;; 6. Tier 3: Bot Center (boss_x, 190)
-    ld a, (tractor_boss_x)
-    ld b, a
-    ld c, 190
-    ld l, (iy+10)
-    ld h, (iy+11)
-    call DrawSprite16x16
-
-    ;; 7. Tier 3: Bot Right (boss_x + 8, 190)
-    ld a, (tractor_boss_x)
-    add a, 8
-    cp PLAY_X_MAX + 1
-    jr c, .b2_x
-    ld a, PLAY_X_MAX
-.b2_x:
-    ld b, a
-    ld c, 190
-    ld l, (iy+12)
-    ld h, (iy+13)
-    call DrawSprite16x16
-    ret
-
-;; ----------------------------------------------------------------------------
-;; EraseTractorBeam: Clear all 7 16x16 tile areas to Black (Pen 0)
+;; EraseTractorBeam: Remove the last frame and restore its background.
 ;; ----------------------------------------------------------------------------
 EraseTractorBeam:
-    ;; 1. Tier 1: Top Center
-    ld a, (tractor_boss_x)
+    ld a, (tractor_beam_drawn)
+    or a
+    ret z
+
+    ld a, (tractor_beam_x)
     ld b, a
     ld c, 158
-    call ClearSprite16x16
-
-    ;; 2. Tier 2: Mid Left
-    ld a, (tractor_boss_x)
-    sub 8
-    cp PLAY_X_MIN
-    jr nc, .em1_x
-    ld a, PLAY_X_MIN
-.em1_x:
-    ld b, a
-    ld c, 174
-    call ClearSprite16x16
-
-    ;; 3. Tier 2: Mid Center
-    ld a, (tractor_boss_x)
-    ld b, a
-    ld c, 174
-    call ClearSprite16x16
-
-    ;; 4. Tier 2: Mid Right
-    ld a, (tractor_boss_x)
-    add a, 8
-    cp PLAY_X_MAX + 1
-    jr c, .em2_x
-    ld a, PLAY_X_MAX
-.em2_x:
-    ld b, a
-    ld c, 174
-    call ClearSprite16x16
-
-    ;; 5. Tier 3: Bot Left
-    ld a, (tractor_boss_x)
-    sub 8
-    cp PLAY_X_MIN
-    jr nc, .eb1_x
-    ld a, PLAY_X_MIN
-.eb1_x:
-    ld b, a
-    ld c, 190
-    call ClearSprite16x16
-
-    ;; 6. Tier 3: Bot Center
-    ld a, (tractor_boss_x)
-    ld b, a
-    ld c, 190
-    call ClearSprite16x16
-
-    ;; 7. Tier 3: Bot Right
-    ld a, (tractor_boss_x)
-    add a, 8
-    cp PLAY_X_MAX + 1
-    jr c, .eb2_x
-    ld a, PLAY_X_MAX
-.eb2_x:
-    ld b, a
-    ld c, 190
-    call ClearSprite16x16
+    ld d, 24
+    ld e, 64
+    call ClearBitmapRect
+    xor a
+    ld (tractor_beam_drawn), a
     call RedrawStars
-    ret
 
+    ;; Restore enemies that were behind the beam before their next update.
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+.redraw_enemy:
+    ld a, (ix+0)
+    or a
+    jr z, .next_enemy
+
+    ld a, (ix+2)
+    add a, 8
+    ld c, a
+    ld a, (tractor_beam_x)
+    cp c
+    jr nc, .next_enemy
+
+    ld a, (tractor_beam_x)
+    add a, 24
+    ld c, a
+    ld a, (ix+2)
+    cp c
+    jr nc, .next_enemy
+
+    ld a, (ix+3)
+    add a, 16
+    cp 158
+    jr c, .next_enemy
+    jr z, .next_enemy
+    ld a, (ix+3)
+    cp 222
+    jr nc, .next_enemy
+
+    push bc
+    call DrawEnemyIX
+    pop bc
+.next_enemy:
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .redraw_enemy
+    ret
 
 ;; ----------------------------------------------------------------------------
 ;; UpdateCapturedFighter: Manage red fighter in formation, dive escort, or rescue
