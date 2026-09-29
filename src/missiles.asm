@@ -44,61 +44,71 @@ SpawnMissile:
 
 SpawnDualMissiles:
     ;; Dual Fighter Missiles: Up to 4 active missiles on screen
+    ;; Left ship fires from left barrel (player_x + 3) using Slots 0..1 (max 2 active)
+    ;; Right ship fires from right barrel (player_x + 11) using Slots 2..3 (max 2 active)
     push ix
     push de
     push bc
 
-    ;; Find 1st free slot (Left fighter)
+    ld c, 0                     ; C = count of missiles fired in this shot (0..2)
+
+    ;; 1. Check Left Fighter (Slots 0..1)
     ld ix, missile_data
-    ld b, MAX_MISSILES
-.find_d1:
+    ld b, 2
+.find_left_slot:
     ld a, (ix+0)
     or a
-    jr z, .found_d1
+    jr z, .found_left_slot
     ld de, MISSILE_SIZE
     add ix, de
-    djnz .find_d1
-    pop bc
-    pop de
-    pop ix
-    ret
+    djnz .find_left_slot
+    jr .check_right_fighter     ; Left fighter already has 2 active missiles
 
-.found_d1:
+.found_left_slot:
     ld (ix+0), 1
     ld a, (player_x)
-    add a, 3                ; Left fighter barrel
+    add a, 3                    ; Left fighter barrel
     ld (ix+1), a
     ld (ix+2), DEFAULT_PLAYER_Y - 6
     ld (ix+5), 0
     ld hl, (shots_fired)
     inc hl
     ld (shots_fired), hl
+    inc c
 
-    ;; Find 2nd free slot (Right fighter)
-    ld ix, missile_data
-    ld b, MAX_MISSILES
-.find_d2:
+.check_right_fighter:
+    ;; 2. Check Right Fighter (Slots 2..3)
+    ld ix, missile_data + (2 * MISSILE_SIZE)
+    ld b, 2
+.find_right_slot:
     ld a, (ix+0)
     or a
-    jr z, .found_d2
+    jr z, .found_right_slot
     ld de, MISSILE_SIZE
     add ix, de
-    djnz .find_d2
-    jr .dual_fired_one
+    djnz .find_right_slot
+    jr .dual_done               ; Right fighter already has 2 active missiles
 
-.found_d2:
+.found_right_slot:
     ld (ix+0), 1
     ld a, (player_x)
-    add a, 11               ; Right fighter barrel
+    add a, 11                   ; Right fighter barrel
     ld (ix+1), a
     ld (ix+2), DEFAULT_PLAYER_Y - 6
     ld (ix+5), 0
     ld hl, (shots_fired)
     inc hl
     ld (shots_fired), hl
+    inc c
 
-.dual_fired_one:
+.dual_done:
+    ;; If at least one fighter fired, play sound
+    ld a, c
+    or a
+    jr z, .no_dual_fired
     call PlaySoundShot
+
+.no_dual_fired:
     pop bc
     pop de
     pop ix
