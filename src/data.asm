@@ -111,6 +111,13 @@ attack_timer:       defb 0
 stage_phase:        defb 0  ; 0 = Entry Phase, 1 = Attack Phase
 entry_spawn_idx:    defb 0  ; Enemies spawned in entry (0..ENEMY_COUNT)
 entry_spawn_timer:  defb 0  ; Delay between entry spawns
+random_seed:        defb 1
+entry_shooter_quota: defb 0
+entry_shooter_start: defb 0
+entry_shooter_size:  defb 0
+entry_shooter_left:  defb 0
+entry_shooter_flags:
+    defs ENEMY_COUNT, 0
 
 ;; Starfield: 32 Parallax Stars [x, y, color, speed] inside Playfield (X=11..81, Y=34..228)
 ;; 3 Parallax Layers: Speed 1 (Distant), Speed 2 (Midground), Speed 3 (Foreground)
