@@ -148,6 +148,7 @@ UpdateTractorState:
 
 .handle_tractor_beam:
     ;; Emitting beam while hovering at Y=142
+    call RedrawTractorBoss
     call PlaySoundTractor
 
     ;; Check if player is caught in beam
@@ -216,6 +217,8 @@ UpdateTractorState:
     jp .handle_capturing
 
 .handle_capturing:
+    call RedrawTractorBoss
+
     ;; Move the ship upward two pixels per frame until it reaches the Boss.
     ld a, (player_x)
     ld b, a
@@ -262,6 +265,14 @@ UpdateTractorState:
     xor a
     ld (tractor_beam_active), a
     ld (ix+8), STATE_DIVING
+    ret
+
+;; The hovering Boss is not moved, so other sprites erasing over it would
+;; leave it invisible. Redraw it every frame while the beam is active.
+RedrawTractorBoss:
+    push bc
+    call DrawEnemyIX
+    pop bc
     ret
 
 CompleteTractorCapture:
