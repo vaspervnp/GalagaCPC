@@ -265,6 +265,8 @@ UpdateTractorState:
     xor a
     ld (tractor_beam_active), a
     ld (ix+8), STATE_DIVING
+    ld (ix+12), 0           ; Pick a fresh dive speed and aim point.
+    ld (ix+13), 0
     ret
 
 ;; The hovering Boss is not moved, so other sprites erasing over it would
