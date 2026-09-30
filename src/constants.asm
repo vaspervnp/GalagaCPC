@@ -14,6 +14,9 @@ MAX_EBULLETS    equ 5
 ENEMY_COUNT     equ 28
 ENEMY_SIZE      equ 14
 
+;; Divers stop steering below this scanline and fly straight past the player.
+DIVE_LOCK_Y     equ 160
+
 MAX_EXPLOSIONS  equ 3
 EXPLOSION_SIZE  equ 4
 

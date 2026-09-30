@@ -641,6 +641,15 @@ UpdateEnemies:
 
 .update_diving:
     ;; --- 4. Move diving enemies ---
+    ;; Shared 0..2 phase for fractional dive speeds.
+    ld a, (dive_phase)
+    inc a
+    cp 3
+    jr c, .store_dive_phase
+    xor a
+.store_dive_phase:
+    ld (dive_phase), a
+
     ld ix, enemy_data
     ld b, ENEMY_COUNT
 .dive_loop:
@@ -687,49 +696,61 @@ UpdateEnemies:
     ld a, 2
 .store_dive_speed:
     ld (ix+12), a
-    xor a
+    ;; Each diver aims at its own point near the player (-8..+7 bytes),
+    ;; so simultaneous divers spread out and some miss the fighter.
+    call GetRandomByte
+    and 15
     ld (ix+13), a
 .dive_speed_ready:
     ld d, 1
     ld a, (ix+12)
     cp 1
-    jr z, .dive_speed_accumulate
+    jr z, .dive_speed_fast_step
     cp 3
     jr nz, .dive_speed_move
-    ld a, (ix+13)
-    inc a
-    cp 3
-    jr z, .dive_speed_slow_skip
-    ld (ix+13), a
+    ld a, (dive_phase)
+    or a
+    jr nz, .dive_speed_move
+    ld d, 0                 ; Slow divers skip every third horizontal step.
     jr .dive_speed_move
-.dive_speed_slow_skip:
-    xor a
-    ld (ix+13), a
-    ld d, 0
-    jr .dive_speed_move
-.dive_speed_accumulate:
-    ld a, (ix+13)
-    inc a
-    cp 3
-    jr z, .dive_speed_extra
-    ld (ix+13), a
-    jr .dive_speed_move
-.dive_speed_extra:
-    xor a
-    ld (ix+13), a
-    inc d
+.dive_speed_fast_step:
+    ld a, (dive_phase)
+    or a
+    jr nz, .dive_speed_move
+    inc d                   ; Fast divers take an extra step every third frame.
 .dive_speed_move:
     ;; 2. Move Y down by 2 scanlines
     ld a, (ix+3)
     add a, 2
     cp 228
-    jr nc, .loop_to_top     ; Reached bottom -> loop to top
+    jp nc, .loop_to_top     ; Reached bottom -> loop to top
 
 
     ld (ix+3), a
 
-    ;; 3. Steer X toward player_x with boundary clamping (PLAY_X_MIN <= X <= PLAY_X_MAX)
+    ;; 3. Steer X toward the diver's aim point until DIVE_LOCK_Y, then keep
+    ;; flying straight so the player can dodge it off the bottom of the screen.
+    bit 7, (ix+13)
+    jr nz, .dive_x_done
+    cp DIVE_LOCK_Y
+    jr c, .dive_steer
+    set 7, (ix+13)
+    jr .dive_x_done
+.dive_steer:
+    ld a, (ix+13)
+    sub 8
+    ld e, a                 ; E = signed aim offset
     ld a, (player_x)
+    add a, e
+    cp PLAY_X_MIN
+    jr c, .dive_target_min
+    cp PLAY_X_MAX + 1
+    jr c, .dive_target_ready
+    ld a, PLAY_X_MAX
+    jr .dive_target_ready
+.dive_target_min:
+    ld a, PLAY_X_MIN
+.dive_target_ready:
     ld c, (ix+2)
     cp c
     jr z, .dive_x_done
@@ -1496,7 +1517,7 @@ ShouldAttackDuringEntry:
     ld a, (difficulty_level)
     or a
     ld a, 1
-    ret z
+    jr z, .check_roll
     ld a, (difficulty_level)
     cp 1
     ld a, 2

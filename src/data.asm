@@ -109,6 +109,7 @@ sway_timer:         defb 0
 sway_dir:           defb 1
 sway_offset:        defb 0
 attack_timer:       defb 0
+dive_phase:         defb 0
 
 ;; Stage Phase & Entry Wave Variables
 stage_phase:        defb 0  ; 0 = Entry Phase, 1 = Attack Phase
