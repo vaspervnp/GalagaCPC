@@ -458,6 +458,14 @@ UpdateEnemies:
 
 .check_dive_trigger:
     ;; --- 3. Dive-bombing attack trigger ---
+    ;; No new attacks while the fighter is captured or awaiting replacement.
+    ld a, (capture_delay)
+    or a
+    jp nz, .update_diving
+    ld a, (tractor_beam_active)
+    cp 2
+    jp z, .update_diving
+
     ld a, (attack_timer)
     inc a
     ld (attack_timer), a
@@ -733,9 +741,18 @@ UpdateEnemies:
     bit 7, (ix+13)
     jr nz, .dive_x_done
     cp DIVE_LOCK_Y
-    jr c, .dive_steer
+    jr c, .dive_check_player
     set 7, (ix+13)
     jr .dive_x_done
+.dive_check_player:
+    ;; Without a fighter to chase, fly straight instead of converging on
+    ;; the capture point.
+    ld a, (capture_delay)
+    or a
+    jr nz, .dive_x_done
+    ld a, (tractor_beam_active)
+    cp 2
+    jr z, .dive_x_done
 .dive_steer:
     ld a, (ix+13)
     sub 8
