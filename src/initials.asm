@@ -34,6 +34,12 @@ str_registered:
 str_disk_save_failed:
     defb "DISK SAVE FAILED", 0
 
+str_disk_protected:
+    defb "WRITE PROTECTED", 0
+
+str_disk_missing:
+    defb "NO DISK FOUND", 0
+
 ;; ----------------------------------------------------------------------------
 ;; GetRankStringPtr: Return HL = pointer to "1ST", "2ND", etc. for rank A (0..4)
 ;; ----------------------------------------------------------------------------
@@ -328,9 +334,22 @@ EnterInitialsScreen:
     call HighScoreSave
     jr nc, .disk_save_ok
 
-    ld b, 22
     ld c, 214
+    cp HS_SAVE_PROTECTED
+    jr z, .disk_protected
+    cp HS_SAVE_NO_DISK
+    jr z, .disk_missing
+    ld b, 22
     ld hl, str_disk_save_failed
+    jr .draw_disk_error
+.disk_protected:
+    ld b, 24
+    ld hl, str_disk_protected
+    jr .draw_disk_error
+.disk_missing:
+    ld b, 27
+    ld hl, str_disk_missing
+.draw_disk_error:
     call DrawStringWhite
 .disk_save_ok:
 
