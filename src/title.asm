@@ -14,6 +14,9 @@ ShowTitleScreen:
     ld (ctl_now), a
     ld (ctl_last), a
     ld (ctl_pressed), a
+    ;; Restart the menu melody from its first note
+    ld (drone_step), a
+    ld (drone_timer), a
 
     ;; 2. Clear entire 32KB overscan screen to Black
     call ClearScreenOverscan
