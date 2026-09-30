@@ -4,7 +4,7 @@
 ;; the screen. Disk access is only attempted at boot and after initials entry.
 ;; ============================================================================
 
-HS_DISK_ORG       equ #0100
+HS_DISK_ORG       equ #0040      ; Above the IM 1 jump at #0038
 HS_DISK_SECTOR    equ #C5
 HS_DISK_MAGIC_0   equ 'G'
 HS_DISK_MAGIC_1   equ 'H'
@@ -18,6 +18,11 @@ FDC_STO           equ 50000
 FDC_XTO           equ 50000
 FDC_MSR           equ #FB7E
 FDC_MOTOR         equ #FA7E
+
+;; HighScoreSave failure codes, returned in A with Carry set.
+HS_SAVE_FAILED    equ 0
+HS_SAVE_PROTECTED equ 1
+HS_SAVE_NO_DISK   equ 2
 
     org HS_DISK_ORG, disk_reloc_src
 
@@ -38,6 +43,9 @@ HighScoreLoad:
     djnz .try
     jr .done
 .read_ok:
+    ;; The score sector is readable, so later saves can be attempted.
+    ld a, 1
+    ld (hs_disk_ok), a
     call hs_validate
     jr nz, .done
     ld hl, HS_DISK_BUFFER+HS_DISK_DATA_OFF
@@ -53,7 +61,15 @@ HighScoreLoad:
     ret
 
 ;; Write the whole table, then read it back before reporting success.
+;; Skip saving when the boot-time load found no disk (e.g. a tape copy).
 HighScoreSave:
+    ld a, (hs_disk_ok)
+    or a
+    jr nz, .have_disk
+    ld a, HS_SAVE_NO_DISK
+    scf
+    ret
+.have_disk:
     di
     ld hl, HS_DISK_BUFFER
     ld de, HS_DISK_BUFFER+1
@@ -76,6 +92,15 @@ HighScoreSave:
     ld (HS_DISK_BUFFER+HS_DISK_SUM_OFF), a
 
     call fdc_motor_on
+    call fdc_reinit
+    call fdc_write_protected
+    jr z, .write_allowed
+    call fdc_off
+    ld a, HS_SAVE_PROTECTED
+    scf
+    ei
+    ret
+.write_allowed:
     ld b, 3
 .write_try:
     push bc
@@ -109,8 +134,29 @@ HighScoreSave:
 
 .failed:
     call fdc_off
+    ld a, HS_SAVE_FAILED
     scf
     ei
+    ret
+
+;; Sense Drive Status: NZ when ST3 reports the disk as write protected.
+;; If the FDC does not answer, return Z and let the write report the failure.
+fdc_write_protected:
+    call fdc_sis_drain
+    ld a, #04
+    call send_fdc
+    xor a
+    call send_fdc
+    call recv_fdc
+    ld b, a
+    ld a, (fdc_abort)
+    or a
+    jr nz, .unknown
+    ld a, b
+    and #40
+    ret
+.unknown:
+    xor a
     ret
 
 hs_validate:
@@ -492,6 +538,7 @@ fdc_off:
     ret
 
 fdc_abort:  defb 0
+hs_disk_ok: defb 0
 fdc_st1:    defb 0
 fdc_st2:    defb 0
 fdc_rescnt: defb 0
