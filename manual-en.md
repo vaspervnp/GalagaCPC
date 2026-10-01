@@ -4,7 +4,7 @@
 
 Pilot your fighter, destroy the alien formations, and score as many points as possible. The game advances through successive stages until all lives are lost.
 
-![Title screen and point table](assets/Screenshots/menu.png)
+![Title screen and point table](assets/Screenshots/01_title.png)
 
 *The title screen alternates between point values and the Hall of Fame.*
 
@@ -44,7 +44,7 @@ The default is **Medium**. Choose **Easy**, **Medium**, **Hard**, or **Hardest**
 - From stage 40 onward, enemy shots also travel diagonally.
 - Enemy point values are shown on the title screen. Scores vary by enemy type and whether it is destroyed in formation or while attacking.
 
-![Enemy formation and incoming fire](assets/Screenshots/enemyfire.png)
+![Enemy formation and incoming fire](assets/Screenshots/05_enemy_fire.png)
 
 *Watch for enemy shots and diving attacks.*
 
@@ -52,15 +52,21 @@ The default is **Medium**. Choose **Easy**, **Medium**, **Hard**, or **Hardest**
 
 You start with three lives. Extra lives are awarded as your score increases. If Boss Galaga captures your fighter, destroying the Boss before capture is complete can release it. If capture completes, you continue with one fewer life; when the captured fighter returns, you gain a dual-fighter formation with increased firepower. A collision can cost one of the two fighters.
 
-![Two fighters in action](assets/Screenshots/twofighters.png)
+![Two fighters in action](assets/Screenshots/08_two_fighters.png)
 
-![Fighter captured](assets/Screenshots/captured.png)
+![Tractor beam](assets/Screenshots/06_tractor_beam.png)
+
+![Fighter captured](assets/Screenshots/07_captured.png)
 
 ## Two-player game
 
 Players take turns on the same controls. When a player loses a life, the other player takes over and continues exactly where they left off, with their own stage, enemy formation, captured fighter, lives and score. A player who loses the last life sees **GAME OVER** and the other player plays on alone.
 
 When both players are out, a results screen compares their score, shots, hits and hit-miss ratio side by side and names the winner by score (or a draw). Then each player whose score qualifies for the Top 5 enters initials, player 1 first.
+
+![Player 2 takes over](assets/Screenshots/15_two_player_switch.png)
+
+![Two-player results](assets/Screenshots/16_two_player_results.png)
 
 ## Score and entering initials
 
@@ -72,9 +78,11 @@ If your final score qualifies for the Top 5, enter three initials:
 
 The Top 5 scores are saved to the disk and remain available after restarting. Keep the game disk in the drive while entering initials. If saving fails, the game displays a warning.
 
-![Entering initials](assets/Screenshots/enteringname.png)
+![Game results](assets/Screenshots/13_results.png)
 
-![Bonus-stage results](assets/Screenshots/bonushits.png)
+![Entering initials](assets/Screenshots/14_initials.png)
+
+![Bonus-stage results](assets/Screenshots/11_challenging_results.png)
 
 ## On-screen information
 
