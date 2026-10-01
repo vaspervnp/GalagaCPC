@@ -437,14 +437,8 @@ UpdateEnemies:
     cp c
     jr z, .next_sway
 
-    ;; Erase the complete old sprite to prevent stale pixels.
-    push bc
-    ld b, (ix+4)
-    ld c, (ix+5)
-    call ClearSprite16x16
-    pop bc
-
     ld (ix+2), c
+    call EraseEnemyDeltaIX
     ld (ix+4), c
 
     push bc
@@ -672,18 +666,17 @@ UpdateEnemies:
     cp 1
     jr z, .is_diving_movement
     cp 2
-    jp z, .handle_returning
-    jp .next_dive_slot      ; Tractor states handled in UpdateTractorState
+    jp nz, .next_dive_slot  ; Tractor states handled in UpdateTractorState
+    ;; During the entry phase UpdateEntryPhase already moves returners;
+    ;; moving them here too erased and redrew them twice per frame.
+    ld a, (stage_phase)
+    or a
+    jp nz, .handle_returning
+    jp .next_dive_slot
 
 .is_diving_movement:
     ;; --- State 1: DIVING ---
-
-    ;; 1. Erase old sprite
-    push bc
-    ld b, (ix+4)
-    ld c, (ix+5)
-    call ClearSprite16x16
-    pop bc
+    ;; The old sprite is erased just before drawing at the new position.
 
     ;; Pick each diver's speed once per dive: 1/3 faster, 1/3 normal,
     ;; and 1/3 slower. Fractional steps preserve those average speeds.
@@ -703,12 +696,12 @@ UpdateEnemies:
 .dive_speed_normal:
     ld a, 2
 .store_dive_speed:
-    ld (ix+12), a
-    ;; Each diver aims at its own point near the player (-8..+7 bytes),
-    ;; so simultaneous divers spread out and some miss the fighter.
-    call GetRandomByte
-    and 15
+    ;; Pick the lane while (ix+12) is still 0 so this diver ignores itself.
+    push af
+    call PickDiveLane
     ld (ix+13), a
+    pop af
+    ld (ix+12), a
 .dive_speed_ready:
     ld d, 1
     ld a, (ix+12)
@@ -754,20 +747,26 @@ UpdateEnemies:
     cp 2
     jr z, .dive_x_done
 .dive_steer:
-    ld a, (ix+13)
-    sub 8
-    ld e, a                 ; E = signed aim offset
+    ;; Lanes are 8 bytes apart around the player. The lane set is centred on
+    ;; the player but kept inside the playfield, so lanes never merge at an
+    ;; edge and one lane always lines up with the fighter.
     ld a, (player_x)
-    add a, e
-    cp PLAY_X_MIN
-    jr c, .dive_target_min
-    cp PLAY_X_MAX + 1
-    jr c, .dive_target_ready
-    ld a, PLAY_X_MAX
-    jr .dive_target_ready
-.dive_target_min:
-    ld a, PLAY_X_MIN
-.dive_target_ready:
+    cp PLAY_X_MIN + DIVE_LANE_SPAN
+    jr nc, .lane_center_min_ok
+    ld a, PLAY_X_MIN + DIVE_LANE_SPAN
+.lane_center_min_ok:
+    cp PLAY_X_MAX - DIVE_LANE_SPAN + 1
+    jr c, .lane_center_ok
+    ld a, PLAY_X_MAX - DIVE_LANE_SPAN
+.lane_center_ok:
+    sub DIVE_LANE_SPAN
+    ld e, a                 ; E = X of lane 0
+    ld a, (ix+13)
+    and 7
+    add a, a
+    add a, a
+    add a, a                ; A = lane * 8
+    add a, e                ; A = target X
     ld c, (ix+2)
     cp c
     jr z, .dive_x_done
@@ -811,7 +810,8 @@ UpdateEnemies:
     pop bc
 .dive_skip_drop:
 
-    ;; 5. Update old coordinates and draw at new position
+    ;; 5. Erase the uncovered strip, update old coordinates, draw
+    call EraseEnemyDeltaIX
     ld a, (ix+2)
     ld (ix+4), a
     ld a, (ix+3)
@@ -823,6 +823,12 @@ UpdateEnemies:
     jp .next_dive_slot
 
 .loop_to_top:
+    push bc
+    ld b, (ix+4)
+    ld c, (ix+5)
+    call ClearSprite16x16
+    pop bc
+
     ;; If transform enemy escapes off bottom, group bonus is forfeit!
     ld a, (ix+1)
     cp 6
@@ -846,18 +852,7 @@ UpdateEnemies:
 
 .handle_returning:
     ;; --- State 2: RETURNING TO FORMATION ---
-    ;; 1. Erase old sprite
-    ld a, (ix+5)
-    cp 36
-    jr c, .skip_return_erase
-    cp 232
-    jr nc, .skip_return_erase
-    push bc
-    ld b, (ix+4)
-    ld c, (ix+5)
-    call ClearSprite16x16
-    pop bc
-.skip_return_erase:
+    ;; 1. The old sprite is erased just before drawing at the new position.
 
     ;; Recover an invalid Y coordinate so the enemy cannot cover the HUD or
     ;; remain outside the playfield and hold an entry group indefinitely.
@@ -867,6 +862,8 @@ UpdateEnemies:
     cp 232
     jr c, .return_y_valid
 .recover_return_y:
+    ;; The position jumps, so erase the whole old sprite first.
+    call EraseEnemyOldIX
     ld a, (ix+7)
     ld (ix+2), a
     ld (ix+4), a
@@ -951,6 +948,7 @@ UpdateEnemies:
     ld (transform_killed), a
 
 .ret_draw:
+    call EraseEnemyDeltaIX
     ld a, (ix+2)
     ld (ix+4), a
     ld a, (ix+3)
@@ -968,6 +966,176 @@ UpdateEnemies:
 
     call UpdateTractorState
     call UpdateCapturedFighter
+    ret
+
+;; ----------------------------------------------------------------------------
+;; EraseEnemyDeltaIX: Erase only the part of the old sprite (ix+4, ix+5) that
+;; the new position (ix+2, ix+3) will not cover. Sprites are opaque, so the
+;; following draw overwrites the overlap; blanking the whole sprite first made
+;; moving enemies flicker whenever the raster caught them between the two.
+;; Preserves: BC, IX, IY
+;; ----------------------------------------------------------------------------
+EraseEnemyDeltaIX:
+    ld a, (ix+5)
+    cp 36
+    ret c
+    cp 232
+    ret nc
+
+    ;; Moved a full sprite width or height (or more): erase it all.
+    ld a, (ix+2)
+    sub (ix+4)
+    jr nc, .dx_abs
+    neg
+.dx_abs:
+    cp 8
+    jr nc, EraseEnemyOldIX
+    ld a, (ix+3)
+    sub (ix+5)
+    jr nc, .dy_abs
+    neg
+.dy_abs:
+    cp 16
+    jr nc, EraseEnemyOldIX
+
+    push bc
+    ;; Vertical strip
+    ld a, (ix+3)
+    sub (ix+5)              ; A = new_y - old_y
+    jr z, .horizontal
+    jr c, .moved_up
+    ld e, a                 ; Moved down: clear the old top rows.
+    ld d, 8
+    ld b, (ix+4)
+    ld c, (ix+5)
+    call ClearBitmapRect
+    jr .horizontal
+.moved_up:
+    neg
+    ld e, a                 ; Moved up: clear the old bottom rows.
+    ld d, 8
+    ld b, (ix+4)
+    ld a, (ix+3)
+    add a, 16
+    ld c, a
+    call ClearBitmapRect
+
+.horizontal:
+    ld a, (ix+2)
+    sub (ix+4)              ; A = new_x - old_x
+    jr z, .done
+    jr c, .moved_left
+    ld d, a                 ; Moved right: clear the old left columns.
+    ld e, 16
+    ld b, (ix+4)
+    ld c, (ix+5)
+    call ClearBitmapRect
+    jr .done
+.moved_left:
+    neg
+    ld d, a                 ; Moved left: clear the old right columns.
+    ld e, 16
+    ld a, (ix+2)
+    add a, 8
+    ld b, a
+    ld c, (ix+5)
+    call ClearBitmapRect
+.done:
+    pop bc
+    ret
+
+;; EraseEnemyOldIX: Erase the whole sprite at (ix+4, ix+5) if inside the playfield.
+;; Preserves: BC, IX, IY
+EraseEnemyOldIX:
+    ld a, (ix+5)
+    cp 36
+    ret c
+    cp 232
+    ret nc
+    push bc
+    ld b, (ix+4)
+    ld c, (ix+5)
+    call ClearSprite16x16
+    pop bc
+    ret
+
+;; ----------------------------------------------------------------------------
+;; PickDiveLane: Choose a dive lane (0..DIVE_LANES-1) that no other diver is
+;; using, starting from a random lane. Divers with (ix+12) = 0 have not picked
+;; a lane yet and are ignored, including the caller.
+;; Output: A = lane
+;; Preserves: BC, IX
+;; ----------------------------------------------------------------------------
+PickDiveLane:
+    push bc
+    push iy
+    ;; C = bit mask of lanes in use
+    ld c, 0
+    ld iy, enemy_data
+    ld b, ENEMY_COUNT
+.scan:
+    ld a, (iy+0)
+    or a
+    jr z, .scan_next
+    ld a, (iy+8)
+    cp STATE_DIVING
+    jr nz, .scan_next
+    ld a, (iy+12)
+    or a
+    jr z, .scan_next
+    ld a, (iy+13)
+    and 7
+    call LaneBit
+    or c
+    ld c, a
+.scan_next:
+    ld de, ENEMY_SIZE
+    add iy, de
+    djnz .scan
+
+    ;; Random start lane; the spare value 7 maps to the centre lane.
+    call GetRandomByte
+    and 7
+    cp DIVE_LANES
+    jr c, .start_ok
+    ld a, DIVE_LANES / 2
+.start_ok:
+    ld h, a                 ; H = candidate lane
+    ld l, DIVE_LANES        ; L = lanes left to try
+.try:
+    ld a, h
+    call LaneBit
+    and c
+    jr z, .found
+    ld a, h
+    inc a
+    cp DIVE_LANES
+    jr c, .wrap_ok
+    xor a
+.wrap_ok:
+    ld h, a
+    dec l
+    jr nz, .try
+    ;; All lanes busy: reuse the random lane.
+.found:
+    ld a, h
+    pop iy
+    pop bc
+    ret
+
+;; LaneBit: A = 1 << A (A = 0..7). Preserves all other registers.
+LaneBit:
+    push bc
+    ld b, a
+    inc b
+    ld a, 1
+.shift:
+    dec b
+    jr z, .done
+    add a, a
+    jr .shift
+.done:
+    pop bc
     ret
 
 ;; ----------------------------------------------------------------------------
