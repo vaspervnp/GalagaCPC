@@ -83,4 +83,5 @@ BADGES_Y        EQU 222             ; Row 1: 222..237
 BADGES_Y2       EQU BADGES_Y + 18   ; Row 2: 240..255
 
 ;; Centre of the playfield for large text (GAME OVER, results)
-PF_TEXT_Y       EQU 130
+PF_TEXT_Y       EQU 128                 ; On a character row: fast text
+    assert (PF_TEXT_Y & 7) == 0

@@ -630,10 +630,48 @@ DrawWhiteDigit:
 
 ;; ----------------------------------------------------------------------------
 ;; DrawGlyph - Transfer 4x8 glyph (2 bytes x 8 lines) to screen at B=X, C=Y
-;; Input:  B = X (0..93), C = Y (0..263), HL = glyph pointer (16 bytes)
+;; Input:  B = X (0..93), C = Y (0..255), HL = glyph pointer (16 bytes)
 ;; Preserves: BC, IX, IY
 ;; ----------------------------------------------------------------------------
 DrawGlyph:
+    ;; Y on a character row boundary: the 8 lines are #800 apart, so one
+    ;; table lookup serves the whole glyph (text redrawn every frame uses this)
+    ld a, c
+    and 7
+    jr nz, .any_y
+    push bc
+    push hl
+    ld l, c
+    ld h, 0
+    add hl, hl
+    ld de, line_tab
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    add a, b
+    ld l, a
+    jr nc, .row_nc
+    inc h
+.row_nc:
+    ex de, hl                   ; DE = screen
+    pop hl                      ; HL = glyph
+    ld bc, #08FF                ; B = lines; C keeps LDI off B
+.row_line:
+    ldi
+    ldi
+    xor a
+    ld (de), a                  ; Black gap byte masks sprites underneath
+    dec de
+    dec de
+    ld a, d
+    add a, 8                    ; Next scanline of the character row
+    ld d, a
+    djnz .row_line
+    pop bc
+    ret
+
+.any_y:
     push ix
     push bc
     push hl
