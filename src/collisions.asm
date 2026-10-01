@@ -359,6 +359,9 @@ CheckCollisions:
     ld a, (capture_delay)
     or a
     ret nz                  ; Immune while waiting for replacement ship!
+    ld a, (respawn_wait)
+    or a
+    ret nz                  ; No fighter on screen after losing a life.
 
     ld a, (player_invincible_timer)
     or a

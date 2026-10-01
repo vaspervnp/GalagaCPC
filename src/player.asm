@@ -18,6 +18,9 @@ ReadInput:
     ld a, (capture_delay)
     or a
     ret nz
+    ld a, (respawn_wait)
+    or a
+    ret nz
 
     call read_controls
 
@@ -88,6 +91,36 @@ UpdatePlayer:
     ld a, (game_over)
     or a
     ret nz
+
+    ;; After losing a life, hold the next fighter back until the minimum wait
+    ;; has passed and every attacking enemy is back in formation.
+    ld a, (respawn_wait)
+    or a
+    jr z, .no_respawn_wait
+    dec a
+    jr z, .respawn_when_settled
+    ld (respawn_wait), a
+    ret
+.respawn_when_settled:
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+.settle_loop:
+    ld a, (ix+0)
+    or a
+    jr z, .settle_next
+    ld a, (ix+8)
+    or a
+    jr z, .settle_next
+    cp STATE_ENTRY
+    ret c                   ; Diving, returning or tractor states: keep waiting.
+.settle_next:
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .settle_loop
+    xor a
+    ld (respawn_wait), a
+    jp RespawnPlayer
+.no_respawn_wait:
 
     ;; The capture animation owns the player's position and drawing.
     ld a, (tractor_beam_active)
@@ -291,7 +324,8 @@ PlayerDied:
     or a
     jr z, .trigger_game_over
 
-    call RespawnPlayer
+    ld a, RESPAWN_MIN_WAIT
+    ld (respawn_wait), a
     ret
 
 .trigger_game_over:
@@ -303,6 +337,24 @@ PlayerDied:
     ld (restart_debounce), a
     call DrawGameOverText
     call PlaySoundGameOver
+    ret
+
+;; IsPlayerAbsent: NZ while no fighter is on screen for enemies to attack
+;; (captured, being lifted by the beam, or waiting to respawn).
+IsPlayerAbsent:
+    ld a, (respawn_wait)
+    or a
+    ret nz
+    ld a, (capture_delay)
+    or a
+    ret nz
+    ld a, (tractor_beam_active)
+    cp 2
+    jr z, .absent
+    xor a
+    ret
+.absent:
+    or a
     ret
 
 RespawnPlayer:
