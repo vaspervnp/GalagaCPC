@@ -75,10 +75,6 @@ HUD_1UP_Y       EQU 46                  ; "1UP" + player 1 score below
 HUD_SCORE_Y     EQU 56
 HUD_2UP_Y       EQU 70                  ; "2UP" + player 2 score (2-player game)
 HUD_SCORE2_Y    EQU 80
-HUD_STAGE_Y     EQU 96              ; Short banners, 8 characters per line
-HUD_PLAYER_Y    EQU 106
-HUD_CAPTURED_Y  EQU 126             ; "FIGHTER" / "CAPTURED" on two lines
-HUD_PAUSE_Y     EQU 152
 LIVES_X         EQU HUD_X + 4       ; Reserve ships: 2 x 2 grid (184..217)
 LIVES_Y         EQU 184
 ;; Stage ribbons: two rows right below the reserve ships. Displays commonly
