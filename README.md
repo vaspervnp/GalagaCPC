@@ -44,6 +44,8 @@
 - [Εγχειρίδιο στα Ελληνικά](manual-el.md) ([PDF](manual-el.pdf))
 - [Game manual in English](manual-en.md) ([PDF](manual-en.pdf))
 
+Τα PDF ξαναφτιάχνονται από τα Markdown με `python tools/make_manuals.py` (απαιτεί το πακέτο `markdown` και Chrome ή Edge).
+
 ## Build
 
 Από τη ρίζα του repository, εκτελέστε σε Windows:
