@@ -5,6 +5,9 @@
 ;; ============================================================================
 
 UpdateStars:
+    ld a, (results_drawn)       ; Stars stop on the results screen
+    or a
+    ret nz
     ld ix, stars_data
     ld b, NUM_STARS
 .star_loop:

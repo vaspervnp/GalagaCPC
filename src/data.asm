@@ -204,7 +204,7 @@ active_player:          defb 0  ; 0 = player 1, 1 = player 2
 initials_player:        defb 0  ; Next player to check for the Hall of Fame
 player_out:             defb 0  ; 1 while showing "GAME OVER" for one player
 hud_blink:              defb 0  ; Blink counter for the active player's label
-results_drawn:          defb 0  ; 2-player results screen already on screen
+results_drawn:          defb 0  ; Results screen on screen (stars stopped)
 
 ;; Title Screen state
 is_title_screen:        defb 1
