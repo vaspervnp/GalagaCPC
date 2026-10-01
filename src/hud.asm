@@ -1697,12 +1697,12 @@ f_c_DASH:
     defb #00, #00
     defb #00, #00
 f_w_PERCENT:
-    defb #AA, #00
-    defb #55, #55
-    defb #00, #AA
-    defb #55, #00
-    defb #AA, #55
-    defb #00, #AA
+    defb #AA, #55               ; X..X
+    defb #00, #55               ; ...X
+    defb #00, #AA               ; ..X.
+    defb #55, #00               ; .X..
+    defb #AA, #00               ; X...
+    defb #AA, #55               ; X..X
     defb #00, #00
     defb #00, #00
 
@@ -1731,63 +1731,65 @@ DrawGlyphString:
 ;; ----------------------------------------------------------------------------
 ;; DrawResultsScreen - Display authentic Galaga end-of-game statistics
 ;; ----------------------------------------------------------------------------
-;; Results text was laid out for the pre-column screen; RESULTS_DX/DY centre
-;; it in the playfield.
-RESULTS_DX      equ PF_OLD_DX
-RESULTS_DY      equ 20
+;; 1-player layout: labels are 14 characters (42 bytes), values to the right
+RES1_LABEL_X    equ 2
+RES1_VALUE_X    equ 52                  ; 5 digits = 15 bytes
+RES1_HDR_Y      equ 90
+RES1_SHOTS_Y    equ 116
+RES1_HITS_Y     equ 136
+RES1_RATIO_Y    equ 156
+RES1_FOOTER_Y   equ 184
 
 DrawResultsScreen:
+    ;; Drawn once on a cleared playfield: enemies and bullets are frozen
+    ;; and the stars stop while it shows.
+    ld a, (results_drawn)
+    or a
+    ret nz
+    inc a
+    ld (results_drawn), a
+    ld b, PF_X0 : ld c, PF_Y_TOP : ld d, PF_W - 1 : ld e, SPRITE_Y_LIMIT - PF_Y_TOP
+    call ClearBitmapRect
+
     ld a, (two_player)
     or a
     jp nz, DrawTwoPlayerResults
 
-    ;; 1. Header "- RESULTS -" at X=30, Y=70
-    ld b, 30 + RESULTS_DX : ld c, 70 + RESULTS_DY
+    ld b, PF_X_CENTER - 16 : ld c, RES1_HDR_Y
     ld hl, str_results_header
     call DrawGlyphString
 
-    ;; 2. "SHOTS FIRED" at X=16, Y=94
-    ld b, 16 + RESULTS_DX : ld c, 94 + RESULTS_DY
+    ld b, RES1_LABEL_X : ld c, RES1_SHOTS_Y
     ld hl, str_shots_fired
     call DrawGlyphString
-
-    ;; Number of shots fired in White at X=55, Y=94
     ld hl, (shots_fired)
-    ld b, 55 + RESULTS_DX : ld c, 94 + RESULTS_DY
+    ld b, RES1_VALUE_X : ld c, RES1_SHOTS_Y
     call Print5Digits
 
-    ;; 3. "NUMBER OF HITS" at X=16, Y=114
-    ld b, 16 + RESULTS_DX : ld c, 114 + RESULTS_DY
+    ld b, RES1_LABEL_X : ld c, RES1_HITS_Y
     ld hl, str_number_of_hits
     call DrawGlyphString
-
-    ;; Number of hits in White at X=55, Y=114
     ld hl, (shots_hit)
-    ld b, 55 + RESULTS_DX : ld c, 114 + RESULTS_DY
+    ld b, RES1_VALUE_X : ld c, RES1_HITS_Y
     call Print5Digits
 
-    ;; 4. "HIT-MISS RATIO" at X=16, Y=134
-    ld b, 16 + RESULTS_DX : ld c, 134 + RESULTS_DY
+    ld b, RES1_LABEL_X : ld c, RES1_RATIO_Y
     ld hl, str_hit_miss_ratio
     call DrawGlyphString
-
-    ;; Ratio percentage in White at X=58, Y=134
     call CalcHitMissRatio
-    ld b, 58 + RESULTS_DX : ld c, 134 + RESULTS_DY
+    ld b, RES1_VALUE_X + 6 : ld c, RES1_RATIO_Y
     call Draw2DigitsWhite
-    ld b, 64 + RESULTS_DX : ld c, 134 + RESULTS_DY
+    ld b, RES1_VALUE_X + 12 : ld c, RES1_RATIO_Y
     ld hl, f_w_PERCENT
     call DrawGlyph
 
-    ;; 5. "2026 REVIVE8BIT" at X=25, Y=160
-    ld b, 25 + RESULTS_DX : ld c, 160 + RESULTS_DY
+    ld b, PF_X_CENTER - 22 : ld c, RES1_FOOTER_Y
     ld hl, str_revive8bit_copyright
-    call DrawGlyphString
-    ret
+    jp DrawGlyphString
 
 ;; ----------------------------------------------------------------------------
 ;; DrawTwoPlayerResults - Both players' statistics side by side and the winner.
-;; Drawn once: enemies are frozen on this screen.
+;; Called from DrawResultsScreen after the playfield is cleared.
 ;; ----------------------------------------------------------------------------
 RES2_COL1       equ 24                  ; 6-digit score columns (18 bytes)
 RES2_COL2       equ 48
@@ -1800,16 +1802,6 @@ RES2_RATIO_Y    equ 154
 RES2_WINNER_Y   equ 178
 
 DrawTwoPlayerResults:
-    ld a, (results_drawn)
-    or a
-    ret nz
-    inc a
-    ld (results_drawn), a
-
-    ;; Enemies are frozen behind the text: clear the playfield first
-    ld b, PF_X0 : ld c, PF_Y_TOP : ld d, PF_W - 1 : ld e, SPRITE_Y_LIMIT - PF_Y_TOP
-    call ClearBitmapRect
-
     ld b, PF_X_CENTER - 16 : ld c, RES2_HDR_Y
     ld hl, str_results_header
     call DrawGlyphString

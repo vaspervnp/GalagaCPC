@@ -11,6 +11,7 @@ ShowTitleScreen:
     ld (is_title_screen), a
     xor a
     ld (title_timer), a
+    ld (results_drawn), a       ; Let the stars move again
     ld (ctl_now), a
     ld (ctl_last), a
     ld (ctl_pressed), a
