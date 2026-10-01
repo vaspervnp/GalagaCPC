@@ -10,6 +10,70 @@ UpdateStars:
     ret nz
     ld ix, stars_data
     ld b, NUM_STARS
+    ld a, (is_title_screen)
+    or a
+    jr nz, .star_loop
+
+    ;; In play: playfield only, line table lookups inlined
+.game_star:
+    ld a, (ix+0)
+    add a, STAR_GAME_DX
+    ld c, a                 ; C = screen X
+
+    ;; 1. Erase at the current position if the pixel still holds the star
+    ld l, (ix+1)
+    ld h, 0
+    add hl, hl
+    ld de, line_tab
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    add a, c
+    ld l, a
+    jr nc, .ge_nc
+    inc h
+.ge_nc:
+    ld a, (hl)
+    cp (ix+2)
+    jr nz, .ge_kept
+    ld (hl), 0
+.ge_kept:
+
+    ;; 2. Advance Y, wrapping inside the playfield
+    ld a, (ix+1)
+    add a, (ix+3)
+    cp STAR_GAME_Y_END
+    jr c, .gy_ok
+    sub STAR_GAME_Y_END - PF_Y_TOP
+.gy_ok:
+    ld (ix+1), a
+
+    ;; 3. Draw at the new position only over black
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, de              ; DE = line_tab
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    add a, c
+    ld l, a
+    jr nc, .gd_nc
+    inc h
+.gd_nc:
+    ld a, (hl)
+    or a
+    jr nz, .gd_hidden
+    ld a, (ix+2)
+    ld (hl), a
+.gd_hidden:
+    ld de, 4
+    add ix, de
+    djnz .game_star
+    ret
+
+    ;; Title screen
 .star_loop:
     ld a, (is_title_screen)
     or a

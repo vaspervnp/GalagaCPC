@@ -4,7 +4,8 @@
 ;; Based on LoukoumasCPC architecture
 ;; ============================================================================
 
-line_tab:       defs DISPLAY_LINES * 2, 0
+;; line_tab (DISPLAY_LINES words) is built at boot over the load-image copy
+;; of the disk code, which is dead once relocated (see main.asm).
 
 ;; ---------------------------------------------------------------------------
 ;; build_line_tab - Fill line_tab with start address of all 272 scanlines
@@ -110,41 +111,39 @@ GetScreenAddr:
 ;; Preserves: IX, IY, BC
 ;; ---------------------------------------------------------------------------
 DrawSprite16x16:
-    push ix
     push bc
     push hl
-    ld e, c
-    ld d, 0
-    sla e
-    rl d                        ; DE = Y * 2 (16-bit safe for Y up to 271)
-    ld ix, line_tab
-    add ix, de                  ; IX = pointer to line_tab[Y]
+    ld l, c
+    ld h, 0
+    add hl, hl
+    ld de, line_tab
+    add hl, de                  ; HL = &line_tab[Y]
+    ld c, b                     ; C = X
+    ld b, 16                    ; B = lines
+    push hl
+    push bc
+    exx
+    pop bc                      ; B' = lines, C' = X
+    pop hl                      ; HL' = line table pointer
+    exx
     pop hl                      ; HL = sprite data
-    ld c, 16                    ; 16 lines
-.draw_loop:
-    ld e, (ix+0)
-    ld d, (ix+1)
-    inc ix
-    inc ix
-    ld a, b                     ; X byte offset
-    add a, e
+.line:
+    exx
+    ld a, (hl)
+    inc hl
+    add a, c
     ld e, a
-    jr nc, .draw_no_c
-    inc d
-.draw_no_c:
-    ;; Transfer 8 bytes from HL (sprite) to DE (screen) without touching BC
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    ld a, (hl) : ld (de), a : inc hl : inc de
-    dec c
-    jr nz, .draw_loop
+    ld a, (hl)
+    inc hl
+    adc a, 0
+    ld d, a                     ; DE' = scanline + X
+    push de
+    dec b                       ; Z on the last line (LDI keeps Z)
+    exx
+    pop de
+    ldi : ldi : ldi : ldi : ldi : ldi : ldi : ldi
+    jp nz, .line
     pop bc
-    pop ix
     ret
 
 ;; ---------------------------------------------------------------------------
@@ -245,52 +244,60 @@ DrawBitmapRect:
 .dbr_width: defb 0
 
 ;; ClearBitmapRect: Clear a rectangle to Pen 0.
-;; Input: B=X byte, C=Y scanline, D=width bytes, E=height scanlines.
-;; Preserves: IX, BC
+;; Input: B=X byte, C=Y scanline, D=width bytes (1..CBR_MAX_WIDTH),
+;;        E=height scanlines.
+;; Preserves: IX, IY, BC
+CBR_MAX_WIDTH   equ PF_W
 ClearBitmapRect:
-    push ix
     push bc
-    ld a, e
-    ld (.cbr_lines), a
     ld a, d
-    ld (.cbr_width), a
+    add a, a
+    ld l, a
+    ld h, 0
+    push de
+    ex de, hl
+    ld hl, .cbr_unrolled_end
+    or a
+    sbc hl, de
+    ld (.cbr_jump + 1), hl      ; Enter the unrolled run D stores before its end
+    pop de
 
-    ld e, c
-    ld d, 0
-    sla e
-    rl d
-    ld ix, line_tab
-    add ix, de
-
-.cbr_row:
-    ld e, (ix+0)
-    ld d, (ix+1)
-    inc ix
-    inc ix
-    ld a, b
-    add a, e
-    ld e, a
-    jr nc, .cbr_nc
-    inc d
-.cbr_nc:
+    ld a, b                     ; A = X
+    ld l, c
+    ld h, 0
+    add hl, hl
+    ld bc, line_tab
+    add hl, bc                  ; HL = &line_tab[Y]
+    ld c, a                     ; C = X
+    ld b, e                     ; B = lines
+    push hl
     push bc
-    ld a, (.cbr_width)
-    ld b, a
-    xor a
-.cbr_col:
-    ld (de), a
-    inc de
-    djnz .cbr_col
+    exx
     pop bc
-
-    ld a, (.cbr_lines)
-    dec a
-    ld (.cbr_lines), a
-    jr nz, .cbr_row
-
+    pop hl
+    exx
+.cbr_row:
+    exx
+    ld a, (hl)
+    inc hl
+    add a, c
+    ld e, a
+    ld a, (hl)
+    inc hl
+    adc a, 0
+    ld d, a
+    push de
+    dec b                       ; Z on the last line
+    exx
+    pop hl
+    ld a, 0                     ; (keeps Z)
+.cbr_jump:
+    jp 0
+    repeat CBR_MAX_WIDTH
+    ld (hl), a
+    inc hl
+    rend
+.cbr_unrolled_end:
+    jp nz, .cbr_row
     pop bc
-    pop ix
     ret
-
-.cbr_lines: defb 0
-.cbr_width: defb 0

@@ -427,6 +427,9 @@ disk_reloc_src:
     include "disk.asm"
 DISK_CODE_SIZE equ disk_code_end-HS_DISK_ORG
     assert disk_code_end <= #0600
+;; Once relocated, the load-image copy is free: the scanline table goes there.
+line_tab        equ disk_reloc_src
+    assert DISK_CODE_SIZE >= DISPLAY_LINES * 2
     org disk_reloc_src+DISK_CODE_SIZE, disk_reloc_src+DISK_CODE_SIZE
 
 ;; ----------------------------------------------------------------------------
