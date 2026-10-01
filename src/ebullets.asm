@@ -1,6 +1,6 @@
 ;; ============================================================================
 ;; Galaga CPC - Enemy Bullets Management
-;; Overscan Geometry (Playfield Y=32..231, Lower Border Y=232)
+;; Playfield Y=PF_Y_TOP..EBULLET_KILL_Y (bottom of the overscan screen)
 ;; ============================================================================
 
 SpawnEBullet:
@@ -104,7 +104,7 @@ SpawnEBullet:
 
 .force_diagonal:
     ld a, (player_x)
-    cp 48
+    cp PF_X_CENTER
     jr c, .force_diagonal_left
     ld a, 1
     jr .store_dx
@@ -192,7 +192,7 @@ UpdateEBullets:
     ld a, (ix+2)
     add a, 3                ; 3 scanlines/frame
     ld (ix+2), a
-    cp 235                  ; Stop before entering Lower Border Lives (Y=244, bullet height=9)
+    cp EBULLET_KILL_Y       ; Stop at the bottom of the screen (bullet height 9)
     jp nc, .kill_eb
 
     ;; 3. Save old position

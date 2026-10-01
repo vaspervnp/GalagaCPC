@@ -209,7 +209,7 @@ InsertTop5Entry:
 EnterInitialsScreen:
     ;; 1. Clear screen and re-init HUD
     call ClearScreenOverscan
-    call InitHUD
+    call InitTitleHUD
 
     ;; 2. Reset entered initials to "AAA"
     ld a, 'A'

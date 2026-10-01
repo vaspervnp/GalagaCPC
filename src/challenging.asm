@@ -165,8 +165,8 @@ UpdateChallengingStage:
     ret nz
 
     ;; Results display finished! Clear screen text and advance stage!
-    ld b, 24 : ld c, 100 : ld d, 56 : call ClearTextRect
-    ld b, 24 : ld c, 116 : ld d, 56 : call ClearTextRect
+    ld b, CH_RESULTS_X : ld c, CH_RESULTS_Y1 : ld d, 56 : call ClearTextRect
+    ld b, CH_RESULTS_X : ld c, CH_RESULTS_Y2 : ld d, 56 : call ClearTextRect
 
     xor a
     ld (is_challenging_stage), a
@@ -189,35 +189,35 @@ UpdateChallengingStage:
 ;; Can be called every frame to maintain text priority over player missiles
 ;; ----------------------------------------------------------------------------
 DrawChallengingResults:
-    ;; Display "NUMBER OF HITS  XX" in Cyan/White at X=24, Y=100
-    ld b, 24 : ld c, 100
+    ;; Display "NUMBER OF HITS  XX" in Cyan/White, centred in the playfield
+    ld b, CH_RESULTS_X : ld c, CH_RESULTS_Y1
     ld hl, str_number_of_hits
     call DrawGlyphString
     ld a, (challenging_hits)
-    ld b, 69 : ld c, 100
+    ld b, CH_RESULTS_X + 45 : ld c, CH_RESULTS_Y1
     call Draw2DigitsWhite
 
-    ;; Display Bonus line at Y=116
+    ;; Display Bonus line
     ld a, (challenging_hits)
     cp 40
     jr nz, .cr_partial
 
-    ;; Perfect 40 hits: "SPECIAL 10000 PTS" in Cyan/White at X=26, Y=116
-    ld b, 26 : ld c, 116
+    ;; Perfect 40 hits: "SPECIAL 10000 PTS"
+    ld b, CH_RESULTS_X + 2 : ld c, CH_RESULTS_Y2
     ld hl, str_special_10000
     jp DrawGlyphString
 
 .cr_partial:
-    ;; Partial hits: "BONUS " + XX + "00 PTS" at X=29, Y=116
-    ld b, 29 : ld c, 116
+    ;; Partial hits: "BONUS " + XX + "00 PTS"
+    ld b, CH_RESULTS_X + 5 : ld c, CH_RESULTS_Y2
     ld hl, str_bonus_label
     call DrawGlyphString
     ld a, (challenging_hits)
-    ld b, 47 : ld c, 116
+    ld b, CH_RESULTS_X + 23 : ld c, CH_RESULTS_Y2
     call Draw2DigitsWhite
-    ld b, 53 : ld c, 116 : ld hl, f_w_0 : call DrawGlyph
-    ld b, 56 : ld c, 116 : ld hl, f_w_0 : call DrawGlyph
-    ld b, 59 : ld c, 116
+    ld b, CH_RESULTS_X + 29 : ld c, CH_RESULTS_Y2 : ld hl, f_w_0 : call DrawGlyph
+    ld b, CH_RESULTS_X + 32 : ld c, CH_RESULTS_Y2 : ld hl, f_w_0 : call DrawGlyph
+    ld b, CH_RESULTS_X + 35 : ld c, CH_RESULTS_Y2
     ld hl, str_pts_label
     jp DrawGlyphString
 
@@ -305,10 +305,10 @@ SpawnChallengingEnemy:
     jr nc, .w5_stage_enemy
     ld (ix+1), 2            ; Boss Galaga
 .w5_stage_enemy:
-    ld a, 74
+    ld a, 74 + PF_OLD_DX
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 36
+    ld a, PF_Y_TOP
     ld (ix+3), a
     ld (ix+5), a
     ld (ix+10), 1           ; step direction: moving left
@@ -319,14 +319,14 @@ SpawnChallengingEnemy:
     ld a, (challenging_spawn_cnt)
     and 1
     jr nz, .w1_right
-    ld a, 38
+    ld a, 38 + PF_OLD_DX
     jr .w1_set_x
 .w1_right:
-    ld a, 48
+    ld a, 48 + PF_OLD_DX
 .w1_set_x:
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 36
+    ld a, PF_Y_TOP
     ld (ix+3), a
     ld (ix+5), a
     ld (ix+10), 0           ; direction flag
@@ -334,10 +334,10 @@ SpawnChallengingEnemy:
 
 .spawn_w2:
     ;; Wave 2: Upper left swoop
-    ld a, 14
+    ld a, 14 + PF_OLD_DX
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 36
+    ld a, PF_Y_TOP
     ld (ix+3), a
     ld (ix+5), a
     ld (ix+10), 0
@@ -345,10 +345,10 @@ SpawnChallengingEnemy:
 
 .spawn_w3:
     ;; Wave 3: Upper right swoop
-    ld a, 74
+    ld a, 74 + PF_OLD_DX
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 36
+    ld a, PF_Y_TOP
     ld (ix+3), a
     ld (ix+5), a
     ld (ix+10), 1
@@ -356,10 +356,10 @@ SpawnChallengingEnemy:
 
 .spawn_w4:
     ;; Wave 4: Entering from left, weaving right
-    ld a, 14
+    ld a, 14 + PF_OLD_DX
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 36
+    ld a, PF_Y_TOP
     ld (ix+3), a
     ld (ix+5), a
     ld (ix+10), 0
@@ -385,7 +385,7 @@ MoveChallengingEnemies:
     ;; 2. Move Y down by 2 scanlines
     ld a, (ix+3)
     add a, 2
-    cp 222
+    cp SPRITE_Y_LIMIT - 2
     jp nc, .kill_ch_enemy   ; Reached bottom -> exit screen
 
     ld (ix+3), a
@@ -420,9 +420,9 @@ MoveChallengingEnemies:
 .move_w1:
     ;; Wave 1: loop curve
     ld a, (ix+3)
-    cp 60
+    cp 60 + PF_OLD_DY
     jr c, .w1_down
-    cp 130
+    cp 130 + PF_OLD_DY
     jr nc, .w1_down
     ;; Arc outward
     ld a, (ix+10)

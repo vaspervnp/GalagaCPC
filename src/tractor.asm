@@ -108,15 +108,15 @@ UpdateTractorState:
     ret
 
 .handle_tractor_dive:
-    ;; Boss dives straight down to Y = 142 to emit beam
+    ;; Boss dives straight down to TRACTOR_HOVER_Y to emit beam
     ld a, (ix+3)
     add a, 2
     ld (ix+3), a
-    cp 142
+    cp TRACTOR_HOVER_Y
     jr c, .dive_down_ok
 
     ;; Reached hover scanline! Switch to emitting beam
-    ld (ix+3), 142
+    ld (ix+3), TRACTOR_HOVER_Y
     ld (ix+8), STATE_TRACTOR_BEAM
     ld a, 1
     ld (tractor_beam_active), a
@@ -144,7 +144,7 @@ UpdateTractorState:
     ret
 
 .handle_tractor_beam:
-    ;; Emitting beam while hovering at Y=142
+    ;; Emitting beam while hovering at TRACTOR_HOVER_Y
     call RedrawTractorBoss
     call PlaySoundTractor
 
@@ -226,13 +226,13 @@ UpdateTractorState:
     call ClearSprite16x16
 
     ld a, (player_y)
-    cp 158
+    cp TRACTOR_BEAM_Y
     jr c, .capture_reached_boss
     jr z, .capture_reached_boss
     sub 2
-    cp 158
+    cp TRACTOR_BEAM_Y
     jr nc, .capture_y_ready
-    ld a, 158
+    ld a, TRACTOR_BEAM_Y
 .capture_y_ready:
     ld (player_y), a
     ld (old_player_y), a
@@ -340,9 +340,9 @@ DrawTractorBeam:
     add hl, de
     ld a, (tractor_beam_x)
     ld b, a
-    ld c, 158
+    ld c, TRACTOR_BEAM_Y
     ld d, 24
-    ld e, 64
+    ld e, TRACTOR_BEAM_H
     call DrawBitmapRect
     ld a, 1
     ld (tractor_beam_drawn), a
@@ -366,9 +366,9 @@ EraseTractorBeam:
 
     ld a, (tractor_beam_x)
     ld b, a
-    ld c, 158
+    ld c, TRACTOR_BEAM_Y
     ld d, 24
-    ld e, 64
+    ld e, TRACTOR_BEAM_H
     call ClearBitmapRect
     xor a
     ld (tractor_beam_drawn), a
@@ -398,11 +398,11 @@ EraseTractorBeam:
 
     ld a, (ix+3)
     add a, 16
-    cp 158
+    cp TRACTOR_BEAM_Y
     jr c, .next_enemy
     jr z, .next_enemy
     ld a, (ix+3)
-    cp 222
+    cp TRACTOR_BEAM_Y + TRACTOR_BEAM_H
     jr nc, .next_enemy
 
     push bc

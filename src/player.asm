@@ -1,6 +1,6 @@
 ;; ============================================================================
 ;; Galaga CPC - Player Ship Logic & Input
-;; Overscan Geometry (Playfield X=10..78, Y=DEFAULT_PLAYER_Y)
+;; Playfield X=PLAY_X_MIN..PLAY_X_MAX, Y=DEFAULT_PLAYER_Y
 ;; ============================================================================
 
 ReadInput:
@@ -360,13 +360,13 @@ IsPlayerAbsent:
 RespawnPlayer:
     ld a, 100               ; 2 seconds invincibility (100 frames at 50Hz)
     ld (player_invincible_timer), a
-    ld a, 44
+    ld a, PLAYER_START_X
     ld (player_x), a
     ld (old_player_x), a
     ld a, DEFAULT_PLAYER_Y
     ld (player_y), a
     ld (old_player_y), a
-    ld b, 44
+    ld b, PLAYER_START_X
     ld c, DEFAULT_PLAYER_Y
     ld hl, player_sprite
     call DrawSprite16x16

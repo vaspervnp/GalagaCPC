@@ -1,6 +1,6 @@
 ;; ============================================================================
 ;; Galaga CPC - Player Missiles Management
-;; Overscan Geometry (Playfield Y=32..231, Player Y=DEFAULT_PLAYER_Y)
+;; Playfield Y=PF_Y_TOP..SPRITE_Y_LIMIT-1, Player Y=DEFAULT_PLAYER_Y
 ;; ============================================================================
 
 SpawnMissile:
@@ -135,10 +135,9 @@ UpdateMissiles:
 
 .skip_erase:
     ;; 2. Move missile up
-    ;; Safety top boundary: scanlines 0..31 are Upper Border HUD.
-    ;; If Y < 34, kill before entering HUD!
+    ;; Remove the missile before it moves past the top of the playfield.
     ld a, (ix+2)
-    cp 34
+    cp MISSILE_KILL_Y
     jr c, .kill_missile
 
     sub 5                   ; 5 scanlines per frame

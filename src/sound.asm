@@ -791,10 +791,10 @@ SoundInterrupt:
 ;; Dynamically accelerates as enemies are destroyed!
 ;; ----------------------------------------------------------------------------
 UpdateDrone:
-    ;; 1. Title menu reuses the challenging-stage melody as background music
+    ;; 1. Check if Drone should be silent
     ld a, (is_title_screen)
     or a
-    jp nz, UpdateChallengingMusic
+    jp nz, .silence_drone
 
     ld a, (game_over)
     or a
