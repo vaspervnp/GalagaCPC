@@ -1,52 +1,119 @@
-from PIL import Image
+"""Generate src/title_logo.asm (72 x 32 Mode 0 pixels) from assets/galaga_logo_hd.png.
+
+The arcade artwork is classified into regions (sky, upper and lower letter
+halves, outlines, background) and reduced by a weighted vote per output pixel,
+so the thin outlines survive. Outlines inside the logo become black gaps that
+keep the letters apart; only the outer silhouette stays red. Each region is
+then filled with a solid pen or a 4x4 ordered (Bayer) dither pattern, which
+gives regular textures instead of random speckles.
+
+Requires Pillow, NumPy and SciPy. Writes scratch/title_logo_preview.png too.
+    python tools/make_title_logo.py
+"""
 import numpy as np
+from PIL import Image, ImageFilter
+from scipy import ndimage
 
-# Load arcade tuned 72x32 logo
-im = Image.open('scratch/logo_arcade_72x32.png')
+SRC = 'assets/galaga_logo_hd.png'
+W, H = 72, 32                   # Mode 0 pixels (36 bytes x 32 scanlines)
 
-cpc_pal = {
-    (0,0,0): 0,        # Pen 0: Black
-    (0,0,255): 1,      # Pen 1: Blue
-    (255,0,0): 2,      # Pen 2: Bright Red
-    (255,255,0): 3,    # Pen 3: Bright Yellow
-    (0,255,255): 4,    # Pen 4: Bright Cyan
-    (255,0,255): 5,    # Pen 5: Magenta
-    (0,255,0): 6,      # Pen 6: Green
-    (255,255,255): 15  # Pen 15: White
-}
+PAL = {0: (0, 0, 0), 1: (0, 0, 255), 2: (255, 0, 0), 3: (255, 255, 0), 15: (255, 255, 255)}
+
+# Source regions
+BG, WHITE, RED, YELLOW, UPPER, LOWER, SKY, EDGE_IN, EDGE_OUT, LINE = range(10)
+
+# Region -> pen, or (pen, pen2, level): pen2 where the Bayer value < level (0..16)
+FILLS = {BG: 0, UPPER: 3, LOWER: (3, 2, 8), SKY: 1, EDGE_IN: 0, EDGE_OUT: 2}
+# Vote weights: outlines count more so they are not lost at this size
+WEIGHTS = {BG: 1.0, UPPER: 1.0, LOWER: 1.0, SKY: 1.0, EDGE_IN: 1.5, EDGE_OUT: 1.8}
+
+BAYER4 = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]])
+
+
+def classify(img):
+    a = np.array(img.convert('RGB')).astype(int)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    cls = np.full(r.shape, LINE)
+    cls[(r > 200) & (g > 200) & (b > 200)] = WHITE
+    cls[(r > 180) & (g < 110) & (b < 110)] = RED
+    cls[(r > 200) & (g > 130) & (b < 120)] = YELLOW
+    green = (g > r) & (g > b + 20) & (g > 70)
+    cls[green & (g > 150)] = UPPER
+    cls[green & (g <= 150)] = LOWER
+    cls[(b > 80) & (r < 80) & (g < 80)] = SKY
+
+    # Stars and the big star (white with black spikes) become sky: any
+    # black/white blob whose surroundings are mostly sky
+    lab, n = ndimage.label(np.isin(cls, [WHITE, LINE]))
+    for i, sl in enumerate(ndimage.find_objects(lab), 1):
+        sl = tuple(slice(max(s.start - 2, 0), s.stop + 2) for s in sl)
+        blob = lab[sl] == i
+        ring = ndimage.binary_dilation(blob, iterations=2) & ~blob
+        if (cls[sl][blob] == WHITE).any() and ring.any() and (cls[sl][ring] == SKY).mean() > 0.6:
+            cls[sl][blob] = SKY
+
+    # Background: black connected to the border, plus the outer white outline
+    lab, _ = ndimage.label(np.isin(cls, [LINE, WHITE]))
+    edge_labels = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    bg = np.isin(lab, list(edge_labels))
+    cls[(cls == WHITE) & ~bg] = SKY         # the big star and its tail
+    near_bg = ndimage.binary_dilation(bg, iterations=22)
+    outline = np.isin(cls, [RED, YELLOW, LINE]) & ~bg
+    cls[outline & near_bg] = EDGE_OUT
+    cls[outline & ~near_bg] = EDGE_IN
+    cls[bg] = BG
+    return cls
+
+
+def reduce(cls):
+    wts = np.zeros(10)
+    for k, v in WEIGHTS.items():
+        wts[k] = v
+    h0, w0 = cls.shape
+    reg = np.zeros((H, W), int)
+    for y in range(H):
+        for x in range(W):
+            cell = cls[y * h0 // H:(y + 1) * h0 // H, x * w0 // W:(x + 1) * w0 // W]
+            reg[y, x] = int(np.argmax(np.bincount(cell.ravel(), minlength=10) * wts))
+    return reg
+
+
+def pens_for(reg):
+    pens = np.zeros((H, W), int)
+    for y in range(H):
+        for x in range(W):
+            f = FILLS[reg[y, x]]
+            if isinstance(f, int):
+                pens[y, x] = f
+            else:
+                pens[y, x] = f[1] if BAYER4[y % 4, x % 4] < f[2] else f[0]
+    return pens
+
 
 def encode_mode0_byte(p0, p1):
-    b7 = (p0 & 1) << 7
-    b6 = (p1 & 1) << 6
-    b5 = ((p0 >> 2) & 1) << 5
-    b4 = ((p1 >> 2) & 1) << 4
-    b3 = ((p0 >> 1) & 1) << 3
-    b2 = ((p1 >> 1) & 1) << 2
-    b1 = ((p0 >> 3) & 1) << 1
-    b0 = ((p1 >> 3) & 1) << 0
-    return b7 | b6 | b5 | b4 | b3 | b2 | b1 | b0
+    return (((p0 & 1) << 7) | ((p1 & 1) << 6) | (((p0 >> 2) & 1) << 5) | (((p1 >> 2) & 1) << 4) |
+            (((p0 >> 1) & 1) << 3) | (((p1 >> 1) & 1) << 2) | (((p0 >> 3) & 1) << 1) | ((p1 >> 3) & 1))
 
-width = 72
-height = 32
+
+pens = pens_for(reduce(classify(Image.open(SRC))))
+
+preview = Image.new('RGB', (W * 2, H))
+for y in range(H):
+    for x in range(W):
+        preview.putpixel((2 * x, y), PAL[pens[y, x]])
+        preview.putpixel((2 * x + 1, y), PAL[pens[y, x]])
+preview.resize((W * 8, H * 8), Image.NEAREST).save('scratch/title_logo_preview.png')
 
 with open('src/title_logo.asm', 'w') as f:
     f.write(";; ============================================================================\n")
-    f.write(";; Galaga CPC - Official Arcade Title Logo (36 bytes wide x 32 scanlines)\n")
-    f.write(";; Mode 0 (72 Mode 0 pixels wide, Pen 0, 1, 2, 3, 4, 15)\n")
+    f.write(";; Galaga CPC - Arcade Title Logo (36 bytes wide x 32 scanlines)\n")
+    f.write(";; Generated by tools/make_title_logo.py: region fill + 4x4 ordered dither\n")
     f.write(";; ============================================================================\n\n")
-    f.write("TITLE_LOGO_W    equ 36\n")
-    f.write("TITLE_LOGO_H    equ 32\n\n")
+    f.write(f"TITLE_LOGO_W    equ {W // 2}\n")
+    f.write(f"TITLE_LOGO_H    equ {H}\n\n")
     f.write("title_logo_data:\n")
-    
-    for y in range(height):
-        bytes_row = []
-        for x in range(0, width, 2):
-            c0 = im.getpixel((x*2, y))
-            c1 = im.getpixel(((x+1)*2, y))
-            p0 = cpc_pal.get(c0[:3], 0)
-            p1 = cpc_pal.get(c1[:3], 0)
-            byte_val = encode_mode0_byte(p0, p1)
-            bytes_row.append(f"#{byte_val:02X}")
-        f.write("    defb " + ", ".join(bytes_row) + f"  ; Line {y}\n")
+    for y in range(H):
+        row = [f"#{encode_mode0_byte(pens[y, x], pens[y, x + 1]):02X}" for x in range(0, W, 2)]
+        f.write("    defb " + ", ".join(row) + f"  ; Line {y}\n")
 
-print("Created src/title_logo.asm successfully with 36x32 arcade logo!")
+print("Created src/title_logo.asm and scratch/title_logo_preview.png")
