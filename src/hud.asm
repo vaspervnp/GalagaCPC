@@ -16,6 +16,16 @@ InitHUD:
     ld hl, str_1up_hdr
     call DrawGlyphString
 
+    ld a, (two_player)
+    or a
+    jr z, .one_player
+    ld b, HUD_TEXT_X
+    ld c, HUD_2UP_Y
+    ld hl, str_2up_hdr
+    call DrawGlyphString
+    call PrintOtherScore
+.one_player:
+
     ld b, HUD_TEXT_X
     ld c, HUD_HIGH_Y
     ld hl, str_high_hdr
@@ -54,10 +64,10 @@ InitTitleHUD:
     xor a
     ld (hud_in_column), a
 
-    ;; 1. Draw '1UP' in Red at X=16
+    ;; 1. Draw '1UP' (or '2UP' for player 2's initials) in Red at X=16
+    call ActiveLabelPos
     ld b, 16
     ld c, TITLE_HUD_Y0
-    ld hl, str_1up_hdr
     call DrawGlyphString
 
     ;; 2. Draw 'HIGH SCORE' in Red at X=46
@@ -74,6 +84,9 @@ InitTitleHUD:
 str_1up_hdr:
     defw f_r_1, f_r_U, f_r_P, 0
 
+str_2up_hdr:
+    defw f_r_2, f_r_U, f_r_P, 0
+
 str_high_score_hdr:
     defw f_r_H, f_r_I, f_r_G, f_r_H, f_r_SPACE
 str_score_hdr:
@@ -83,14 +96,66 @@ str_high_hdr:
     defw f_r_H, f_r_I, f_r_G, f_r_H, 0
 
 ;; ----------------------------------------------------------------------------
-;; PrintScore - Print player_score (6 digits, White) in the active HUD layout
+;; PrintScore - Print player_score (6 digits, White) in the active HUD layout,
+;; on the active player's row of the HUD column.
 ;; ----------------------------------------------------------------------------
 PrintScore:
     ld hl, (player_score)
     ld a, (player_score_hi)
-    ld bc, (HUD_TEXT_X << 8) | HUD_SCORE_Y
     ld de, (14 << 8) | TITLE_HUD_Y1
+    push af
+    ld a, (active_player)
+    or a
+    ld bc, (HUD_TEXT_X << 8) | HUD_SCORE_Y
+    jr z, .player1
+    ld c, HUD_SCORE2_Y
+.player1:
+    pop af
     jr PrintScoreAt
+
+;; PrintOtherScore - Print the inactive player's score in the HUD column
+PrintOtherScore:
+    ld hl, (player_score + OTHER_PLAYER)
+    ld a, (active_player)
+    or a
+    ld bc, (HUD_TEXT_X << 8) | HUD_SCORE2_Y
+    jr z, .player2
+    ld c, HUD_SCORE_Y
+.player2:
+    ld a, (player_score_hi + OTHER_PLAYER)
+    jp Print6Digits
+
+;; ----------------------------------------------------------------------------
+;; BlinkActiveLabel - Blink the active player's "1UP" / "2UP" label
+;; ----------------------------------------------------------------------------
+BlinkActiveLabel:
+    ld a, (hud_blink)
+    inc a
+    ld (hud_blink), a
+    and 15
+    ret nz
+    ld a, (hud_blink)
+    and 16
+    jr z, ClearActiveLabel
+DrawActiveLabel:
+    call ActiveLabelPos
+    jp DrawGlyphString
+ClearActiveLabel:
+    call ActiveLabelPos
+    ld d, 9
+    jp ClearTextRect
+
+;; ActiveLabelPos - B,C = HUD column position and HL = label of active player
+ActiveLabelPos:
+    ld b, HUD_TEXT_X
+    ld a, (active_player)
+    or a
+    ld c, HUD_1UP_Y
+    ld hl, str_1up_hdr
+    ret z
+    ld c, HUD_2UP_Y
+    ld hl, str_2up_hdr
+    ret
 
 ;; ----------------------------------------------------------------------------
 ;; PrintHighScore - Print high_score (6 digits, White) in the active HUD layout
@@ -300,14 +365,15 @@ ClearHudLine:
     jp ClearTextRect
 
 ;; ----------------------------------------------------------------------------
-;; DrawPlayerBanner - "PLAYER 1" in the HUD column
+;; DrawPlayerBanner - "PLAYER 1" / "PLAYER 2" in the HUD column
 ;; ----------------------------------------------------------------------------
 DrawPlayerBanner:
     ld b, HUD_X
     ld c, HUD_PLAYER_Y
     ld hl, str_player_banner
     call DrawGlyphString        ; B advances past "PLAYER "
-    ld a, 1
+    ld a, (active_player)
+    inc a
     jp DrawWhiteDigit
 
 ClearPlayerBanner:
@@ -458,6 +524,11 @@ RefreshPriorityText:
     pop bc
 
 .rpt_check_game_over:
+    ;; One player out in a 2-player game: "GAME OVER" until the hand-over
+    ld a, (player_out)
+    or a
+    call nz, DrawGameOverText
+
     ;; 2. Check Game Over banner (Phase 0) or Results Screen (Phase 1)
     ld a, (game_over)
     or a
@@ -1196,6 +1267,15 @@ f_r_1:
     defb #00, #08
     defb #04, #0C
     defb #00, #00
+f_r_2:
+    defb #04, #08
+    defb #08, #04
+    defb #00, #04
+    defb #00, #08
+    defb #04, #00
+    defb #08, #00
+    defb #0C, #0C
+    defb #00, #00
 f_r_C:
     defb #04, #0C
     defb #08, #00
@@ -1657,6 +1737,10 @@ RESULTS_DX      equ PF_OLD_DX
 RESULTS_DY      equ 20
 
 DrawResultsScreen:
+    ld a, (two_player)
+    or a
+    jp nz, DrawTwoPlayerResults
+
     ;; 1. Header "- RESULTS -" at X=30, Y=70
     ld b, 30 + RESULTS_DX : ld c, 70 + RESULTS_DY
     ld hl, str_results_header
@@ -1701,13 +1785,145 @@ DrawResultsScreen:
     call DrawGlyphString
     ret
 
-ClearResultsScreen:
-    ld b, 14 + RESULTS_DX : ld c, 70 + RESULTS_DY : ld d, 66 : call ClearTextRect
-    ld b, 14 + RESULTS_DX : ld c, 94 + RESULTS_DY : ld d, 66 : call ClearTextRect
-    ld b, 14 + RESULTS_DX : ld c, 114 + RESULTS_DY : ld d, 66 : call ClearTextRect
-    ld b, 14 + RESULTS_DX : ld c, 134 + RESULTS_DY : ld d, 66 : call ClearTextRect
-    ld b, 14 + RESULTS_DX : ld c, 160 + RESULTS_DY : ld d, 66 : call ClearTextRect
-    ret
+;; ----------------------------------------------------------------------------
+;; DrawTwoPlayerResults - Both players' statistics side by side and the winner.
+;; Drawn once: enemies are frozen on this screen.
+;; ----------------------------------------------------------------------------
+RES2_COL1       equ 24                  ; 6-digit score columns (18 bytes)
+RES2_COL2       equ 48
+RES2_HDR_Y      equ 76
+RES2_COLS_Y     equ 96
+RES2_SCORE_Y    equ 112
+RES2_SHOTS_Y    equ 126
+RES2_HITS_Y     equ 140
+RES2_RATIO_Y    equ 154
+RES2_WINNER_Y   equ 178
+
+DrawTwoPlayerResults:
+    ld a, (results_drawn)
+    or a
+    ret nz
+    inc a
+    ld (results_drawn), a
+
+    ;; Enemies are frozen behind the text: clear the playfield first
+    ld b, PF_X0 : ld c, PF_Y_TOP : ld d, PF_W - 1 : ld e, SPRITE_Y_LIMIT - PF_Y_TOP
+    call ClearBitmapRect
+
+    ld b, PF_X_CENTER - 16 : ld c, RES2_HDR_Y
+    ld hl, str_results_header
+    call DrawGlyphString
+    ld b, RES2_COL1 + 5 : ld c, RES2_COLS_Y
+    ld hl, str_1up_hdr
+    call DrawGlyphString
+    ld b, RES2_COL2 + 5 : ld c, RES2_COLS_Y
+    ld hl, str_2up_hdr
+    call DrawGlyphString
+
+    ld hl, res2_labels
+    ld c, RES2_SCORE_Y
+.label:
+    ld b, 2
+    call DrawGlyphString        ; HL ends past the terminator
+    ld a, c
+    add a, RES2_SHOTS_Y - RES2_SCORE_Y
+    ld c, a
+    ld a, (hl)
+    inc hl
+    or (hl)
+    dec hl
+    jr nz, .label
+
+    ;; Each player's column, then the winner by score
+    call DrawResultsColumn
+    call SwapPlayerState
+    call DrawResultsColumn
+    call SwapPlayerState
+
+    ld a, (player_score_hi)
+    ld hl, player_score_hi + OTHER_PLAYER
+    cp (hl)
+    jr nz, .decided
+    ld hl, (player_score)
+    ld de, (player_score + OTHER_PLAYER)
+    or a
+    sbc hl, de
+    jr z, .draw
+.decided:
+    ld a, (active_player)       ; Carry: the inactive player scored more
+    jr nc, .winner
+    xor 1
+.winner:
+    add a, '1'
+    ld (str_player_wins + 7), a
+    ld hl, str_player_wins
+    ld b, PF_X_CENTER - 19
+    jr .winner_text
+.draw:
+    ld hl, str_draw
+    ld b, PF_X_CENTER - 6
+.winner_text:
+    ld c, RES2_WINNER_Y
+    jp DrawStringWhite
+
+;; DrawResultsColumn - Active player's score, shots, hits and ratio
+DrawResultsColumn:
+    ld a, (active_player)
+    or a
+    ld a, RES2_COL1
+    jr z, .col
+    ld a, RES2_COL2
+.col:
+    ld (results_col), a
+
+    ld hl, (player_score)
+    ld a, (player_score_hi)
+    ld bc, (results_col - 1)    ; B = column
+    ld c, RES2_SCORE_Y
+    call Print6Digits
+
+    ld hl, (shots_fired)
+    ld bc, (results_col - 1)
+    inc b : inc b : inc b
+    ld c, RES2_SHOTS_Y
+    call Print5Digits
+
+    ld hl, (shots_hit)
+    ld bc, (results_col - 1)
+    inc b : inc b : inc b
+    ld c, RES2_HITS_Y
+    call Print5Digits
+
+    call CalcHitMissRatio
+    ld bc, (results_col - 1)
+    ld c, a
+    ld a, b
+    add a, 9
+    ld b, a
+    ld a, c
+    ld c, RES2_RATIO_Y
+    call Draw2DigitsWhite
+    ld bc, (results_col - 1)
+    ld a, b
+    add a, 15
+    ld b, a
+    ld c, RES2_RATIO_Y
+    ld hl, f_w_PERCENT
+    jp DrawGlyph
+
+results_col:        defb 0
+
+res2_labels:
+    defw f_c_S, f_c_C, f_c_O, f_c_R, f_c_E, 0
+    defw f_c_S, f_c_H, f_c_O, f_c_T, f_c_S, 0
+    defw f_c_H, f_c_I, f_c_T, f_c_S, 0
+    defw f_c_R, f_c_A, f_c_T, f_c_I, f_c_O, 0
+    defw 0
+
+str_player_wins:
+    defb "PLAYER 1 WINS", 0
+str_draw:
+    defb "DRAW", 0
 
 CalcHitMissRatio:
     ld hl, (shots_fired)
@@ -1773,7 +1989,7 @@ str_revive8bit_copyright:
 
 ;; Title Screen Strings
 str_title_prompt:
-    defw f_c_P, f_c_U, f_c_S, f_c_H, f_c_SPACE, f_c_F, f_c_I, f_c_R, f_c_E, f_c_SPACE, f_c_B, f_c_U, f_c_T, f_c_T, f_c_O, f_c_N, 0
+    defw f_c_P, f_c_R, f_c_E, f_c_S, f_c_S, f_c_SPACE, f_w_1, f_c_SPACE, f_c_O, f_c_R, f_c_SPACE, f_w_2, 0
 
 str_title_difficulty_easy:
     defw f_c_D, f_c_I, f_c_F, f_c_F, f_c_I, f_c_C, f_c_U, f_c_L, f_c_T, f_c_Y, f_c_SPACE

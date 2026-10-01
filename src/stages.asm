@@ -2,11 +2,9 @@
 ;; Galaga CPC - Stages & Wave Progression Management
 ;; ============================================================================
 
-current_stage:          defb 1
 stage_clear_active:     defb 0
 stage_clear_timer:      defb 0
-attack_threshold:       defb 130        ; Decreases as stages advance
-stage_intro_state:      defb 0          ; 0=none, 1=STAGE 1, 2=PLAYER 1
+stage_intro_state:      defb 0          ; 0=none, 1=STAGE n, 2=PLAYER n
 stage_intro_timer:      defb 0          ; Countdown timer
 
 ;; Set the first dive-attack interval for the selected difficulty.
@@ -32,8 +30,6 @@ InitAttackThreshold:
     ld (attack_threshold), a
     ret
 
-txt_stage_label:        defb "STAGE ", 0
-txt_blank_stage:        defb "        ", 0
 
 ;; ----------------------------------------------------------------------------
 ;; StageWatchdog: Safety net for enemies lost outside the playfield. If enemies

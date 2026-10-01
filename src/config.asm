@@ -71,8 +71,10 @@ HUD_TEXT_X      EQU HUD_X + 1
 HUD_HIGH_Y      EQU 12                  ; "HIGH" / "SCORE" + high score on top
 HUD_HIGH2_Y     EQU 22
 HUD_HISCORE_Y   EQU 32
-HUD_1UP_Y       EQU 50                  ; "1UP" + player score below
-HUD_SCORE_Y     EQU 60
+HUD_1UP_Y       EQU 46                  ; "1UP" + player 1 score below
+HUD_SCORE_Y     EQU 56
+HUD_2UP_Y       EQU 70                  ; "2UP" + player 2 score (2-player game)
+HUD_SCORE2_Y    EQU 80
 HUD_STAGE_Y     EQU 96              ; Short banners, 8 characters per line
 HUD_PLAYER_Y    EQU 106
 HUD_CAPTURED_Y  EQU 126             ; "FIGHTER" / "CAPTURED" on two lines

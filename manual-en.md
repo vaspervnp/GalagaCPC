@@ -13,7 +13,7 @@ Pilot your fighter, destroy the alien formations, and score as many points as po
 1. Start the Amstrad CPC or emulator with the game disk inserted.
 2. At the Locomotive BASIC `Ready` prompt, type `RUN"galaga.bas` and press Enter.
 3. The intro screen appears. Press **Space** or wait 10 seconds for the game to load.
-4. At the title screen, choose a difficulty with left/right, then press **Space** or joystick **Fire 1** to begin playing.
+4. At the title screen, choose a difficulty with left/right, then press **1** (or **Space** / joystick **Fire 1**) for a one-player game, or **2** for a two-player game.
 
 ## Controls
 
@@ -23,6 +23,7 @@ Pilot your fighter, destroy the alien formations, and score as many points as po
 | Move right | Right arrow or `P` | Right |
 | Fire / select | `Space` | Fire 1 |
 | Pause / resume | `H` | — |
+| 1-player / 2-player game (title screen) | `1` / `2` | — |
 
 Hold the fire button for repeated shots. While paused, press `H` again to resume.
 
@@ -54,6 +55,12 @@ You start with three lives. Extra lives are awarded as your score increases. If 
 
 ![Fighter captured](assets/Screenshots/captured.png)
 
+## Two-player game
+
+Players take turns on the same controls. When a player loses a life, the other player takes over and continues exactly where they left off, with their own stage, enemy formation, captured fighter, lives and score. A player who loses the last life sees **GAME OVER** and the other player plays on alone.
+
+When both players are out, a results screen compares their score, shots, hits and hit-miss ratio side by side and names the winner by score (or a draw). Then each player whose score qualifies for the Top 5 enters initials, player 1 first.
+
 ## Score and entering initials
 
 If your final score qualifies for the Top 5, enter three initials:
@@ -70,7 +77,7 @@ The Top 5 scores are saved to the disk and remain available after restarting. Ke
 
 ## On-screen information
 
-- **1UP:** your current game score.
+- **1UP / 2UP:** each player's score; the label of the player now playing blinks. 2UP appears only in a two-player game.
 - **HIGH SCORE:** the highest saved score.
 - **Ships along the bottom:** remaining lives.
 - **Stage badges:** badges valued at 1, 5, 10, 20, 30, and 50 combine to show the current stage. For example, stage 4 shows four 1-point badges, stage 5 shows one 5-point badge, and stage 6 shows one 5-point badge plus one 1-point badge.

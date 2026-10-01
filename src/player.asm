@@ -102,6 +102,10 @@ UpdatePlayer:
     ld (respawn_wait), a
     ret
 .respawn_when_settled:
+    ;; Let a stage clear finish first: it belongs to the current player.
+    ld a, (stage_clear_active)
+    or a
+    ret nz
     ld ix, enemy_data
     ld b, ENEMY_COUNT
 .settle_loop:
@@ -119,6 +123,9 @@ UpdatePlayer:
     djnz .settle_loop
     xor a
     ld (respawn_wait), a
+    ;; In a 2-player game the other player takes over while they have lives.
+    call OtherPlayerAlive
+    jp nz, SwitchPlayer
     jp RespawnPlayer
 .no_respawn_wait:
 
@@ -315,29 +322,39 @@ PlayerDied:
     ;; Decrease lives with strict underflow check
     ld a, (player_lives)
     or a
-    jr z, .trigger_game_over
+    jr z, PlayerOut
     dec a
     ld (player_lives), a
     call DrawLivesHUD
 
     ld a, (player_lives)
     or a
-    jr z, .trigger_game_over
+    jr z, PlayerOut
 
     ld a, RESPAWN_MIN_WAIT
     ld (respawn_wait), a
     ret
 
-.trigger_game_over:
+;; PlayerOut: The active player has no lives left. In a 2-player game with the
+;; other player still in, show "GAME OVER" and hand over; otherwise the game
+;; is over.
+PlayerOut:
     xor a
     ld (player_invincible_timer), a
+    call OtherPlayerAlive
+    jr z, .game_over
+    ld a, 1
+    ld (player_out), a
+    ld a, RESPAWN_MIN_WAIT
+    ld (respawn_wait), a
+    jr .show
+.game_over:
     ld a, 1
     ld (game_over), a
-    ld a, 1
     ld (restart_debounce), a
+.show:
     call DrawGameOverText
-    call PlaySoundGameOver
-    ret
+    jp PlaySoundGameOver
 
 ;; IsPlayerAbsent: NZ while no fighter is on screen for enemies to attack
 ;; (captured, being lifted by the beam, or waiting to respawn).

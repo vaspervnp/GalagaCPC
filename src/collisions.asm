@@ -62,6 +62,9 @@ CheckCollisions:
     ld (iy+0), 0            ; alive = 0
 
     ;; If tractor boss is killed during an active beam, cancel it.
+    ;; EraseTractorBeam walks enemy_data with IX and DE: keep the loop's.
+    push ix
+    push de
     ld a, (tractor_beam_active)
     or a
     jr z, .no_tractor_kill
@@ -87,6 +90,8 @@ CheckCollisions:
     ld (tractor_beam_active), a
     ld (capture_delay), a
 .no_tractor_kill:
+    pop de
+    pop ix
 
     ;; Erase enemy
     push ix                 ; Preserve missile_data pointer
@@ -321,23 +326,26 @@ CheckCollisions:
     ld a, (captured_fighter_y)
     ld c, a
 
+    ;; The sprite and score routines use IX and DE: keep the missile loop's.
+    push ix
+    push de
+    push bc
     call ClearCapturedFighterSprite
     xor a
     ld (captured_fighter_active), a
     ld (captured_fighter_x), a
     ld (captured_fighter_y), a
 
+    pop bc
     push bc
-    push ix
-    push de
     call SpawnExplosion
     call PlaySoundCapturedDestroy
     call AddPoints1000
-    pop de
-    pop ix
     pop bc
     ld a, BONUS_1000
     call TriggerBonusScore
+    pop de
+    pop ix
     jp .destroy_missile
 
 .next_m:
