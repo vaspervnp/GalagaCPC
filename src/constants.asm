@@ -17,6 +17,10 @@ ENEMY_SIZE      equ 14
 ;; Divers stop steering below this scanline and fly straight past the player.
 DIVE_LOCK_Y     equ 160
 
+;; After losing a life, wait at least this long (and until every attacking
+;; enemy is back in formation) before the next fighter appears.
+RESPAWN_MIN_WAIT equ 100
+
 ;; Each active diver aims at its own lane; lanes are one sprite width apart
 ;; and centred on the player, so divers never share an attack path.
 DIVE_LANES      equ 7

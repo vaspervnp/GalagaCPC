@@ -67,6 +67,7 @@ tractor_anim:               defb 0
 tractor_trigger_cnt:        defb 0
 captor_boss_ptr:            defw enemy_data
 capture_delay:              defb 0
+respawn_wait:               defb 0  ; Frames until the next fighter after losing a life
 captured_fighter_active:    defb 0  ; 0=none, 1=docked in formation, 2=diving escort, 3=freed & descending
 captured_fighter_x:         defb 0
 captured_fighter_y:         defb 0

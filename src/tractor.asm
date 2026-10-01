@@ -80,9 +80,11 @@ UpdateTractorState:
     ld (capture_delay), a
     jr nz, .no_capture_delay
 
-    ;; Delay expired! Clear "FIGHTER CAPTURED" banner and spawn replacement fighter
+    ;; Delay expired! Clear "FIGHTER CAPTURED" banner; the replacement fighter
+    ;; appears once the attacking enemies are back in formation.
     call ClearCapturedBanner
-    call RespawnPlayer
+    ld a, 1
+    ld (respawn_wait), a
 
 .no_capture_delay:
     ld ix, enemy_data
@@ -146,7 +148,9 @@ UpdateTractorState:
     call RedrawTractorBoss
     call PlaySoundTractor
 
-    ;; Check if player is caught in beam
+    ;; Check if player is caught in beam (never while no fighter is on screen)
+    call IsPlayerAbsent
+    jp nz, .beam_timer_tick
     ld a, (player_invincible_timer)
     or a
     jp nz, .beam_timer_tick     ; Immune while invincible!

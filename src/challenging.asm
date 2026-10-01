@@ -379,12 +379,8 @@ MoveChallengingEnemies:
     or a
     jp z, .next_ch_m
 
-    ;; 1. Erase old sprite
-    push bc
-    ld b, (ix+4)
-    ld c, (ix+5)
-    call ClearSprite16x16
-    pop bc
+    ;; 1. The old sprite is erased just before drawing at the new position,
+    ;; so the enemy is never left blank while the raster passes it.
 
     ;; 2. Move Y down by 2 scanlines
     ld a, (ix+3)
@@ -492,6 +488,7 @@ MoveChallengingEnemies:
     and 1
     ld (ix+6), a
 
+    call EraseEnemyDeltaIX
     ld a, (ix+2)
     ld (ix+4), a
     ld a, (ix+3)
@@ -503,6 +500,7 @@ MoveChallengingEnemies:
     jr .next_ch_m
 
 .kill_ch_enemy:
+    call EraseEnemyOldIX
     ld (ix+0), 0
 
 .next_ch_m:

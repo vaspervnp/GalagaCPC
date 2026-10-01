@@ -452,13 +452,9 @@ UpdateEnemies:
 
 .check_dive_trigger:
     ;; --- 3. Dive-bombing attack trigger ---
-    ;; No new attacks while the fighter is captured or awaiting replacement.
-    ld a, (capture_delay)
-    or a
+    ;; No new attacks while there is no fighter on screen.
+    call IsPlayerAbsent
     jp nz, .update_diving
-    ld a, (tractor_beam_active)
-    cp 2
-    jp z, .update_diving
 
     ld a, (attack_timer)
     inc a
@@ -739,13 +735,9 @@ UpdateEnemies:
     jr .dive_x_done
 .dive_check_player:
     ;; Without a fighter to chase, fly straight instead of converging on
-    ;; the capture point.
-    ld a, (capture_delay)
-    or a
+    ;; its last position.
+    call IsPlayerAbsent
     jr nz, .dive_x_done
-    ld a, (tractor_beam_active)
-    cp 2
-    jr z, .dive_x_done
 .dive_steer:
     ;; Lanes are 8 bytes apart around the player. The lane set is centred on
     ;; the player but kept inside the playfield, so lanes never merge at an
@@ -1299,6 +1291,18 @@ CheckAndRestoreDockedEnemies:
     pop ix
     ret
 
+;; EraseEntryEnemyOld: Delta-erase a moving entry enemy, then restore any
+;; docked enemy that the old sprite overlapped.
+;; Preserves: BC, IX
+EraseEntryEnemyOld:
+    call EraseEnemyDeltaIX
+    ld a, (ix+5)
+    cp 36
+    ret c
+    cp 232
+    ret nc
+    jp CheckAndRestoreDockedEnemies
+
 ;; ----------------------------------------------------------------------------
 ;; UpdateEntryPhase: Manage Entry Swarm phase of standard combat stages
 ;; Enemies swoop in along intricate flight curves before locking into top grid
@@ -1335,9 +1339,8 @@ UpdateEntryPhase:
 
 .entry_spawns_done:
     ;; ------------------------------------------------------------------------
-    ;; Pass 1: Erase old sprite positions of all MOVING enemies
-    ;; If an erased sprite overlaps any docked enemy, restore ONLY that docked enemy!
-    ;; Eliminates tearing and full-formation redraw flicker.
+    ;; Pass 1: Mark all MOVING enemies. Each one is erased in Pass 2 right
+    ;; before it is redrawn, so it is never left blank while the raster passes.
     ;; ------------------------------------------------------------------------
     ld ix, enemy_data
     ld b, ENEMY_COUNT
@@ -1355,19 +1358,6 @@ UpdateEntryPhase:
 
 .do_erase_m:
     set 6, (ix+11)           ; Track sprites drawn during this update.
-    ld a, (ix+5)
-    cp 36
-    jr c, .next_erase_m
-    cp 232
-    jr nc, .next_erase_m
-    push bc
-    ld b, (ix+4)
-    ld c, (ix+5)
-    call ClearSprite16x16
-
-    ;; Restore any docked enemy that overlapped this erase rectangle
-    call CheckAndRestoreDockedEnemies
-    pop bc
 
 .next_erase_m:
     ld de, ENEMY_SIZE
@@ -1533,7 +1523,8 @@ UpdateEntryPhase:
     pop ix
     pop bc
 .entry_no_shot:
-    ;; Update old coordinates and draw at new position
+    ;; Erase the uncovered strip, update old coordinates, draw at new position
+    call EraseEntryEnemyOld
     ld a, (ix+2)
     ld (ix+4), a
     ld a, (ix+3)
@@ -1553,6 +1544,7 @@ UpdateEntryPhase:
     cp 232
     jr c, .entry_return_y_valid
 .entry_recover_return_y:
+    call EraseEnemyOldIX     ; The position jumps: erase the whole old sprite.
     ld a, (ix+7)
     ld (ix+2), a
     ld (ix+4), a
@@ -1630,6 +1622,7 @@ UpdateEntryPhase:
     ld (ix+8), STATE_FORMATION
 
 .ret_e_draw:
+    call EraseEntryEnemyOld
     ld a, (ix+2)
     ld (ix+4), a
     ld a, (ix+3)

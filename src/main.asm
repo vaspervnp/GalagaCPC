@@ -184,6 +184,8 @@ RestartGame:
     ld (entry_spawn_idx), a
     ld (entry_spawn_timer), a
     ld (bonus_score_timer), a
+    ld (respawn_wait), a
+    ld (capture_delay), a
 
     ld hl, 0
     ld (shots_fired), hl
