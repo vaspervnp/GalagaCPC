@@ -9,6 +9,8 @@ CTL_RIGHT       EQU 2
 CTL_UP          EQU 3
 CTL_DOWN        EQU 4
 CTL_PAUSE       EQU 5
+CTL_START1      EQU 6
+CTL_START2      EQU 7
 
 key_rows:       defs 10, #FF
 ctl_now:        defb 0
@@ -64,6 +66,8 @@ ctl_map:
     defb 0, #04, 1 << CTL_DOWN  ; Cursor Down
     defb 9, #02, 1 << CTL_DOWN  ; Joystick Down
     defb 5, #10, 1 << CTL_PAUSE ; 'H' key (Pause / Halt: Line 5, Bit 4)
+    defb 8, #01, 1 << CTL_START1 ; '1' key: 1-player game
+    defb 8, #02, 1 << CTL_START2 ; '2' key: 2-player game
     defb #FF
 
 ;; ---------------------------------------------------------------------------

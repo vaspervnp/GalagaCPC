@@ -13,6 +13,7 @@ disk). Timing is approximate, so this tests game logic, not raster timing.
 Usage (build first, symbols come from build/galaga.sym):
     python tools/galaga_harness.py --seeds 1 2 3 --frames 15000
     python tools/galaga_harness.py --seeds 4 --invincible --difficulty 3
+    python tools/galaga_harness.py --seeds 5 --players 2
 Runs at roughly 30-50 emulated frames per second.
 """
 import argparse
@@ -28,6 +29,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRAME_T = 79872
 VSYNC_T = 2048
 IRQ_T = 13312
+SWAP_BUF = 0xC4E0      # PLAYER_SWAP_BUF: inactive player's state (2-player game)
 
 
 def load_syms():
@@ -41,7 +43,7 @@ def load_syms():
 
 class Machine:
     def __init__(self, seed=1, invincible=False, difficulty=None, max_frames=20000, verbose=True,
-                 stuck_frames=150):
+                 stuck_frames=150, players=1):
         self.S = load_syms()
         self.mem = bytearray(65536)
         binary = open(REPO + '/build/galaga.bin', 'rb').read()
@@ -60,6 +62,10 @@ class Machine:
         self.max_frames = max_frames
         self.verbose = verbose
         self.stuck_frames = stuck_frames
+        self.players = players
+        self.last_player = None
+        self.last_game_over = 0
+        self.games = 0
         self.invisible = {}
         self.last_stage = None
         self.events = []
@@ -123,7 +129,10 @@ class Machine:
             if self.difficulty is not None:
                 self.mem[S['DIFFICULTY_LEVEL']] = self.difficulty
             if self.frame % 40 == 20:
-                self.keys[5] &= ~0x80  # space
+                if self.players == 2:
+                    self.keys[8] &= ~0x02  # '2'
+                else:
+                    self.keys[5] &= ~0x80  # space
         else:
             self.play()
             self.check()
@@ -163,12 +172,29 @@ class Machine:
         return list(self.mem[e:e + 14])
 
     def check(self):
+        S = self.S
+        player = self.b('ACTIVE_PLAYER')
+        if player != self.last_player:
+            self.last_player = player
+            self.last_stage = None
+            self.invisible.clear()
+            if self.verbose and self.b('TWO_PLAYER'):
+                other = SWAP_BUF - S['PLAYER_STATE']
+                print(f'  frame {self.frame}: player {player + 1} up, lives {self.b("PLAYER_LIVES")}'
+                      f' / other {self.mem[S["PLAYER_LIVES"] + other]}', flush=True)
+        game_over = self.b('GAME_OVER')
+        if game_over != self.last_game_over:
+            self.last_game_over = game_over
+            if game_over:
+                self.games += 1
+                if self.verbose:
+                    print(f'  frame {self.frame}: game over', flush=True)
         stage = self.b('CURRENT_STAGE')
         if stage != self.last_stage:
             self.last_stage = stage
             self.invisible.clear()
             if self.verbose:
-                print(f'  frame {self.frame}: stage {stage}', flush=True)
+                print(f'  frame {self.frame}: player {player + 1} stage {stage}', flush=True)
         if self.b('GAME_OVER'):
             return
         for i in range(28):
@@ -221,6 +247,8 @@ if __name__ == '__main__':
     ap.add_argument('--invincible', action='store_true', help='the player cannot be hit')
     ap.add_argument('--difficulty', type=int, choices=range(4),
                     help='0..3; default varies with the seed')
+    ap.add_argument('--players', type=int, choices=(1, 2), default=1,
+                    help="start games with '1'/FIRE or '2'")
     ap.add_argument('--stuck-frames', type=int, default=150,
                     help='report an enemy off screen for this many frames (the in-game '
                          'watchdog removes them after 250)')
@@ -229,7 +257,7 @@ if __name__ == '__main__':
     for seed in args.seeds:
         diff = args.difficulty if args.difficulty is not None else seed % 4
         m = Machine(seed=seed, invincible=args.invincible, difficulty=diff,
-                    max_frames=args.frames, stuck_frames=args.stuck_frames)
+                    max_frames=args.frames, stuck_frames=args.stuck_frames, players=args.players)
         print(f'seed {seed} invincible={args.invincible} difficulty={diff}', flush=True)
         found, dt = m.run()
         print(f'  ran {m.frame} frames in {dt:.0f}s')

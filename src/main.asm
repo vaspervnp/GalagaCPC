@@ -101,6 +101,7 @@ GameLoop:
 
     ;; Refresh any active text/banners so letters always have priority over sprites
     call RefreshPriorityText
+    call BlinkActiveLabel
 
     jp GameLoop
 
@@ -108,6 +109,7 @@ GameLoop:
 ;; HandleGameOver: Frozen gameplay loop during Game Over, waiting for restart
 ;; ----------------------------------------------------------------------------
 HandleGameOver:
+    call DrawActiveLabel
     call SoundUpdate
     call UpdateExplosions
     call RefreshPriorityText
@@ -120,8 +122,8 @@ HandleGameOver:
     ld a, (game_over_timer)
     inc a
     ld (game_over_timer), a
-    cp 85                   ; ~1.7 seconds
-    jr c, .check_restart_key
+    cp 85                   ; ~1.7 seconds, then always show the results
+    jp c, GameLoop
 
     ;; Transition to Phase 1: Authentic Results Screen!
     ld a, 1
@@ -145,11 +147,152 @@ HandleGameOver:
     bit CTL_FIRE, a
     jp z, GameLoop
 
-    ;; Player pressed Fire! Check if score qualifies for Top 5 Hall of Fame:
+    ;; Player pressed Fire! Each player whose score qualifies for the Top 5
+    ;; Hall of Fame enters initials, then back to the title screen.
+    jp NextInitialsOrTitle
+
+;; ----------------------------------------------------------------------------
+;; NextInitialsOrTitle: Offer the initials screen to the next player that has
+;; not been checked yet (player 1, then player 2), else show the title screen.
+;; ----------------------------------------------------------------------------
+NextInitialsOrTitle:
+    ld a, (two_player)
+    inc a
+    ld b, a                     ; B = number of players
+    ld a, (initials_player)
+    cp b
+    jp nc, ShowTitleScreen
+    ld hl, active_player
+    cp (hl)
+    call nz, SwapPlayerState    ; Make that player's score the active one
+    ld hl, initials_player
+    inc (hl)
     call CheckHighScoreQualify
     jp nc, EnterInitialsScreen  ; Qualified (Carry clear)!
+    jr NextInitialsOrTitle
 
-    jp ShowTitleScreen
+;; ----------------------------------------------------------------------------
+;; StartNewGame: Start a 1- or 2-player game (two_player already set). Player 2
+;; starts from a copy of player 1's fresh state.
+;; ----------------------------------------------------------------------------
+StartNewGame:
+    xor a
+    ld (active_player), a
+    ld (initials_player), a
+    ld (player_out), a
+    ld (results_drawn), a
+    ld hl, 0
+    ld (player_score + OTHER_PLAYER), hl
+    ld (player_score_hi + OTHER_PLAYER), a
+    call RestartGame
+    ld a, (two_player)
+    or a
+    ret z
+    ld hl, player_state
+    ld de, PLAYER_SWAP_BUF
+    ld bc, PLAYER_STATE_SIZE
+    ldir
+    ret
+
+;; ----------------------------------------------------------------------------
+;; SwapPlayerState: Exchange the active player's state with the inactive
+;; player's copy and toggle active_player.
+;; ----------------------------------------------------------------------------
+SwapPlayerState:
+    ld hl, player_state
+    ld de, PLAYER_SWAP_BUF
+    ld bc, PLAYER_STATE_SIZE
+.swap:
+    ld a, (de)
+    push af
+    ld a, (hl)
+    ld (de), a
+    pop af
+    ld (hl), a
+    inc hl
+    inc de
+    dec bc
+    ld a, b
+    or c
+    jr nz, .swap
+    ld a, (active_player)
+    xor 1
+    ld (active_player), a
+    ret
+
+;; OtherPlayerAlive: NZ in a 2-player game while the inactive player has lives.
+OtherPlayerAlive:
+    ld a, (two_player)
+    or a
+    ret z
+    ld a, (player_lives + OTHER_PLAYER)
+    or a
+    ret
+
+;; ----------------------------------------------------------------------------
+;; SwitchPlayer: Hand the game to the other player. Their stage, enemies and
+;; captured fighter resume exactly where they left off.
+;; ----------------------------------------------------------------------------
+SwitchPlayer:
+    call ClearTransients
+    xor a
+    ld (player_out), a
+    ld (bonus_score_timer), a
+    ld (priority_text_active), a
+    ld (tractor_beam_active), a
+    ld (tractor_beam_drawn), a
+    ld (tractor_anim), a
+    ld (capture_delay), a
+    ld (respawn_wait), a
+    ld (fire_button_state), a
+    call SwapPlayerState
+
+    call SoundInit
+    call ClearScreenOverscan
+    call InitHUD
+    call DrawLivesHUD
+    call DrawStageHUD
+
+    ;; Redraw the resumed formation
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+.redraw:
+    push bc
+    call DrawEnemyIX
+    pop bc
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .redraw
+
+    call RespawnPlayer
+
+    ;; "PLAYER n" banner while the formation is held
+    ld a, 2
+    ld (stage_intro_state), a
+    ld a, 75
+    ld (stage_intro_timer), a
+    jp DrawPlayerBanner
+
+;; ClearTransients: Remove all missiles, enemy bullets and explosions
+ClearTransients:
+    ld hl, missile_data
+    ld de, missile_data + 1
+    ld bc, (MISSILE_SIZE * MAX_MISSILES) - 1
+    ld (hl), 0
+    ldir
+
+    ld hl, ebullet_data
+    ld de, ebullet_data + 1
+    ld bc, (EBULLET_SIZE * MAX_EBULLETS) - 1
+    ld (hl), 0
+    ldir
+
+    ld hl, explosion_data
+    ld de, explosion_data + 1
+    ld bc, (EXPLOSION_SIZE * MAX_EXPLOSIONS) - 1
+    ld (hl), 0
+    ldir
+    ret
 
 ;; ----------------------------------------------------------------------------
 ;; RestartGame: Reset game state and start fresh game
@@ -217,23 +360,7 @@ RestartGame:
     ld (old_player_y), a
 
     ;; Clear all missiles, enemy bullets, and explosions
-    ld hl, missile_data
-    ld de, missile_data + 1
-    ld bc, (MISSILE_SIZE * MAX_MISSILES) - 1
-    ld (hl), 0
-    ldir
-
-    ld hl, ebullet_data
-    ld de, ebullet_data + 1
-    ld bc, (EBULLET_SIZE * MAX_EBULLETS) - 1
-    ld (hl), 0
-    ldir
-
-    ld hl, explosion_data
-    ld de, explosion_data + 1
-    ld bc, (EXPLOSION_SIZE * MAX_EXPLOSIONS) - 1
-    ld (hl), 0
-    ldir
+    call ClearTransients
 
     ;; Clear 32KB Video RAM
     call ClearScreenOverscan

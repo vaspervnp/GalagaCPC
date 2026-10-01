@@ -7,11 +7,8 @@ player_x:           defb PLAYER_START_X
 old_player_x:       defb PLAYER_START_X
 player_y:           defb DEFAULT_PLAYER_Y
 old_player_y:       defb DEFAULT_PLAYER_Y
-is_dual_fighter:    defb 0
 player_invincible_timer: defb 0 ; Respawn invincibility countdown (100 frames = 2.0s at 50Hz)
 fire_button_state:  defb 0
-player_score:           defw 0
-player_score_hi:        defb 0
 high_score:             defw 30000
 high_score_hi:          defb 0
 
@@ -31,19 +28,11 @@ entry_blink:            defb 0
 title_display_mode:     defb 0      ; 0 = Point Values, 1 = Top 5 Hall of Fame
 title_mode_timer:       defb 0      ; Alternates screen mode every ~250 frames
 difficulty_level:       defb 1      ; 0 = Easy, 1 = Medium (default), 2 = Hard, 3 = Hardest
-player_lives:           defb 3
-extra_life_count:       defb 0  ; Milestone count: 1=20k, 2=70k, 3=140k...
-next_extra_life_lo:     defw 20000
-next_extra_life_hi:     defb 0
 game_over:          defb 0
 pause_active:       defb 0
 restart_debounce:   defb 0
 game_over_timer:    defb 0
 game_over_phase:    defb 0  ; 0=Game Over text, 1=Results Screen
-enemy_fire_freeze:      defb 0  ; Arcade rule: diving boss kill stops enemy firing
-transform_killed:       defb 0  ; Arcade rule: count kills in transform group
-attack_cycle:           defb 0  ; Arcade attack rotation (0=Bee, 1=Butterfly, 2=Boss, 3=Bee)
-transform_trigger_cnt:  defb 0  ; Cadence counter for Transform Trios
 
 ;; Floating Bonus Score Popup Variables
 bonus_score_timer:      defb 0  ; Active if > 0 (6 frames duration)
@@ -53,8 +42,6 @@ bonus_score_old_x:      defb 0
 bonus_score_old_y:      defb 0
 bonus_score_ptr:        defw 0  ; Pointer to bonus score sprite
 
-shots_fired:        defw 0  ; Arcade statistics: total missiles fired
-shots_hit:          defw 0  ; Arcade statistics: total missiles that hit enemies
 
 ;; Tractor Beam & Captured Fighter Variables
 tractor_beam_active:        defb 0
@@ -64,24 +51,9 @@ tractor_beam_x:             defb 0
 tractor_beam_drawn:         defb 0
 tractor_timer:              defb 0
 tractor_anim:               defb 0
-tractor_trigger_cnt:        defb 0
-captor_boss_ptr:            defw enemy_data
 capture_delay:              defb 0
 respawn_wait:               defb 0  ; Frames until the next fighter after losing a life
-captured_fighter_active:    defb 0  ; 0=none, 1=docked in formation, 2=diving escort, 3=freed & descending
-captured_fighter_x:         defb 0
-captured_fighter_y:         defb 0
-captured_old_x:             defb 0
-captured_old_y:             defb 0
-captured_spin:              defb 0
 
-;; Challenging Stage Variables
-is_challenging_stage:       defb 0
-challenging_wave:           defb 0
-challenging_hits:           defb 0
-challenging_timer:          defb 0
-challenging_spawn_cnt:      defb 0
-challenging_active:         defb 0
 
 ;; Priority Text Variables
 priority_text_active:       defb 0
@@ -103,30 +75,10 @@ ebullet_data:
 explosion_data:
     defs EXPLOSION_SIZE * MAX_EXPLOSIONS, 0
 
-;; Formation Animation & Sway Variables
-flap_timer:         defb 0
-global_anim:        defb 0
-sway_timer:         defb 0
-sway_dir:           defb 1
-sway_offset:        defb 0
-attack_timer:       defb 0
-dive_phase:         defb 0
 
-;; Stage Phase & Entry Wave Variables
-stage_phase:        defb 0  ; 0 = Entry Phase, 1 = Attack Phase
-entry_spawn_idx:    defb 0  ; Enemies spawned in entry (0..stage_enemy_total)
-stage_enemy_total:  defb 28 ; Active enemies for this stage (14..28, grows by stage)
-entry_spawn_timer:  defb 0  ; Delay between entry spawns
 random_seed:        defb 1
 star_draw_x:        defb 0  ; Screen X of the star being updated
-stage_watchdog:     defb 0  ; Frames with enemies alive but none on screen
 hud_in_column:      defb 0  ; 1 = in-game HUD column, 0 = title screen top HUD
-entry_shooter_quota: defb 0
-entry_shooter_start: defb 0
-entry_shooter_size:  defb 0
-entry_shooter_left:  defb 0
-entry_shooter_flags:
-    defs ENEMY_COUNT, 0
 
 ;; Starfield: 32 Parallax Stars [x, y, color, speed] inside Playfield (X=11..81, Y=34..228)
 ;; 3 Parallax Layers: Speed 1 (Distant), Speed 2 (Midground), Speed 3 (Foreground)
@@ -169,51 +121,90 @@ stars_data:
     defb 67, 166, #55, 3   ; White (Right Pixel)
     defb 73,  56, #88, 3   ; Yellow (Left Pixel)
 
-;; Initial Enemies (28 enemies: 4 Bosses, 12 Butterflies, 12 Bees)
-;; Format: [alive, type, x, y, hp] - 5 bytes per enemy
-initial_enemies:
-    ;; 4 Boss Galagas (Row 1, Y=52):
-    defb 1, 2, 27, 52, 2
-    defb 1, 2, 37, 52, 2
-    defb 1, 2, 47, 52, 2
-    defb 1, 2, 57, 52, 2
+;; ============================================================================
+;; Per-player game state. Everything a player resumes with in a 2-player game
+;; lives between player_state and player_state_end; SwapPlayerState exchanges
+;; it with the inactive player's copy at PLAYER_SWAP_BUF.
+;; ============================================================================
+player_state:
+player_score:           defw 0
+player_score_hi:        defb 0
+player_lives:           defb 3
+extra_life_count:       defb 0  ; Milestone count: 1=20k, 2=70k, 3=140k...
+next_extra_life_lo:     defw 20000
+next_extra_life_hi:     defb 0
+shots_fired:            defw 0  ; Arcade statistics: total missiles fired
+shots_hit:              defw 0  ; Arcade statistics: total missiles that hit enemies
+is_dual_fighter:        defb 0
+current_stage:          defb 1
+attack_threshold:       defb 130 ; Decreases as stages advance
+enemy_fire_freeze:      defb 0  ; Arcade rule: diving boss kill stops enemy firing
+transform_killed:       defb 0  ; Arcade rule: count kills in transform group
+attack_cycle:           defb 0  ; Arcade attack rotation (0=Bee, 1=Butterfly, 2=Boss, 3=Bee)
+transform_trigger_cnt:  defb 0  ; Cadence counter for Transform Trios
+tractor_trigger_cnt:    defb 0
+captor_boss_ptr:        defw enemy_data
+captured_fighter_active: defb 0 ; 0=none, 1=docked in formation, 2=diving escort, 3=freed & descending
+captured_fighter_x:     defb 0
+captured_fighter_y:     defb 0
+captured_old_x:         defb 0
+captured_old_y:         defb 0
+captured_spin:          defb 0
 
-    ;; 6 Goei Butterflies (Row 2, Y=68):
-    defb 1, 1, 17, 68, 1
-    defb 1, 1, 27, 68, 1
-    defb 1, 1, 37, 68, 1
-    defb 1, 1, 47, 68, 1
-    defb 1, 1, 57, 68, 1
-    defb 1, 1, 67, 68, 1
+;; Challenging Stage Variables
+is_challenging_stage:   defb 0
+challenging_wave:       defb 0
+challenging_hits:       defb 0
+challenging_timer:      defb 0
+challenging_spawn_cnt:  defb 0
+challenging_active:     defb 0
 
-    ;; 6 Goei Butterflies (Row 3, Y=84):
-    defb 1, 1, 17, 84, 1
-    defb 1, 1, 27, 84, 1
-    defb 1, 1, 37, 84, 1
-    defb 1, 1, 47, 84, 1
-    defb 1, 1, 57, 84, 1
-    defb 1, 1, 67, 84, 1
+;; Formation Animation & Sway Variables
+flap_timer:             defb 0
+global_anim:            defb 0
+sway_timer:             defb 0
+sway_dir:               defb 1
+sway_offset:            defb 0
+attack_timer:           defb 0
+dive_phase:             defb 0
 
-    ;; 6 Zako Bees (Row 4, Y=100):
-    defb 1, 0, 17, 100, 1
-    defb 1, 0, 27, 100, 1
-    defb 1, 0, 37, 100, 1
-    defb 1, 0, 47, 100, 1
-    defb 1, 0, 57, 100, 1
-    defb 1, 0, 67, 100, 1
-
-    ;; 6 Zako Bees (Row 5, Y=116):
-    defb 1, 0, 17, 116, 1
-    defb 1, 0, 27, 116, 1
-    defb 1, 0, 37, 116, 1
-    defb 1, 0, 47, 116, 1
-    defb 1, 0, 57, 116, 1
-    defb 1, 0, 67, 116, 1
+;; Stage Phase & Entry Wave Variables
+stage_phase:            defb 0  ; 0 = Entry Phase, 1 = Attack Phase
+entry_spawn_idx:        defb 0  ; Enemies spawned in entry (0..stage_enemy_total)
+stage_enemy_total:      defb 28 ; Active enemies for this stage (14..28, grows by stage)
+entry_spawn_timer:      defb 0  ; Delay between entry spawns
+stage_watchdog:         defb 0  ; Frames with enemies alive but none on screen
+entry_shooter_quota:    defb 0
+entry_shooter_start:    defb 0
+entry_shooter_size:     defb 0
+entry_shooter_left:     defb 0
+entry_shooter_flags:
+    defs ENEMY_COUNT, 0
 
 ;; Enemy data structure: 28 enemies x ENEMY_SIZE bytes
 ;; [alive, type, x, y, old_x, old_y, anim_frame, base_x, state, hp, base_y, path, dive_speed, dive_speed_phase]
 enemy_data:
     defs ENEMY_SIZE * ENEMY_COUNT, 0
+player_state_end:
+
+PLAYER_STATE_SIZE equ player_state_end - player_state
+
+;; Inactive player's state lives in an undisplayed gap of video RAM: page 3
+;; uses 13 rows x 96 = 1248 bytes of each 2K raster block, so #C4E0..#C7FF
+;; is never shown or drawn to.
+PLAYER_SWAP_BUF equ PAGE3_BASE + (DISPLAY_ROWS - PAGE2_ROWS) * BYTES_PER_LINE
+    assert PLAYER_STATE_SIZE <= #800 - (DISPLAY_ROWS - PAGE2_ROWS) * BYTES_PER_LINE
+
+;; Offset of a per-player variable inside the inactive player's copy
+OTHER_PLAYER    equ PLAYER_SWAP_BUF - player_state
+
+;; 2-player game control
+two_player:             defb 0  ; 1 = 2-player game
+active_player:          defb 0  ; 0 = player 1, 1 = player 2
+initials_player:        defb 0  ; Next player to check for the Hall of Fame
+player_out:             defb 0  ; 1 while showing "GAME OVER" for one player
+hud_blink:              defb 0  ; Blink counter for the active player's label
+results_drawn:          defb 0  ; 2-player results screen already on screen
 
 ;; Title Screen state
 is_title_screen:        defb 1

@@ -373,7 +373,7 @@ EnterInitialsScreen:
     djnz .reg_wait
 
 .reg_done:
-    jp ShowTitleScreen
+    jp NextInitialsOrTitle
 
 ;; ----------------------------------------------------------------------------
 ;; GetCurrentSlotChar / SetCurrentSlotChar

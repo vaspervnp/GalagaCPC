@@ -300,13 +300,7 @@ CompleteTractorCapture:
 
 .capture_game_over:
     call ClearCapturedBanner
-    ld a, 1
-    ld (game_over), a
-    ld a, 1
-    ld (restart_debounce), a
-    call DrawGameOverText
-    call PlaySoundGameOver
-    ret
+    jp PlayerOut
 
 ClearCapturedBanner:
     jp ClearFighterCapturedBanner

@@ -65,7 +65,7 @@ TitleLoop:
     and 32                      ; Toggle visibility every 32 frames (~0.64s)
     jr z, .hide_prompt
 
-    ld b, 24
+    ld b, 30
     ld c, 82
     ld hl, str_title_prompt
     call DrawGlyphString
@@ -132,14 +132,23 @@ TitleLoop:
     call DrawTitleDifficulty
 
 .check_start:
+    ;; FIRE or '1' starts a 1-player game, '2' a 2-player game.
     ld a, (ctl_pressed)
+    ld c, 0
     bit CTL_FIRE, a
+    jr nz, .start_game
+    bit CTL_START1, a
+    jr nz, .start_game
+    inc c
+    bit CTL_START2, a
     jp z, TitleLoop
 
-    ;; *** FIRE PRESSED! START GAME! ***
+.start_game:
+    ld a, c
+    ld (two_player), a
     xor a
     ld (is_title_screen), a
-    call RestartGame            ; Fresh game initialization (plays game start tune)
+    call StartNewGame           ; Fresh game initialization (plays game start tune)
     jp GameLoop
 
 ;; ----------------------------------------------------------------------------
