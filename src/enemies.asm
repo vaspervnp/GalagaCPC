@@ -87,11 +87,11 @@ SelectEntryShooters:
     jr nc, .effective_stage_ready
     ld a, 255
 .effective_stage_ready:
-    cp 10
+    cp 6
     ret c
-    cp 20
+    cp 12
     jr c, .one_shooter
-    cp 30
+    cp 18
     jr c, .two_shooters
     ld a, 3
     jr .store_base_quota
@@ -788,7 +788,12 @@ UpdateEnemies:
     cp DIVE_FIRE_Y1
     jr z, .dive_drop_bomb
     cp DIVE_FIRE_Y2
+    jr z, .dive_drop_bomb
+    cp DIVE_FIRE_Y3
     jr nz, .dive_skip_drop
+    ld a, (current_stage)
+    cp DIVE_FIRE3_STAGE
+    jr c, .dive_skip_drop
 .dive_drop_bomb:
     ld a, (enemy_fire_freeze)
     or a

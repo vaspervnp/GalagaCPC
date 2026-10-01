@@ -168,6 +168,13 @@ CheckCollisions:
     jr z, .no_held_rescue
     cp 3
     jr z, .no_held_rescue
+    ;; Only the captor Boss releases the fighter (DE is saved on the stack).
+    push iy
+    pop hl
+    ld de, (captor_boss_ptr)
+    or a
+    sbc hl, de
+    jr nz, .no_held_rescue
 
     ;; RESCUE CAPTURED FIGHTER!
     ld a, 3

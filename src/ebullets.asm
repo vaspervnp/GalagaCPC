@@ -11,7 +11,7 @@ SpawnEBullet:
     push bc
 
     ;; Difficulty sets the maximum number of enemy bullets on screen:
-    ;; Easy=2, Medium=3, Hard=4, Hardest=5.
+    ;; Easy=2, Medium=3, Hard=4, Hardest=5, one more from EXTRA_BULLET_STAGE.
     ld ix, ebullet_data
     ld b, MAX_EBULLETS
     ld c, 0
@@ -24,8 +24,11 @@ SpawnEBullet:
     ld de, EBULLET_SIZE
     add ix, de
     djnz .count_active_bullets
+    ld a, (current_stage)
+    cp EXTRA_BULLET_STAGE
+    ccf                     ; Carry = 1 from EXTRA_BULLET_STAGE on
     ld a, (difficulty_level)
-    add a, 2
+    adc a, 2
     cp c
     jr c, .bullet_limit_reached
     jr z, .bullet_limit_reached

@@ -20,6 +20,9 @@ DIVE_LOCK_Y     equ DEFAULT_PLAYER_Y - 62
 ;; Divers drop a bomb at these scanlines (even: divers move 2 lines a frame).
 DIVE_FIRE_Y1    equ DEFAULT_PLAYER_Y - 112
 DIVE_FIRE_Y2    equ DEFAULT_PLAYER_Y - 72
+DIVE_FIRE_Y3    equ DEFAULT_PLAYER_Y - 92  ; Third bomb from DIVE_FIRE3_STAGE
+DIVE_FIRE3_STAGE equ 5
+EXTRA_BULLET_STAGE equ 10              ; One more enemy bullet on screen
 ;; Divers that pass this scanline wrap back to the top of the playfield.
 DIVE_WRAP_Y     equ SPRITE_Y_LIMIT
 
