@@ -1240,56 +1240,113 @@ StartTransformTrio:
 ;; Checks if the sprite footprint at (ix+4, ix+5) overlaps any docked enemy.
 ;; If so, redraws that docked enemy above the overlapping sprite.
 ;; Prevents background holes without redrawing all docked enemies every frame!
+;; Preserves: BC, IX, IY
 ;; ----------------------------------------------------------------------------
 CheckAndRestoreDockedEnemies:
-    push ix
+    ld a, (ix+5)
+    cp FORMATION_Y_MAX + 16
+    ret nc                  ; Below every formation row: nothing to restore
+    ld (.old_y + 1), a
     push bc
-    ld iy, enemy_data
-    ld b, ENEMY_COUNT
+    ld a, (ix+4)
+    ld (.old_x + 1), a
+
+    ;; Docked enemies sit on fixed rows 16 lines apart (slot -> row), so
+    ;; only the row at or above the footprint and the one below can overlap.
+    ld a, (.old_y + 1)
+    sub FORMATION_Y_MIN
+    jr nc, .row_index
+    xor a
+.row_index:
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    ld c, a                 ; C = first candidate row (0..4)
+    call .check_row
+    ld a, c
+    inc a
+    cp FORMATION_ROWS
+    call c, .check_row
+    pop bc
+    ret
+
+;; A = formation row: test that row's slots. Preserves C.
+.check_row:
+    ld l, a
+    add a, a
+    add a, l
+    ld l, a
+    ld h, 0
+    ld de, formation_row_tab
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld b, (hl)              ; B = slots in the row
+    ex de, hl               ; HL = first slot
 .card_loop:
-    ld a, (iy+0)            ; alive?
+    ld a, (hl)              ; alive?
     or a
     jr z, .card_next
-    ld a, (iy+8)            ; state == STATE_FORMATION (0)?
+    push hl
+
+    ;; Vertical overlap: |y - old_y| < 16
+    inc hl
+    inc hl
+    inc hl
+    ld a, (hl)
+.old_y:
+    sub 0
+    add a, 15
+    cp 31
+    jr nc, .card_skip
+
+    ;; Horizontal overlap: |x - old_x| < 8
+    dec hl
+    ld a, (hl)
+.old_x:
+    sub 0
+    add a, 7
+    cp 15
+    jr nc, .card_skip
+
+    ;; Only enemies docked in formation (state 0)
+    ld de, 6
+    add hl, de
+    ld a, (hl)
     or a
-    jr nz, .card_next
+    jr nz, .card_skip
 
-    ;; Check horizontal overlap: |(ix+4) - (iy+2)| < 8
-    ld a, (ix+4)
-    sub (iy+2)
-    jr nc, .dx_pos
-    neg
-.dx_pos:
-    cp 8
-    jr nc, .card_next
-
-    ;; Check vertical overlap: |(ix+5) - (iy+3)| < 16
-    ld a, (ix+5)
-    sub (iy+3)
-    jr nc, .dy_pos
-    neg
-.dy_pos:
-    cp 16
-    jr nc, .card_next
-
-    ;; Overlap! Redraw this docked enemy (IY)
-    push bc
+    ;; Overlap! Redraw this docked enemy
+    pop hl
+    push hl
     push ix
-    push iy
+    push hl
     pop ix
     ld a, (global_anim)
     ld (ix+6), a
+    push bc
     call DrawEnemyIX
-    pop ix
     pop bc
-
+    pop ix
+.card_skip:
+    pop hl
 .card_next:
     ld de, ENEMY_SIZE
-    add iy, de
+    add hl, de
     djnz .card_loop
-    pop bc
-    pop ix
     ret
+
+;; Formation rows: first slot, slot count (see entry_enemy_defs)
+formation_row_tab:
+    defw enemy_data : defb 4
+    defw enemy_data + 4 * ENEMY_SIZE : defb 6
+    defw enemy_data + 10 * ENEMY_SIZE : defb 6
+    defw enemy_data + 16 * ENEMY_SIZE : defb 6
+    defw enemy_data + 22 * ENEMY_SIZE : defb 6
 
 ;; EraseEntryEnemyOld: Delta-erase a moving entry enemy, then restore any
 ;; docked enemy that the old sprite overlapped.
@@ -1339,33 +1396,9 @@ UpdateEntryPhase:
 
 .entry_spawns_done:
     ;; ------------------------------------------------------------------------
-    ;; Pass 1: Mark all MOVING enemies. Each one is erased in Pass 2 right
-    ;; before it is redrawn, so it is never left blank while the raster passes.
-    ;; ------------------------------------------------------------------------
-    ld ix, enemy_data
-    ld b, ENEMY_COUNT
-.erase_moving_loop:
-    res 6, (ix+11)           ; Clear the transient redraw marker.
-    ld a, (ix+0)            ; alive?
-    or a
-    jr z, .next_erase_m
-
-    ld a, (ix+8)            ; state
-    cp STATE_ENTRY          ; 6 (flying)
-    jr z, .do_erase_m
-    cp STATE_RETURNING      ; 2 (returning)
-    jr nz, .next_erase_m
-
-.do_erase_m:
-    set 6, (ix+11)           ; Track sprites drawn during this update.
-
-.next_erase_m:
-    ld de, ENEMY_SIZE
-    add ix, de
-    djnz .erase_moving_loop
-
-    ;; ------------------------------------------------------------------------
-    ;; Pass 2: Move and Draw all MOVING enemies at their new coordinates
+    ;; Pass 1: Move and draw all MOVING enemies. Each is erased right before
+    ;; it is redrawn, so it is never left blank while the raster passes, and
+    ;; is marked (bit 6 of +11) for the docked-enemy restore in pass 2.
     ;; ------------------------------------------------------------------------
     ld ix, enemy_data
     ld b, ENEMY_COUNT
@@ -1378,11 +1411,12 @@ UpdateEntryPhase:
     cp STATE_ENTRY          ; 6
     jr z, .move_entry_flight
     cp STATE_RETURNING      ; 2
-    jp z, .move_entry_returning
-    ;; STATE_FORMATION (0): already redrawn in Pass 2!
-    jp .next_entry_slot
+    jp nz, .next_entry_slot ; STATE_FORMATION (0): docked, not redrawn
+    set 6, (ix+11)
+    jp .move_entry_returning
 
 .move_entry_flight:
+    set 6, (ix+11)
     ;; Advance Y down by 2 scanlines
     ld a, (ix+3)
     add a, 2
@@ -1635,42 +1669,39 @@ UpdateEntryPhase:
     dec b
     jp nz, .entry_move_loop
 
-    ;; Moving sprites draw after docked enemies. Restore crossed formation
-    ;; sprites after every mover has drawn, including enemies that just docked.
+    ;; Pass 2: Moving sprites draw after docked enemies. Restore crossed
+    ;; formation sprites after every mover has drawn, including enemies that
+    ;; just docked. C counts alive enemies not yet in formation.
     ld ix, enemy_data
-    ld b, ENEMY_COUNT
+    ld bc, ENEMY_COUNT << 8
 .restore_docked_loop:
+    ld a, (ix+0)
+    or a
+    jr z, .next_restore_docked
+    ld a, (ix+8)
+    or a
+    jr z, .restore_docked_check
+    inc c
+.restore_docked_check:
     bit 6, (ix+11)
     jr z, .next_restore_docked
+    res 6, (ix+11)
     push bc
     call CheckAndRestoreDockedEnemies
     pop bc
-    res 6, (ix+11)
 .next_restore_docked:
     ld de, ENEMY_SIZE
     add ix, de
     djnz .restore_docked_loop
 
-    ;; 4. Check if Entry Phase is complete
+    ;; 4. The entry phase ends when every enemy has spawned and docked
+    ld a, c
+    or a
+    jr nz, .entry_phase_exit ; At least one is still flying
     ld a, (entry_spawn_idx)
     ld hl, stage_enemy_total
     cp (hl)
     jr c, .entry_phase_exit ; Still spawning
-
-    ;; Check if all alive enemies are in STATE_FORMATION (0)
-    ld ix, enemy_data
-    ld b, ENEMY_COUNT
-.chk_entry_done:
-    ld a, (ix+0)
-    or a
-    jr z, .chk_next_docked
-    ld a, (ix+8)
-    or a
-    jr nz, .entry_phase_exit ; At least one is still flying
-.chk_next_docked:
-    ld de, ENEMY_SIZE
-    add ix, de
-    djnz .chk_entry_done
 
     ;; *** FORMATION GRID FORMED! TRANSITION TO ATTACK PHASE! ***
     ld a, STAGE_PHASE_ATTACK

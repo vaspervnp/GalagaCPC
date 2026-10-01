@@ -41,6 +41,10 @@ RESPAWN_MIN_WAIT equ 100
 ;; Each active diver aims at its own lane; lanes are one sprite width apart
 ;; and centred on the player, so divers never share an attack path.
 DIVE_LANES      equ 7
+FORMATION_Y_MIN equ 52 + PF_OLD_DY           ; Formation rows (entry_enemy_defs):
+FORMATION_Y_MAX equ 116 + PF_OLD_DY          ; 5 rows, 16 lines apart
+FORMATION_ROWS  equ 5
+    assert FORMATION_Y_MAX - FORMATION_Y_MIN == (FORMATION_ROWS - 1) * 16
 DIVE_LANE_SPAN  equ (DIVE_LANES / 2) * 8    ; Centre lane to outer lane
 
 ;; Starfield: the star table is laid out for the full-width title screen.
