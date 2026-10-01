@@ -36,6 +36,52 @@ txt_stage_label:        defb "STAGE ", 0
 txt_blank_stage:        defb "        ", 0
 
 ;; ----------------------------------------------------------------------------
+;; StageWatchdog: Safety net for enemies lost outside the playfield. If enemies
+;; are alive but none has been inside the visible playfield for
+;; STAGE_WATCHDOG_FRAMES, remove them so the stage can be cleared.
+;; ----------------------------------------------------------------------------
+StageWatchdog:
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+    ld c, 0                 ; C = 1 if any enemy is alive
+.scan:
+    ld a, (ix+0)
+    or a
+    jr z, .next
+    ld c, 1
+    ld a, (ix+3)
+    cp PF_Y_TOP
+    jr c, .next
+    cp SPRITE_Y_LIMIT
+    jr c, .visible
+.next:
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .scan
+
+    ld a, c
+    or a
+    jr z, .visible          ; Nothing alive: the normal clear check handles it.
+    ld a, (stage_watchdog)
+    inc a
+    ld (stage_watchdog), a
+    cp STAGE_WATCHDOG_FRAMES
+    ret c
+
+    ;; Every remaining enemy is lost off screen: remove them.
+    ld ix, enemy_data
+    ld b, ENEMY_COUNT
+.remove:
+    ld (ix+0), 0
+    ld de, ENEMY_SIZE
+    add ix, de
+    djnz .remove
+.visible:
+    xor a
+    ld (stage_watchdog), a
+    ret
+
+;; ----------------------------------------------------------------------------
 ;; UpdateStageIntro: Update Stage 1 Intro sequence
 ;; State 1: "STAGE 1" for 105 frames (~2.1s)
 ;; State 2: "PLAYER 1" for 50 frames (~1.0s)
@@ -106,6 +152,8 @@ UpdateStageProgression:
     ld hl, stage_enemy_total
     cp (hl)
     ret c                   ; Still spawning enemies -> cannot be cleared!
+
+    call StageWatchdog
 
 
     ;; Check if any enemy is still alive

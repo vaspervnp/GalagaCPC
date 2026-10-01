@@ -119,6 +119,7 @@ stage_enemy_total:  defb 28 ; Active enemies for this stage (14..28, grows by st
 entry_spawn_timer:  defb 0  ; Delay between entry spawns
 random_seed:        defb 1
 star_draw_x:        defb 0  ; Screen X of the star being updated
+stage_watchdog:     defb 0  ; Frames with enemies alive but none on screen
 hud_in_column:      defb 0  ; 1 = in-game HUD column, 0 = title screen top HUD
 entry_shooter_quota: defb 0
 entry_shooter_start: defb 0
