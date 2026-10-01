@@ -29,9 +29,9 @@ start:
     ;; 3. Setup CRTC registers for 96x272 overscan
     call setup_crtc
 
-    ;; 4. Setup hardware palette
-    ld hl, pal_play
-    call set_pal
+    ;; 4. All pens black until the title screen is drawn, so leftovers in
+    ;; video RAM from loading never show
+    call SetBlackPalette
 
     ;; 5. Initialize AY-3-8912 PSG Sound Driver
     call SoundInit

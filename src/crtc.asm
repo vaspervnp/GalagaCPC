@@ -56,6 +56,17 @@ set_pal:
     out (c), a              ; Set hardware color (#40 + color)
     jr .pal_loop
 
+;; SetBlackPalette - All pens and the border black
+SetBlackPalette:
+    ld bc, #7F10                ; C = border, then pens 15..0
+.black:
+    out (c), c
+    ld a, #54                   ; Hardware black
+    out (c), a
+    dec c
+    jp p, .black
+    ret
+
 ;; ---------------------------------------------------------------------------
 ;; WaitVSync - Hardware vertical sync wait via PPI Port B (#F500 bit 0)
 ;; Returns right as VSYNC starts (identical to LoukoumasCPC wait_vsync)

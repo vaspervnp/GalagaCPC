@@ -49,6 +49,10 @@ ShowTitleScreen:
 
     call DrawTitleDifficulty
 
+    ;; Colours on only once the title screen is complete
+    ld hl, pal_play
+    call set_pal
+
 TitleLoop:
     call WaitVSync
 
