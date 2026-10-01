@@ -495,6 +495,19 @@ UpdateCapturedFighter:
     ret
 
 .handle_rescue_fall:
+    ;; With no fighter on screen (captured or awaiting respawn) player_y is not
+    ;; the player's line, so the freed fighter waits in place until it is.
+    call IsPlayerAbsent
+    jr z, .rescue_player_present
+    ld a, (captured_old_x)
+    or a
+    ret z
+    ld b, a
+    ld a, (captured_old_y)
+    ld c, a
+    ld hl, player_sprite
+    jp DrawSprite16x16
+.rescue_player_present:
     ;; *** FREED CAPTURED FIGHTER DESCENDING TO LINK UP WITH PLAYER! ***
     ;; Erase old position
     ld a, (captured_old_x)
