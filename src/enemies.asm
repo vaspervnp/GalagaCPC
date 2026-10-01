@@ -1607,6 +1607,7 @@ UpdateEntryPhase:
     ld a, c
     jr .ret_e_step_y_store
 .ret_e_step_y:
+    ld a, (ix+3)            ; A held the path number here, not Y.
     inc a
 .ret_e_step_y_store:
     ld (ix+3), a
