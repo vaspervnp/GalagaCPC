@@ -57,8 +57,8 @@ EBULLET_KILL_Y  equ SPRITE_Y_LIMIT - 2       ; Enemy bullet removed near the bot
 
 ;; Challenging stage results text, centred in the playfield
 CH_RESULTS_X    equ 24 + PF_OLD_DX
-CH_RESULTS_Y1   equ PF_TEXT_Y - 10
-CH_RESULTS_Y2   equ PF_TEXT_Y + 6
+CH_RESULTS_Y1   equ PF_TEXT_Y - 8         ; Character rows: fast redraw
+CH_RESULTS_Y2   equ PF_TEXT_Y + 8
 
 MAX_EXPLOSIONS  equ 3
 EXPLOSION_SIZE  equ 4
