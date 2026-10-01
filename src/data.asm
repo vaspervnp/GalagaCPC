@@ -78,6 +78,7 @@ explosion_data:
 
 random_seed:        defb 1
 star_draw_x:        defb 0  ; Screen X of the star being updated
+star_half:          defb 0  ; In play: which half of the stars moves this frame
 hud_in_column:      defb 0  ; 1 = in-game HUD column, 0 = title screen top HUD
 
 ;; Starfield: 32 Parallax Stars [x, y, color, speed] inside Playfield (X=11..81, Y=34..228)

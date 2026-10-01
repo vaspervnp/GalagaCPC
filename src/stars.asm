@@ -14,7 +14,15 @@ UpdateStars:
     or a
     jr nz, .star_loop
 
-    ;; In play: playfield only, line table lookups inlined
+    ;; In play: half of the stars move each frame, alternating, each by twice
+    ;; its speed. Playfield only, line table lookups inlined.
+    ld a, (star_half)
+    xor 1
+    ld (star_half), a
+    jr z, .first_half
+    ld ix, stars_data + 4
+.first_half:
+    ld b, NUM_STARS / 2
 .game_star:
     ld a, (ix+0)
     add a, STAR_GAME_DX
@@ -40,11 +48,14 @@ UpdateStars:
     ld (hl), 0
 .ge_kept:
 
-    ;; 2. Advance Y, wrapping inside the playfield
-    ld a, (ix+1)
-    add a, (ix+3)
+    ;; 2. Advance Y by twice the speed, wrapping inside the playfield
+    ld a, (ix+3)
+    add a, a
+    add a, (ix+1)
+    jr c, .gy_wrap          ; Passed 255
     cp STAR_GAME_Y_END
     jr c, .gy_ok
+.gy_wrap:
     sub STAR_GAME_Y_END - PF_Y_TOP
 .gy_ok:
     ld (ix+1), a
@@ -68,7 +79,7 @@ UpdateStars:
     ld a, (ix+2)
     ld (hl), a
 .gd_hidden:
-    ld de, 4
+    ld de, 8
     add ix, de
     djnz .game_star
     ret

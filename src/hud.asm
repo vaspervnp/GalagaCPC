@@ -330,24 +330,32 @@ ClearGameOverText:
     jp ClearTextRect
 
 ;; ----------------------------------------------------------------------------
-;; DrawPauseBanner - "PAUSE" in Cyan in the HUD column
+;; Messages are centred in the playfield. STAGE, PLAYER and FIGHTER CAPTURED
+;; share the GAME OVER line (never shown together); PAUSE sits below it.
 ;; ----------------------------------------------------------------------------
+STAGE_BANNER_X  equ PF_X_CENTER - 11        ; "STAGE nn" (8 characters)
+PLAYER_BANNER_X equ PF_X_CENTER - 12        ; "PLAYER n" (8 characters)
+CAPTURED_BANNER_X equ PF_X_CENTER - 24      ; "FIGHTER CAPTURED" (16 characters)
+PAUSE_BANNER_X  equ PF_X_CENTER - 7         ; "PAUSE" (5 characters)
+PAUSE_BANNER_Y  equ PF_TEXT_Y + 16
+
+;; DrawPauseBanner - "PAUSE" in Cyan
 DrawPauseBanner:
-    ld b, HUD_X + 4
-    ld c, HUD_PAUSE_Y
+    ld b, PAUSE_BANNER_X
+    ld c, PAUSE_BANNER_Y
     ld hl, str_pause_banner
     jp DrawGlyphString
 
 ClearPauseBanner:
-    ld c, HUD_PAUSE_Y
-    jr ClearHudLine
+    ld b, PAUSE_BANNER_X
+    ld c, PAUSE_BANNER_Y
+    ld d, 15
+    jp ClearTextRect
 
-;; ----------------------------------------------------------------------------
-;; DrawStageBanner - "STAGE " + current_stage in the HUD column
-;; ----------------------------------------------------------------------------
+;; DrawStageBanner - "STAGE " + current_stage
 DrawStageBanner:
-    ld b, HUD_X
-    ld c, HUD_STAGE_Y
+    ld b, STAGE_BANNER_X
+    ld c, PF_TEXT_Y
     ld hl, str_stage_banner
     call DrawGlyphString        ; B advances past "STAGE "
     ld a, (current_stage)
@@ -356,20 +364,15 @@ DrawStageBanner:
     jp Draw2DigitsWhite
 
 ClearStageBanner:
-    ld c, HUD_STAGE_Y
-
-;; ClearHudLine - Clear one 8-line text row of the HUD column at Y=C
-ClearHudLine:
-    ld b, HUD_X
-    ld d, HUD_W
+    ld b, STAGE_BANNER_X
+    ld c, PF_TEXT_Y
+    ld d, 27                    ; Room for 3 digits
     jp ClearTextRect
 
-;; ----------------------------------------------------------------------------
-;; DrawPlayerBanner - "PLAYER 1" / "PLAYER 2" in the HUD column
-;; ----------------------------------------------------------------------------
+;; DrawPlayerBanner - "PLAYER 1" / "PLAYER 2"
 DrawPlayerBanner:
-    ld b, HUD_X
-    ld c, HUD_PLAYER_Y
+    ld b, PLAYER_BANNER_X
+    ld c, PF_TEXT_Y
     ld hl, str_player_banner
     call DrawGlyphString        ; B advances past "PLAYER "
     ld a, (active_player)
@@ -377,13 +380,12 @@ DrawPlayerBanner:
     jp DrawWhiteDigit
 
 ClearPlayerBanner:
-    ld c, HUD_PLAYER_Y
-    jr ClearHudLine
+    ld b, PLAYER_BANNER_X
+    ld c, PF_TEXT_Y
+    ld d, 24
+    jp ClearTextRect
 
-;; ----------------------------------------------------------------------------
-;; DrawChallengingBanner - "CHALLENGING STAGE" is too wide for the HUD column,
-;; so it is centred in the playfield.
-;; ----------------------------------------------------------------------------
+;; DrawChallengingBanner - "CHALLENGING STAGE"
 CHALLENGING_BANNER_X equ PF_X_CENTER - 25   ; 17 characters = 51 bytes
 
 DrawChallengingBanner:
@@ -398,18 +400,18 @@ ClearChallengingBanner:
     ld d, 51
     jp ClearTextRect
 
-;; ----------------------------------------------------------------------------
-;; DrawFighterCapturedBanner - "FIGHTER" / "CAPTURED" in the HUD column
-;; ----------------------------------------------------------------------------
+;; DrawFighterCapturedBanner - "FIGHTER CAPTURED"
 DrawFighterCapturedBanner:
-    ld b, HUD_X + 1
-    ld c, HUD_CAPTURED_Y
-    ld hl, str_fighter_banner
-    call DrawGlyphString
-    ld b, HUD_X
-    ld c, HUD_CAPTURED_Y + 10
-    ld hl, str_captured_banner
+    ld b, CAPTURED_BANNER_X
+    ld c, PF_TEXT_Y
+    ld hl, str_fighter_captured_banner
     jp DrawGlyphString
+
+ClearFighterCapturedBanner:
+    ld b, CAPTURED_BANNER_X
+    ld c, PF_TEXT_Y
+    ld d, 48
+    jp ClearTextRect
 
 str_game_over_banner:
     defw f_c_G, f_c_A, f_c_M, f_c_E, f_c_SPACE, f_c_O, f_c_V, f_c_E, f_c_R, 0
@@ -426,17 +428,9 @@ str_player_banner:
 str_challenging_banner:
     defw f_c_C, f_c_H, f_c_A, f_c_L, f_c_L, f_c_E, f_c_N, f_c_G, f_c_I, f_c_N, f_c_G, f_c_SPACE, f_c_S, f_c_T, f_c_A, f_c_G, f_c_E, 0
 
-str_fighter_banner:
-    defw f_c_F, f_c_I, f_c_G, f_c_H, f_c_T, f_c_E, f_c_R, 0
-
-str_captured_banner:
+str_fighter_captured_banner:
+    defw f_c_F, f_c_I, f_c_G, f_c_H, f_c_T, f_c_E, f_c_R, f_c_SPACE
     defw f_c_C, f_c_A, f_c_P, f_c_T, f_c_U, f_c_R, f_c_E, f_c_D, 0
-
-ClearFighterCapturedBanner:
-    ld c, HUD_CAPTURED_Y
-    call ClearHudLine
-    ld c, HUD_CAPTURED_Y + 10
-    jp ClearHudLine
 
 ;; ----------------------------------------------------------------------------
 ;; ClearTextRect - Erase D bytes wide x 8 scanlines high starting at (B=X, C=Y)
