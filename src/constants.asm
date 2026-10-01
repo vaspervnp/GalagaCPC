@@ -5,7 +5,7 @@
 MISSILE_SIZE    equ 6
 MAX_MISSILES    equ 4
 
-DEFAULT_PLAYER_Y equ 242                     ; Ship occupies scanlines 242..257
+DEFAULT_PLAYER_Y equ 240                     ; Ship occupies scanlines 240..255
 PLAYER_START_X  equ PF_X_CENTER - 4          ; 32: centred in the playfield
 
 
@@ -27,6 +27,9 @@ DIVE_WRAP_Y     equ SPRITE_Y_LIMIT
 TRACTOR_HOVER_Y equ DEFAULT_PLAYER_Y - 80
 TRACTOR_BEAM_Y  equ TRACTOR_HOVER_Y + 16
 TRACTOR_BEAM_H  equ 64
+
+;; Stage watchdog: remove enemies that stay outside the playfield this long.
+STAGE_WATCHDOG_FRAMES equ 250
 
 ;; After losing a life, wait at least this long (and until every attacking
 ;; enemy is back in formation) before the next fighter appears.
