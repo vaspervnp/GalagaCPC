@@ -1,10 +1,10 @@
 ;; ============================================================================
 ;; Galaga CPC - Game Variables & Static Data Tables
-;; Overscan Geometry Coordinates (Playfield X=8..87, Y=32..231)
+;; Playfield X=0..71 (HUD column X=72..95), sprite Y=PF_Y_TOP..SPRITE_Y_LIMIT-1
 ;; ============================================================================
 
-player_x:           defb 44
-old_player_x:       defb 44
+player_x:           defb PLAYER_START_X
+old_player_x:       defb PLAYER_START_X
 player_y:           defb DEFAULT_PLAYER_Y
 old_player_y:       defb DEFAULT_PLAYER_Y
 is_dual_fighter:    defb 0
@@ -118,6 +118,8 @@ entry_spawn_idx:    defb 0  ; Enemies spawned in entry (0..stage_enemy_total)
 stage_enemy_total:  defb 28 ; Active enemies for this stage (14..28, grows by stage)
 entry_spawn_timer:  defb 0  ; Delay between entry spawns
 random_seed:        defb 1
+star_draw_x:        defb 0  ; Screen X of the star being updated
+hud_in_column:      defb 0  ; 1 = in-game HUD column, 0 = title screen top HUD
 entry_shooter_quota: defb 0
 entry_shooter_start: defb 0
 entry_shooter_size:  defb 0

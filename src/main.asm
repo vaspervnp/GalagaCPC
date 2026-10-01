@@ -47,10 +47,9 @@ GameLoop:
     ;; Wait for VSYNC (50Hz hardware flyback via PPI)
     call WaitVSync
 
-    ;; --- TOP OF FRAME / VBLANK ZONE (Raster is at Y=0..32) ---
-    ;; Update Enemies FIRST while raster is scanning upper border / HUD!
-    ;; Enemies are at Y=36..150, so updating them here guarantees all
-    ;; enemy drawing finishes before the electron beam reaches Y=36!
+    ;; --- TOP OF FRAME / VBLANK ZONE ---
+    ;; Update Enemies FIRST, right after VSYNC, so the formation near the top
+    ;; of the playfield is drawn as early as possible ahead of the raster.
     call UpdateEnemies
 
     ;; Check Collisions immediately after enemy movement
@@ -210,7 +209,7 @@ RestartGame:
     ld (next_extra_life_hi), a
 
     ;; Reset player coordinates
-    ld a, 44
+    ld a, PLAYER_START_X
     ld (player_x), a
     ld (old_player_x), a
     ld a, DEFAULT_PLAYER_Y
@@ -245,7 +244,7 @@ RestartGame:
     call DrawStageHUD
 
     ;; Draw Player Ship
-    ld b, 44
+    ld b, PLAYER_START_X
     ld c, DEFAULT_PLAYER_Y
     ld hl, player_sprite
     call DrawSprite16x16

@@ -1,25 +1,72 @@
 ;; ============================================================================
-;; Galaga CPC - HUD, Upper Border Scoring, Lower Border Lives & Badges
+;; Galaga CPC - HUD: right-hand column during play, top rows on title screens
 ;; Amstrad CPC 464 / 6128 Overscan Mode
 ;; ============================================================================
 
 ;; ----------------------------------------------------------------------------
-;; InitHUD - Draw Upper Border HUD headers and initial scores
+;; InitHUD - Draw the in-game HUD column headers and initial scores
 ;; ----------------------------------------------------------------------------
 InitHUD:
-    ;; 1. Draw '1UP' in Red at X=16, Y=6
-    ld b, 16
-    ld c, 6
+    ld a, 1
+    ld (hud_in_column), a
+    call DrawHudDivider
+
+    ld b, HUD_TEXT_X
+    ld c, HUD_1UP_Y
     ld hl, str_1up_hdr
     call DrawGlyphString
 
-    ;; 2. Draw 'HIGH SCORE' in Red at X=46, Y=6
+    ld b, HUD_TEXT_X
+    ld c, HUD_HIGH_Y
+    ld hl, str_high_hdr
+    call DrawGlyphString
+    ld b, HUD_TEXT_X
+    ld c, HUD_HIGH2_Y
+    ld hl, str_score_hdr
+    call DrawGlyphString
+
+    call PrintScore
+    call PrintHighScore
+    ret
+
+;; DrawHudDivider - Thin vertical line between the playfield and the HUD column
+DrawHudDivider:
+    ld ix, line_tab
+    ld de, DISPLAY_LINES
+.line:
+    ld l, (ix+0)
+    ld h, (ix+1)
+    ld bc, HUD_DIVIDER_X
+    add hl, bc
+    ld (hl), HUD_DIVIDER_BYTE
+    inc ix
+    inc ix
+    dec de
+    ld a, d
+    or e
+    jr nz, .line
+    ret
+
+;; ----------------------------------------------------------------------------
+;; InitTitleHUD - Title and initials screens keep the original top HUD
+;; ----------------------------------------------------------------------------
+InitTitleHUD:
+    xor a
+    ld (hud_in_column), a
+
+    ;; 1. Draw '1UP' in Red at X=16
+    ld b, 16
+    ld c, TITLE_HUD_Y0
+    ld hl, str_1up_hdr
+    call DrawGlyphString
+
+    ;; 2. Draw 'HIGH SCORE' in Red at X=46
     ld b, 46
-    ld c, 6
+    ld c, TITLE_HUD_Y0
     ld hl, str_high_score_hdr
     call DrawGlyphString
 
-    ;; 3. Initial Scores in White at Y=16
+    ;; 3. Initial Scores in White
     call PrintScore
     call PrintHighScore
     ret
@@ -28,26 +75,42 @@ str_1up_hdr:
     defw f_r_1, f_r_U, f_r_P, 0
 
 str_high_score_hdr:
-    defw f_r_H, f_r_I, f_r_G, f_r_H, f_r_SPACE, f_r_S, f_r_C, f_r_O, f_r_R, f_r_E, 0
+    defw f_r_H, f_r_I, f_r_G, f_r_H, f_r_SPACE
+str_score_hdr:
+    defw f_r_S, f_r_C, f_r_O, f_r_R, f_r_E, 0
+
+str_high_hdr:
+    defw f_r_H, f_r_I, f_r_G, f_r_H, 0
 
 ;; ----------------------------------------------------------------------------
-;; PrintScore - Print player_score at X=14, Y=16 in White (6 digits)
+;; PrintScore - Print player_score (6 digits, White) in the active HUD layout
 ;; ----------------------------------------------------------------------------
 PrintScore:
     ld hl, (player_score)
     ld a, (player_score_hi)
-    ld b, 14
-    ld c, 16
-    jp Print6Digits
+    ld bc, (HUD_TEXT_X << 8) | HUD_SCORE_Y
+    ld de, (14 << 8) | TITLE_HUD_Y1
+    jr PrintScoreAt
 
 ;; ----------------------------------------------------------------------------
-;; PrintHighScore - Print high_score at X=50, Y=16 in White (6 digits)
+;; PrintHighScore - Print high_score (6 digits, White) in the active HUD layout
 ;; ----------------------------------------------------------------------------
 PrintHighScore:
     ld hl, (high_score)
     ld a, (high_score_hi)
-    ld b, 50
-    ld c, 16
+    ld bc, (HUD_TEXT_X << 8) | HUD_HISCORE_Y
+    ld de, (50 << 8) | TITLE_HUD_Y1
+
+;; Print A:HL at BC in the HUD column, or at DE on the title screens.
+PrintScoreAt:
+    push af
+    ld a, (hud_in_column)
+    or a
+    jr nz, .column
+    ld b, d
+    ld c, e
+.column:
+    pop af
     jp Print6Digits
 
 ;; ----------------------------------------------------------------------------
@@ -185,98 +248,101 @@ Print5Digits:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; DrawGameOverText - Display "GAME OVER" in Cyan at X=35, Y=110
+;; DrawGameOverText - "GAME OVER" in Cyan, centred in the playfield
 ;; ----------------------------------------------------------------------------
+GAME_OVER_X     equ PF_X_CENTER - 13        ; 9 characters = 27 bytes
+
 DrawGameOverText:
-    ld b, 35
-    ld c, 110
+    ld b, GAME_OVER_X
+    ld c, PF_TEXT_Y
     ld hl, str_game_over_banner
     jp DrawGlyphString
 
 ClearGameOverText:
-    ld b, 35
-    ld c, 110
+    ld b, GAME_OVER_X
+    ld c, PF_TEXT_Y
     ld d, 27
     jp ClearTextRect
 
 ;; ----------------------------------------------------------------------------
-;; DrawPauseBanner - Display "PAUSE" in Cyan at X=41, Y=110
+;; DrawPauseBanner - "PAUSE" in Cyan in the HUD column
 ;; ----------------------------------------------------------------------------
 DrawPauseBanner:
-    ld b, 41
-    ld c, 110
+    ld b, HUD_X + 4
+    ld c, HUD_PAUSE_Y
     ld hl, str_pause_banner
     jp DrawGlyphString
 
 ClearPauseBanner:
-    ld b, 41
-    ld c, 110
-    ld d, 15
-    jp ClearTextRect
+    ld c, HUD_PAUSE_Y
+    jr ClearHudLine
 
 ;; ----------------------------------------------------------------------------
-;; DrawStageBanner - Display "STAGE " + current_stage in Cyan at X=38, Y=110
+;; DrawStageBanner - "STAGE " + current_stage in the HUD column
 ;; ----------------------------------------------------------------------------
 DrawStageBanner:
-    ld b, 38
-    ld c, 110
+    ld b, HUD_X
+    ld c, HUD_STAGE_Y
     ld hl, str_stage_banner
-    call DrawGlyphString
+    call DrawGlyphString        ; B advances past "STAGE "
     ld a, (current_stage)
     cp 10
-    jr nc, .dsb_2digits
-    ld b, 56 : ld c, 110
-    jp DrawWhiteDigit
-.dsb_2digits:
-    ld b, 56 : ld c, 110
+    jp c, DrawWhiteDigit
     jp Draw2DigitsWhite
 
 ClearStageBanner:
-    ld b, 38
-    ld c, 110
-    ld d, 24
+    ld c, HUD_STAGE_Y
+
+;; ClearHudLine - Clear one 8-line text row of the HUD column at Y=C
+ClearHudLine:
+    ld b, HUD_X
+    ld d, HUD_W
     jp ClearTextRect
 
 ;; ----------------------------------------------------------------------------
-;; DrawPlayerBanner - Display "PLAYER 1" in Cyan at X=36, Y=110
+;; DrawPlayerBanner - "PLAYER 1" in the HUD column
 ;; ----------------------------------------------------------------------------
 DrawPlayerBanner:
-    ld b, 36
-    ld c, 110
+    ld b, HUD_X
+    ld c, HUD_PLAYER_Y
     ld hl, str_player_banner
-    call DrawGlyphString
-    ld b, 57 : ld c, 110
+    call DrawGlyphString        ; B advances past "PLAYER "
     ld a, 1
     jp DrawWhiteDigit
 
 ClearPlayerBanner:
-    ld b, 36
-    ld c, 110
-    ld d, 24
-    jp ClearTextRect
+    ld c, HUD_PLAYER_Y
+    jr ClearHudLine
 
 ;; ----------------------------------------------------------------------------
-;; DrawChallengingBanner - Display "CHALLENGING STAGE" in Cyan at X=23, Y=110
+;; DrawChallengingBanner - "CHALLENGING STAGE" is too wide for the HUD column,
+;; so it is centred in the playfield.
 ;; ----------------------------------------------------------------------------
+CHALLENGING_BANNER_X equ PF_X_CENTER - 25   ; 17 characters = 51 bytes
+
 DrawChallengingBanner:
-    ld b, 23
-    ld c, 110
+    ld b, CHALLENGING_BANNER_X
+    ld c, PF_TEXT_Y
     ld hl, str_challenging_banner
     jp DrawGlyphString
 
 ClearChallengingBanner:
-    ld b, 23
-    ld c, 110
+    ld b, CHALLENGING_BANNER_X
+    ld c, PF_TEXT_Y
     ld d, 51
     jp ClearTextRect
 
 ;; ----------------------------------------------------------------------------
-;; DrawFighterCapturedBanner - Display "FIGHTER CAPTURED" in Cyan at X=24, Y=110
+;; DrawFighterCapturedBanner - "FIGHTER" / "CAPTURED" in the HUD column
 ;; ----------------------------------------------------------------------------
 DrawFighterCapturedBanner:
-    ld b, 24
-    ld c, 110
-    ld hl, str_fighter_captured_banner
+    ld b, HUD_X + 1
+    ld c, HUD_CAPTURED_Y
+    ld hl, str_fighter_banner
+    call DrawGlyphString
+    ld b, HUD_X
+    ld c, HUD_CAPTURED_Y + 10
+    ld hl, str_captured_banner
     jp DrawGlyphString
 
 str_game_over_banner:
@@ -294,14 +360,17 @@ str_player_banner:
 str_challenging_banner:
     defw f_c_C, f_c_H, f_c_A, f_c_L, f_c_L, f_c_E, f_c_N, f_c_G, f_c_I, f_c_N, f_c_G, f_c_SPACE, f_c_S, f_c_T, f_c_A, f_c_G, f_c_E, 0
 
-str_fighter_captured_banner:
-    defw f_c_F, f_c_I, f_c_G, f_c_H, f_c_T, f_c_E, f_c_R, f_c_SPACE, f_c_C, f_c_A, f_c_P, f_c_T, f_c_U, f_c_R, f_c_E, f_c_D, 0
+str_fighter_banner:
+    defw f_c_F, f_c_I, f_c_G, f_c_H, f_c_T, f_c_E, f_c_R, 0
+
+str_captured_banner:
+    defw f_c_C, f_c_A, f_c_P, f_c_T, f_c_U, f_c_R, f_c_E, f_c_D, 0
 
 ClearFighterCapturedBanner:
-    ld b, 24
-    ld c, 110
-    ld d, 48
-    jp ClearTextRect
+    ld c, HUD_CAPTURED_Y
+    call ClearHudLine
+    ld c, HUD_CAPTURED_Y + 10
+    jp ClearHudLine
 
 ;; ----------------------------------------------------------------------------
 ;; ClearTextRect - Erase D bytes wide x 8 scanlines high starting at (B=X, C=Y)
@@ -539,21 +608,17 @@ DrawGlyph:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; DrawLivesHUD - Draw reserve fighter ships in Lower Border (Y=244)
+;; DrawLivesHUD - Draw reserve fighter ships as a 2 x 2 grid in the HUD column
 ;; ----------------------------------------------------------------------------
 DrawLivesHUD:
-    ;; Erase lives area in Lower Border (X=10..42, Y=244, 32 bytes wide, 16 lines)
-    ld b, 10 : ld c, LIVES_Y : call ClearSprite16x16
-    ld b, 18 : ld c, LIVES_Y : call ClearSprite16x16
-    ld b, 26 : ld c, LIVES_Y : call ClearSprite16x16
-    ld b, 34 : ld c, LIVES_Y : call ClearSprite16x16
+    ld b, LIVES_X : ld c, LIVES_Y : ld d, 16 : ld e, 34 : call ClearBitmapRect
 
     ld a, (player_lives)
     cp 2
     ret c               ; 1 or 0 lives: no reserve ships shown
 
     ;; Reserve Ship 1
-    ld b, 10
+    ld b, LIVES_X
     ld c, LIVES_Y
     ld hl, player_sprite
     call DrawSprite16x16
@@ -563,7 +628,7 @@ DrawLivesHUD:
     ret c
 
     ;; Reserve Ship 2
-    ld b, 18
+    ld b, LIVES_X + 8
     ld c, LIVES_Y
     ld hl, player_sprite
     call DrawSprite16x16
@@ -573,8 +638,8 @@ DrawLivesHUD:
     ret c
 
     ;; Reserve Ship 3
-    ld b, 26
-    ld c, LIVES_Y
+    ld b, LIVES_X
+    ld c, LIVES_Y + 18
     ld hl, player_sprite
     call DrawSprite16x16
 
@@ -583,21 +648,20 @@ DrawLivesHUD:
     ret c
 
     ;; Reserve Ship 4
-    ld b, 34
-    ld c, LIVES_Y
+    ld b, LIVES_X + 8
+    ld c, LIVES_Y + 18
     ld hl, player_sprite
     call DrawSprite16x16
     ret
 
 ;; ----------------------------------------------------------------------------
-;; DrawStageHUD - Draw stage badges / flags in Lower Border (Y=244)
+;; DrawStageHUD - Draw stage ribbons in two rows below the reserve ships
 ;; ----------------------------------------------------------------------------
 DrawStageHUD:
-    ;; Erase badges area (X=54..86, Y=244, 32 bytes wide, 16 lines)
-    ld b, 54 : ld c, BADGES_Y : call ClearSprite16x16
-    ld b, 62 : ld c, BADGES_Y : call ClearSprite16x16
-    ld b, 70 : ld c, BADGES_Y : call ClearSprite16x16
-    ld b, 78 : ld c, BADGES_Y : call ClearSprite16x16
+    ld b, HUD_X : ld c, BADGES_Y : ld d, HUD_W : ld e, BADGES_Y2 + 16 - BADGES_Y
+    call ClearBitmapRect
+    ld a, BADGES_Y
+    ld (badge_draw_y), a
 
     ;; Decompose the stage into the six badge values, largest first.
     ld a, (current_stage)
@@ -664,7 +728,7 @@ DrawStageHUD:
     ld (stage_badge_1_count), a
 
     ;; Place the largest badges at the right; smaller badges follow to the left.
-    ld a, 78
+    ld a, BYTES_PER_LINE - 9
     ld (badge_draw_x), a
     ld a, (stage_badge_50_count)
     ld hl, badge_stage_50
@@ -698,7 +762,8 @@ DrawStageHUD:
     call DrawStageBadgeGroup
     ret
 
-;; Draw a group of identical badges from right to left.
+;; Draw a group of identical badges from right to left, continuing on the
+;; second row when the first is full.
 ;; Input: A=count, HL=sprite data, D=byte width, E=height.
 DrawStageBadgeGroup:
     ld (badge_group_count), a
@@ -712,10 +777,20 @@ DrawStageBadgeGroup:
     or a
     ret z
     ld a, (badge_draw_x)
-    cp 54
-    ret c
+    cp HUD_X
+    jr nc, .badge_fits
+    ;; Row full: continue on the second row, or stop if already there.
+    ld a, (badge_draw_y)
+    cp BADGES_Y2
+    ret z
+    ld a, BADGES_Y2
+    ld (badge_draw_y), a
+    ld a, BYTES_PER_LINE - 9
+    ld (badge_draw_x), a
+.badge_fits:
     ld b, a
-    ld c, BADGES_Y
+    ld a, (badge_draw_y)
+    ld c, a
     ld a, (badge_group_width)
     ld d, a
     ld a, (badge_group_height)
@@ -736,6 +811,7 @@ DrawStageBadgeGroup:
     jr .next_badge
 
 badge_draw_x:        defb 0
+badge_draw_y:        defb 0
 badge_group_count:   defb 0
 badge_group_width:   defb 0
 badge_group_height:  defb 0
@@ -1575,57 +1651,62 @@ DrawGlyphString:
 ;; ----------------------------------------------------------------------------
 ;; DrawResultsScreen - Display authentic Galaga end-of-game statistics
 ;; ----------------------------------------------------------------------------
+;; Results text was laid out for the pre-column screen; RESULTS_DX/DY centre
+;; it in the playfield.
+RESULTS_DX      equ PF_OLD_DX
+RESULTS_DY      equ 20
+
 DrawResultsScreen:
     ;; 1. Header "- RESULTS -" at X=30, Y=70
-    ld b, 30 : ld c, 70
+    ld b, 30 + RESULTS_DX : ld c, 70 + RESULTS_DY
     ld hl, str_results_header
     call DrawGlyphString
 
     ;; 2. "SHOTS FIRED" at X=16, Y=94
-    ld b, 16 : ld c, 94
+    ld b, 16 + RESULTS_DX : ld c, 94 + RESULTS_DY
     ld hl, str_shots_fired
     call DrawGlyphString
 
     ;; Number of shots fired in White at X=55, Y=94
     ld hl, (shots_fired)
-    ld b, 55 : ld c, 94
+    ld b, 55 + RESULTS_DX : ld c, 94 + RESULTS_DY
     call Print5Digits
 
     ;; 3. "NUMBER OF HITS" at X=16, Y=114
-    ld b, 16 : ld c, 114
+    ld b, 16 + RESULTS_DX : ld c, 114 + RESULTS_DY
     ld hl, str_number_of_hits
     call DrawGlyphString
 
     ;; Number of hits in White at X=55, Y=114
     ld hl, (shots_hit)
-    ld b, 55 : ld c, 114
+    ld b, 55 + RESULTS_DX : ld c, 114 + RESULTS_DY
     call Print5Digits
 
     ;; 4. "HIT-MISS RATIO" at X=16, Y=134
-    ld b, 16 : ld c, 134
+    ld b, 16 + RESULTS_DX : ld c, 134 + RESULTS_DY
     ld hl, str_hit_miss_ratio
     call DrawGlyphString
 
     ;; Ratio percentage in White at X=58, Y=134
     call CalcHitMissRatio
-    ld b, 58 : ld c, 134
+    ld b, 58 + RESULTS_DX : ld c, 134 + RESULTS_DY
     call Draw2DigitsWhite
-    ld b, 64 : ld c, 134
+    ld b, 64 + RESULTS_DX : ld c, 134 + RESULTS_DY
     ld hl, f_w_PERCENT
     call DrawGlyph
 
     ;; 5. "2026 REVIVE8BIT" at X=25, Y=160
-    ld b, 25 : ld c, 160
+    ld b, 25 + RESULTS_DX : ld c, 160 + RESULTS_DY
     ld hl, str_revive8bit_copyright
     call DrawGlyphString
     ret
 
 ClearResultsScreen:
-    ld b, 14 : ld c, 70 : ld d, 66 : call ClearTextRect
-    ld b, 14 : ld c, 94 : ld d, 66 : call ClearTextRect
-    ld b, 14 : ld c, 114 : ld d, 66 : call ClearTextRect
-    ld b, 14 : ld c, 134 : ld d, 66 : call ClearTextRect
-    ld b, 14 : ld c, 160 : ld d, 66 : call ClearTextRect
+    ld b, 14 + RESULTS_DX : ld c, 70 + RESULTS_DY : ld d, 66 : call ClearTextRect
+    ld b, 14 + RESULTS_DX : ld c, 94 + RESULTS_DY : ld d, 66 : call ClearTextRect
+    ld b, 14 + RESULTS_DX : ld c, 114 + RESULTS_DY : ld d, 66 : call ClearTextRect
+    ld b, 14 + RESULTS_DX : ld c, 134 + RESULTS_DY : ld d, 66 : call ClearTextRect
+    ld b, 14 + RESULTS_DX : ld c, 160 + RESULTS_DY : ld d, 66 : call ClearTextRect
     ret
 
 CalcHitMissRatio:

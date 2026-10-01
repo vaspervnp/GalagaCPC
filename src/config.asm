@@ -35,24 +35,54 @@ PAGE2_ROWS      EQU 21
 PAGE2_BASE      EQU #8000+32
 PAGE3_BASE      EQU #C000
 
-;; --- Layout of Upper Border, Playfield, and Lower Border --------------------
-;; Upper Border: Scanlines 0..31 (Rows 0..3: 32 scanlines) -> HUD
-HUD_Y0          EQU 6
-HUD_Y1          EQU 16
+;; --- Gameplay layout: playfield on the left, HUD column on the right -------
+;; The playfield fills bytes 0..71 of every scanline; the HUD column (score,
+;; high score, short banners, lives and stage badges) fills bytes 72..95.
+;; Y coordinates are stored in one byte, so sprites live between scanline
+;; PF_Y_TOP and SPRITE_Y_LIMIT (a 16-line sprite then ends at scanline 267).
+PF_X0           EQU 0
+PF_W            EQU 72                  ; 3/4 of the 96-byte overscan width
+PF_X_CENTER     EQU PF_X0 + PF_W / 2    ; 36
+HUD_X           EQU PF_X0 + PF_W        ; 72
+HUD_W           EQU BYTES_PER_LINE - HUD_X ; 24 bytes = 8 characters
 
-;; Main Playfield: Scanlines 32..231 (Rows 4..28: 200 scanlines, 80 bytes wide)
-INNER_X0        EQU (CRTC_R2-46)*2      ; 8 bytes
-INNER_W         EQU 80                  ; 80 bytes (160 px Mode 0)
-INNER_Y0        EQU (CRTC_R7-30)*8      ; 32 scanlines
-INNER_H         EQU 200                 ; 200 scanlines
+PF_Y_TOP        EQU 8                   ; Highest scanline a sprite may start
+SPRITE_Y_LIMIT  EQU 252                 ; Sprites at Y >= this are off-screen
 
-;; Playfield coordinate limits
-PLAY_X_MIN      EQU INNER_X0 + 2        ; 10
-PLAY_X_MAX      EQU INNER_X0 + INNER_W - 10 ; 78
-PLAY_Y_MIN      EQU INNER_Y0            ; 32
-PLAY_Y_MAX      EQU INNER_Y0 + INNER_H - 16 ; 216
+;; Playfield coordinate limits (left edge of a 16x16 sprite)
+PLAY_X_MIN      EQU PF_X0 + 2           ; 2
+PLAY_X_MAX      EQU PF_X0 + PF_W - 10   ; 62
 
-;; Lower Border: Scanlines 232..271 (Rows 29..33: 40 scanlines) -> Lives & Badges
-LOWER_BORDER_Y  EQU 232
-LIVES_Y         EQU 244
-BADGES_Y        EQU 244
+;; The pre-column layout put the playfield 12 bytes further right and its top
+;; at scanline 36; positions tied to the top of the playfield move by this.
+PF_OLD_DX       EQU -12
+PF_OLD_DY       EQU PF_Y_TOP - 36       ; -28
+
+;; --- Title / initials screens keep the original top HUD --------------------
+TITLE_HUD_Y0    EQU 6
+TITLE_HUD_Y1    EQU 16
+
+;; --- HUD column contents ----------------------------------------------------
+;; Thin divider: right pixel of the last playfield byte, Pen 1 (blue). Sprites,
+;; bullets and explosions never reach this byte, so nothing erases it.
+HUD_DIVIDER_X    EQU HUD_X - 1
+HUD_DIVIDER_BYTE EQU #40
+HUD_TEXT_X      EQU HUD_X + 1
+HUD_HIGH_Y      EQU 12                  ; "HIGH" / "SCORE" + high score on top
+HUD_HIGH2_Y     EQU 22
+HUD_HISCORE_Y   EQU 32
+HUD_1UP_Y       EQU 50                  ; "1UP" + player score below
+HUD_SCORE_Y     EQU 60
+HUD_STAGE_Y     EQU 96              ; Short banners, 8 characters per line
+HUD_PLAYER_Y    EQU 106
+HUD_CAPTURED_Y  EQU 126             ; "FIGHTER" / "CAPTURED" on two lines
+HUD_PAUSE_Y     EQU 152
+LIVES_X         EQU HUD_X + 4       ; Reserve ships: 2 x 2 grid (184..217)
+LIVES_Y         EQU 184
+;; Stage ribbons: two rows right below the reserve ships. Displays commonly
+;; crop the lowest overscan lines, so the second row ends at scanline 255.
+BADGES_Y        EQU 222             ; Row 1: 222..237
+BADGES_Y2       EQU BADGES_Y + 18   ; Row 2: 240..255
+
+;; Centre of the playfield for large text (GAME OVER, results)
+PF_TEXT_Y       EQU 130

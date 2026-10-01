@@ -178,11 +178,11 @@ DrawEnemyIX:
     or a
     ret z
 
-    ;; Enemy sprites must remain below the HUD and above the lower border.
+    ;; Enemy sprites must remain inside the playfield's vertical range.
     ld a, (ix+3)
-    cp 36
+    cp PF_Y_TOP
     ret c
-    cp 232
+    cp SPRITE_Y_LIMIT
     ret nc
 
     ;; Choose sprite based on type, hp, and anim_frame
@@ -719,7 +719,7 @@ UpdateEnemies:
     ;; 2. Move Y down by 2 scanlines
     ld a, (ix+3)
     add a, 2
-    cp 228
+    cp DIVE_WRAP_Y
     jp nc, .loop_to_top     ; Reached bottom -> loop to top
 
 
@@ -783,11 +783,11 @@ UpdateEnemies:
     ld (ix+2), c
 .dive_x_done:
 
-    ;; 4. Drop bullet at Y == 110 or Y == 150
+    ;; 4. Drop bullet at DIVE_FIRE_Y1 and DIVE_FIRE_Y2
     ld a, (ix+3)
-    cp 110
+    cp DIVE_FIRE_Y1
     jr z, .dive_drop_bomb
-    cp 150
+    cp DIVE_FIRE_Y2
     jr nz, .dive_skip_drop
 .dive_drop_bomb:
     ld a, (enemy_fire_freeze)
@@ -829,10 +829,10 @@ UpdateEnemies:
     ld (transform_killed), a
 .no_tr_escape:
 
-    ;; Wrap around to top safely below HUD (scanline 36, HUD ends at 31)
-    ld a, 36
+    ;; Wrap around to the top of the playfield
+    ld a, PF_Y_TOP
     ld (ix+3), a
-    ld (ix+5), a            ; old_y = 36
+    ld (ix+5), a            ; old_y = top
     ld a, (ix+2)
     ld (ix+4), a            ; old_x = x
     ld (ix+8), 2            ; state = 2 (returning)
@@ -846,12 +846,12 @@ UpdateEnemies:
     ;; --- State 2: RETURNING TO FORMATION ---
     ;; 1. The old sprite is erased just before drawing at the new position.
 
-    ;; Recover an invalid Y coordinate so the enemy cannot cover the HUD or
-    ;; remain outside the playfield and hold an entry group indefinitely.
+    ;; Recover an invalid Y coordinate so the enemy cannot remain outside the
+    ;; playfield and hold an entry group indefinitely.
     ld a, (ix+3)
-    cp 36
+    cp PF_Y_TOP
     jr c, .recover_return_y
-    cp 232
+    cp SPRITE_Y_LIMIT
     jr c, .return_y_valid
 .recover_return_y:
     ;; The position jumps, so erase the whole old sprite first.
@@ -859,14 +859,9 @@ UpdateEnemies:
     ld a, (ix+7)
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 36
+    ld a, PF_Y_TOP
     ld (ix+3), a
     ld (ix+5), a
-    push bc
-    push ix
-    call InitHUD
-    pop ix
-    pop bc
 .return_y_valid:
 
     ;; 2. Steer X toward target X (base_x + sway_offset)
@@ -903,9 +898,9 @@ UpdateEnemies:
     jr z, .ret_at_target_y
     jr c, .ret_inc_y
     dec a                   ; Y > base_y: move up
-    cp 36
+    cp PF_Y_TOP
     jr nc, .ret_y_ok
-    ld a, 36
+    ld a, PF_Y_TOP
 .ret_y_ok:
     ld (ix+3), a
     jr .ret_draw
@@ -969,9 +964,9 @@ UpdateEnemies:
 ;; ----------------------------------------------------------------------------
 EraseEnemyDeltaIX:
     ld a, (ix+5)
-    cp 36
+    cp PF_Y_TOP
     ret c
-    cp 232
+    cp SPRITE_Y_LIMIT
     ret nc
 
     ;; Moved a full sprite width or height (or more): erase it all.
@@ -1040,9 +1035,9 @@ EraseEnemyDeltaIX:
 ;; Preserves: BC, IX, IY
 EraseEnemyOldIX:
     ld a, (ix+5)
-    cp 36
+    cp PF_Y_TOP
     ret c
-    cp 232
+    cp SPRITE_Y_LIMIT
     ret nc
     push bc
     ld b, (ix+4)
@@ -1297,9 +1292,9 @@ CheckAndRestoreDockedEnemies:
 EraseEntryEnemyOld:
     call EraseEnemyDeltaIX
     ld a, (ix+5)
-    cp 36
+    cp PF_Y_TOP
     ret c
-    cp 232
+    cp SPRITE_Y_LIMIT
     ret nc
     jp CheckAndRestoreDockedEnemies
 
@@ -1404,49 +1399,49 @@ UpdateEntryPhase:
 
     ;; Path 2: Upper-right entry (Zakos)
     ld a, (ix+3)
-    cp 150
+    cp 150 + PF_OLD_DY
     jr nc, .switch_to_returning
-    cp 120
+    cp 120 + PF_OLD_DY
     jr c, .entry_steer_left
     jr .entry_steer_right
 
 .epath_1:
     ;; Path 1: Upper-left entry (Goeis & Zakos)
     ld a, (ix+3)
-    cp 150
+    cp 150 + PF_OLD_DY
     jr nc, .switch_to_returning
-    cp 120
+    cp 120 + PF_OLD_DY
     jr c, .entry_steer_right
     jr .entry_steer_left
 
 .epath_0:
     ;; Path 0: Upper-right entry (Boss Galagas & Goeis)
     ld a, (ix+3)
-    cp 140
+    cp 140 + PF_OLD_DY
     jr nc, .switch_to_returning
-    cp 110
+    cp 110 + PF_OLD_DY
     jr c, .entry_steer_left
     jr .entry_steer_right
 
 .epath_center:
     ld a, (ix+3)
-    cp 166
+    cp 166 + PF_OLD_DY
     jr nc, .switch_to_returning
-    cp 112
+    cp 112 + PF_OLD_DY
     jr c, .entry_steer_left
-    cp 142
+    cp 142 + PF_OLD_DY
     jr c, .entry_steer_right
     jr .entry_steer_left
 
 .epath_lower_left:
     ld a, (ix+3)
-    cp 164
+    cp 164 + PF_OLD_DY
     jr nc, .switch_to_returning
     jr .entry_steer_right
 
 .epath_lower_right:
     ld a, (ix+3)
-    cp 164
+    cp 164 + PF_OLD_DY
     jr nc, .switch_to_returning
     jr .entry_steer_left
 
@@ -1481,13 +1476,13 @@ UpdateEntryPhase:
     or a
     jr nz, .entry_no_shot
     ld a, (ix+3)
-    cp 110
+    cp 110 + PF_OLD_DY
     jr z, .entry_fire
-    cp 150
+    cp 150 + PF_OLD_DY
     jr z, .entry_fire
-    cp 90
+    cp 90 + PF_OLD_DY
     jr z, .entry_extra_fire_check
-    cp 130
+    cp 130 + PF_OLD_DY
     jr nz, .entry_no_shot
 .entry_extra_fire_check:
     push bc
@@ -1537,25 +1532,20 @@ UpdateEntryPhase:
     jp .next_entry_slot
 
 .move_entry_returning:
-    ;; Recover invalid vertical positions and keep old-sprite erasure out of HUD.
+    ;; Recover invalid vertical positions.
     ld a, (ix+3)
-    cp 36
+    cp PF_Y_TOP
     jr c, .entry_recover_return_y
-    cp 232
+    cp SPRITE_Y_LIMIT
     jr c, .entry_return_y_valid
 .entry_recover_return_y:
     call EraseEnemyOldIX     ; The position jumps: erase the whole old sprite.
     ld a, (ix+7)
     ld (ix+2), a
     ld (ix+4), a
-    ld a, 36
+    ld a, PF_Y_TOP
     ld (ix+3), a
     ld (ix+5), a
-    push bc
-    push ix
-    call InitHUD
-    pop ix
-    pop bc
 .entry_return_y_valid:
     ;; Steer X toward base_x
     ld a, (ix+7)            ; base_x
@@ -1970,24 +1960,24 @@ SelectDifficultyEntryPath:
     or a
     jr nz, .keep_path
 .center:
-    ld (ix+2), 44
-    ld (ix+4), 44
-    ld (ix+3), 64
-    ld (ix+5), 64
+    ld (ix+2), 44 + PF_OLD_DX
+    ld (ix+4), 44 + PF_OLD_DX
+    ld (ix+3), 64 + PF_OLD_DY
+    ld (ix+5), 64 + PF_OLD_DY
     ld a, 3
     ret
 .lower_left:
     ld (ix+2), PLAY_X_MIN
     ld (ix+4), PLAY_X_MIN
-    ld (ix+3), 92
-    ld (ix+5), 92
+    ld (ix+3), 92 + PF_OLD_DY
+    ld (ix+5), 92 + PF_OLD_DY
     ld a, 4
     ret
 .lower_right:
     ld (ix+2), PLAY_X_MAX
     ld (ix+4), PLAY_X_MAX
-    ld (ix+3), 92
-    ld (ix+5), 92
+    ld (ix+3), 92 + PF_OLD_DY
+    ld (ix+5), 92 + PF_OLD_DY
     ld a, 5
     ret
 .keep_path:
@@ -1997,8 +1987,8 @@ SelectDifficultyEntryPath:
     ld a, (ix+7)
     ld (ix+2), a
     ld (ix+4), a
-    ld (ix+3), 36
-    ld (ix+5), 36
+    ld (ix+3), PF_Y_TOP
+    ld (ix+5), PF_Y_TOP
     ld a, 6
     ret
 
@@ -2007,40 +1997,42 @@ SelectDifficultyEntryPath:
 ;; Format: [type, hp, base_x, base_y, start_x, start_y, entry_path] - 7 bytes each
 ;; ----------------------------------------------------------------------------
 entry_enemy_defs:
+    ;; Positions are written in the pre-column layout (comments too) and moved
+    ;; into the current playfield by PF_OLD_DX / PF_OLD_DY.
     ;; Wave 1: 4 Boss Galagas (Row 1, Y=52) - Swoop top-right (path 0)
-    defb 2, 2, 27, 52,  66, 36, 0  ; Slot 0: Boss Galaga 1 (target 27, 52)
-    defb 2, 2, 37, 52,  66, 36, 0  ; Slot 1: Boss Galaga 2 (target 37, 52)
-    defb 2, 2, 47, 52,  66, 36, 0  ; Slot 2: Boss Galaga 3 (target 47, 52)
-    defb 2, 2, 57, 52,  66, 36, 0  ; Slot 3: Boss Galaga 4 (target 57, 52)
+    defb 2, 2, 27 + PF_OLD_DX, 52 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 0: Boss Galaga 1 (target 27, 52)
+    defb 2, 2, 37 + PF_OLD_DX, 52 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 1: Boss Galaga 2 (target 37, 52)
+    defb 2, 2, 47 + PF_OLD_DX, 52 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 2: Boss Galaga 3 (target 47, 52)
+    defb 2, 2, 57 + PF_OLD_DX, 52 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 3: Boss Galaga 4 (target 57, 52)
 
     ;; Wave 2: 6 Goei Butterflies (Row 2, Y=68) - Swoop top-left (path 1)
-    defb 1, 1, 17, 68,  16, 36, 1  ; Slot 4: Goei 1 (target 17, 68)
-    defb 1, 1, 27, 68,  16, 36, 1  ; Slot 5: Goei 2 (target 27, 68)
-    defb 1, 1, 37, 68,  16, 36, 1  ; Slot 6: Goei 3 (target 37, 68)
-    defb 1, 1, 47, 68,  16, 36, 1  ; Slot 7: Goei 4 (target 47, 68)
-    defb 1, 1, 57, 68,  16, 36, 1  ; Slot 8: Goei 5 (target 57, 68)
-    defb 1, 1, 67, 68,  16, 36, 1  ; Slot 9: Goei 6 (target 67, 68)
+    defb 1, 1, 17 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 4: Goei 1 (target 17, 68)
+    defb 1, 1, 27 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 5: Goei 2 (target 27, 68)
+    defb 1, 1, 37 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 6: Goei 3 (target 37, 68)
+    defb 1, 1, 47 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 7: Goei 4 (target 47, 68)
+    defb 1, 1, 57 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 8: Goei 5 (target 57, 68)
+    defb 1, 1, 67 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 9: Goei 6 (target 67, 68)
 
     ;; Wave 3: 6 Goei Butterflies (Row 3, Y=84) - Swoop top-right (path 2)
-    defb 1, 1, 17, 84,  72, 36, 2  ; Slot 10: Goei 7 (target 17, 84)
-    defb 1, 1, 27, 84,  72, 36, 2  ; Slot 11: Goei 8 (target 27, 84)
-    defb 1, 1, 37, 84,  72, 36, 2  ; Slot 12: Goei 9 (target 37, 84)
-    defb 1, 1, 47, 84,  72, 36, 2  ; Slot 13: Goei 10 (target 47, 84)
-    defb 1, 1, 57, 84,  72, 36, 2  ; Slot 14: Goei 11 (target 57, 84)
-    defb 1, 1, 67, 84,  72, 36, 2  ; Slot 15: Goei 12 (target 67, 84)
+    defb 1, 1, 17 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 10: Goei 7 (target 17, 84)
+    defb 1, 1, 27 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 11: Goei 8 (target 27, 84)
+    defb 1, 1, 37 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 12: Goei 9 (target 37, 84)
+    defb 1, 1, 47 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 13: Goei 10 (target 47, 84)
+    defb 1, 1, 57 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 14: Goei 11 (target 57, 84)
+    defb 1, 1, 67 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 15: Goei 12 (target 67, 84)
 
     ;; Wave 4: 6 Zako Bees (Row 4, Y=100) - Swoop top-left (path 1)
-    defb 0, 1, 17, 100, 16, 36, 1  ; Slot 16: Zako 1 (target 17, 100)
-    defb 0, 1, 27, 100, 16, 36, 1  ; Slot 17: Zako 2 (target 27, 100)
-    defb 0, 1, 37, 100, 16, 36, 1  ; Slot 18: Zako 3 (target 37, 100)
-    defb 0, 1, 47, 100, 16, 36, 1  ; Slot 19: Zako 4 (target 47, 100)
-    defb 0, 1, 57, 100, 16, 36, 1  ; Slot 20: Zako 5 (target 57, 100)
-    defb 0, 1, 67, 100, 16, 36, 1  ; Slot 21: Zako 6 (target 67, 100)
+    defb 0, 1, 17 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 16: Zako 1 (target 17, 100)
+    defb 0, 1, 27 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 17: Zako 2 (target 27, 100)
+    defb 0, 1, 37 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 18: Zako 3 (target 37, 100)
+    defb 0, 1, 47 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 19: Zako 4 (target 47, 100)
+    defb 0, 1, 57 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 20: Zako 5 (target 57, 100)
+    defb 0, 1, 67 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 21: Zako 6 (target 67, 100)
 
     ;; Wave 5: 6 Zako Bees (Row 5, Y=116) - Swoop top-right (path 0)
-    defb 0, 1, 17, 116, 66, 36, 0  ; Slot 22: Zako 7 (target 17, 116)
-    defb 0, 1, 27, 116, 66, 36, 0  ; Slot 23: Zako 8 (target 27, 116)
-    defb 0, 1, 37, 116, 66, 36, 0  ; Slot 24: Zako 9 (target 37, 116)
-    defb 0, 1, 47, 116, 66, 36, 0  ; Slot 25: Zako 10 (target 47, 116)
-    defb 0, 1, 57, 116, 66, 36, 0  ; Slot 26: Zako 11 (target 57, 116)
-    defb 0, 1, 67, 116, 66, 36, 0  ; Slot 27: Zako 12 (target 67, 116)
+    defb 0, 1, 17 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 22: Zako 7 (target 17, 116)
+    defb 0, 1, 27 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 23: Zako 8 (target 27, 116)
+    defb 0, 1, 37 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 24: Zako 9 (target 37, 116)
+    defb 0, 1, 47 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 25: Zako 10 (target 47, 116)
+    defb 0, 1, 57 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 26: Zako 11 (target 57, 116)
+    defb 0, 1, 67 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 27: Zako 12 (target 67, 116)

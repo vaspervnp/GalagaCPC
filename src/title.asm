@@ -14,15 +14,16 @@ ShowTitleScreen:
     ld (ctl_now), a
     ld (ctl_last), a
     ld (ctl_pressed), a
-    ;; Restart the menu melody from its first note
-    ld (drone_step), a
-    ld (drone_timer), a
+
+    ;; Play the game start tune once on entering the menu
+    call SoundInit
+    call PlayMusicGameStart
 
     ;; 2. Clear entire 32KB overscan screen to Black
     call ClearScreenOverscan
 
     ;; 3. Draw Top HUD headers (1UP in Red, HIGH SCORE in Red, and High Score value)
-    call InitHUD
+    call InitTitleHUD
 
     ;; 4. Draw Official Arcade Galaga Logo at X=30, Y=36 (36 bytes x 32 lines)
     ld b, 30
