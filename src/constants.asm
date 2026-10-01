@@ -17,6 +17,11 @@ ENEMY_SIZE      equ 14
 ;; Divers stop steering below this scanline and fly straight past the player.
 DIVE_LOCK_Y     equ 160
 
+;; Each active diver aims at its own lane; lanes are one sprite width apart
+;; and centred on the player, so divers never share an attack path.
+DIVE_LANES      equ 7
+DIVE_LANE_SPAN  equ (DIVE_LANES / 2) * 8    ; Centre lane to outer lane
+
 MAX_EXPLOSIONS  equ 3
 EXPLOSION_SIZE  equ 4
 

@@ -107,12 +107,6 @@ UpdateTractorState:
 
 .handle_tractor_dive:
     ;; Boss dives straight down to Y = 142 to emit beam
-    push bc
-    ld b, (ix+4)
-    ld c, (ix+5)
-    call ClearSprite16x16
-    pop bc
-
     ld a, (ix+3)
     add a, 2
     ld (ix+3), a
@@ -137,6 +131,7 @@ UpdateTractorState:
     ld (tractor_boss_y), a
 
 .dive_down_ok:
+    call EraseEnemyDeltaIX
     ld a, (ix+2)
     ld (ix+4), a
     ld a, (ix+3)

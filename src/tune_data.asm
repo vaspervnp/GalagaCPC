@@ -79,7 +79,9 @@ challenging_end_tune_data:
     defb 0  ; End of tune marker
 
 ;; Older transcriptions retained as reference data.
+;; Not assembled: nothing plays them and the program must fit below #8000.
 ;; ============================================================================
+    IF 0
 challenging_results_tune_data:
     defb 15 : defw #0050, #013F, #013F  ; Lead N79, Harm N55, Bass N55
     defb  5 : defw #003C, #0050, #00FD  ; Lead N84, Harm N79, Bass N59
@@ -224,6 +226,7 @@ challenging_perfect_tune_data:
     defb  3 : defw #002F, #005F, #011C  ; Lead N88, Harm N76, Bass N57
     defb  3 : defw #0000, #0000, #0000  ; Rest (60ms)
     defb  0  ; End marker
+    ENDIF
 
 ;; ============================================================================
 ;; Fighter Rescued Music (from assets/fighter_rescued.wav)
