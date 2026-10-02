@@ -75,12 +75,17 @@ HUD_1UP_Y       EQU 46                  ; "1UP" + player 1 score below
 HUD_SCORE_Y     EQU 56
 HUD_2UP_Y       EQU 70                  ; "2UP" + player 2 score (2-player game)
 HUD_SCORE2_Y    EQU 80
-LIVES_X         EQU HUD_X + 4       ; Reserve ships: 2 x 2 grid (184..217)
-LIVES_Y         EQU 184
-;; Stage ribbons: two rows right below the reserve ships. Displays commonly
-;; crop the lowest overscan lines, so the second row ends at scanline 255.
-BADGES_Y        EQU 222             ; Row 1: 222..237
-BADGES_Y2       EQU BADGES_Y + 18   ; Row 2: 240..255
+HUD_STAGE_Y     EQU 96                  ; "STAGE" + current stage number
+HUD_STAGE_NUM_Y EQU 106
+LIVES_X         EQU HUD_X + 4       ; Reserve ships: 2 x 2 grid (166..199)
+LIVES_Y         EQU 166
+;; Stage ribbons: three rows right below the reserve ships. Displays commonly
+;; crop the lowest overscan lines, so the third row ends at scanline 255.
+BADGES_ROW_H    EQU 18
+BADGES_Y        EQU 204                     ; Row 1: 204..219
+BADGES_Y3       EQU BADGES_Y + 2 * BADGES_ROW_H ; Row 3: 240..255
+    assert LIVES_Y + BADGES_ROW_H + 16 <= BADGES_Y
+    assert BADGES_Y3 + 16 <= 256
 
 ;; Centre of the playfield for large text (GAME OVER, results)
 PF_TEXT_Y       EQU 128                 ; On a character row: fast text
