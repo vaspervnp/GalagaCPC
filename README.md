@@ -10,7 +10,7 @@
 - **Γραφικά:** Mode 0, overscan οθόνη 192 × 272 pixels, με απευθείας προγραμματισμό του CRTC και της παλέτας Gate Array.
 - **Ήχος:** PSG AY-3-8912.
 - **Είσοδος:** Πληκτρολόγιο ή joystick μέσω του matrix πληκτρολογίου CPC.
-- **Μέσο διανομής:** Extended DSK image.
+- **Μέσο διανομής:** Extended DSK image και κασέτα CDT για τον CPC 464.
 - **Εισαγωγική οθόνη:** Εκτέλεση `RUN"galaga.bas` από BASIC δεσμεύει τη μνήμη από `&2000` και πάνω για το παιχνίδι, εμφανίζει την οθόνη Revive 8-bit με την παλέτα της και ξεκινά το παιχνίδι με Space ή αυτόματα μετά από 10 δευτερόλεπτα.
 - **High scores:** Αποθηκεύονται μόνιμα στη δισκέτα σε αποκλειστικό raw sector· κατά την αποθήκευση γίνεται επαλήθευση με ανάγνωση.
 - **Δυσκολία:** Προεπιλογή Medium· επίλεξε στην οθόνη τίτλου με αριστερά/δεξιά: Easy, Medium, Hard ή Hardest.
@@ -55,6 +55,8 @@ build.bat
 ```
 
 Το script απαιτεί Python 3, το `rasm_w64.exe` στη διαδρομή `G:\Amstrad` και WSL με εγκατεστημένο το `iDSK`. Παράγει τα `build\galaga.bin`, `build\galaga.sym` και `build\galaga.dsk`, το οποίο περιλαμβάνει το απλό ASCII πρόγραμμα Locomotive BASIC από το `galaga.bas`. Μετά την εκκίνηση του DSK, τρέξτε `RUN"galaga.bas` από το BASIC.
+
+Παράγει επίσης την κασέτα `build\galaga.cdt` (2000 baud, περίπου 4,5 λεπτά φόρτωση) με το `tools\make_cdt.py`: ένα ASCII BASIC loader, την οθόνη `REVIVE8B.SCR` και το `GALAGA.BIN`. Στον 464 φορτώνει με `RUN"` και Enter· στον 6128 πληκτρολογήστε πρώτα `|TAPE`. Από κασέτα τα high scores δεν αποθηκεύονται.
 
 Οι εικόνες των badges βρίσκονται στο `assets\badgesMap.png`. Για αναδημιουργία του αντίστοιχου assembly asset απαιτείται επίσης το Pillow:
 

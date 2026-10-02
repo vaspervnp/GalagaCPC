@@ -55,4 +55,11 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b %ERRORLEVEL%
 )
 
-echo Build successful! The DSK image is in build\galaga.dsk.
+REM Cassette image for the CPC 464
+python tools\make_cdt.py
+if %ERRORLEVEL% NEQ 0 (
+    echo Could not create the CDT tape image!
+    exit /b %ERRORLEVEL%
+)
+
+echo Build successful! The DSK image is in build\galaga.dsk, the tape in build\galaga.cdt.

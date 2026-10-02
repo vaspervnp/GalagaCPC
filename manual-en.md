@@ -13,6 +13,9 @@ Pilot your fighter, destroy the alien formations, and score as many points as po
 1. Start the Amstrad CPC or emulator with the game disk inserted.
 2. At the Locomotive BASIC `Ready` prompt, type `RUN"galaga.bas` and press Enter.
 3. The intro screen appears. Press **Space** or wait 10 seconds for the game to load.
+
+From cassette (CPC 464, or a 6128 after typing `|TAPE`): rewind the tape, type `RUN"` and press Enter, then press PLAY and any key. The intro screen appears while the game loads (about 4½ minutes), and the game then starts by itself.
+
 4. At the title screen, choose a difficulty with left/right, then press **1** (or **Space** / joystick **Fire 1**) for a one-player game, or **2** for a two-player game.
 
 ## Controls
@@ -76,7 +79,7 @@ If your final score qualifies for the Top 5, enter three initials:
 - Right / up: next letter.
 - `Space` or Fire 1: confirm the letter and move to the next position.
 
-The Top 5 scores are saved to the disk and remain available after restarting. Keep the game disk in the drive while entering initials. If saving fails, the game displays a warning.
+The Top 5 scores are saved to the disk and remain available after restarting. Keep the game disk in the drive while entering initials. If saving fails, the game displays a warning. The cassette version cannot save scores, so the Top 5 lasts until the computer is switched off.
 
 ![Game results](assets/Screenshots/13_results.png)
 
