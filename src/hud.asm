@@ -34,6 +34,10 @@ InitHUD:
     ld c, HUD_HIGH2_Y
     ld hl, str_score_hdr
     call DrawGlyphString
+    ld b, HUD_TEXT_X
+    ld c, HUD_STAGE_Y
+    ld hl, str_stage_hdr
+    call DrawGlyphString
 
     call PrintScore
     call PrintHighScore
@@ -94,6 +98,9 @@ str_score_hdr:
 
 str_high_hdr:
     defw f_r_H, f_r_I, f_r_G, f_r_H, 0
+
+str_stage_hdr:
+    defw f_r_S, f_r_T, f_r_A, f_r_G, f_r_E, 0
 
 ;; ----------------------------------------------------------------------------
 ;; PrintScore - Print player_score (6 digits, White) in the active HUD layout,
@@ -602,6 +609,43 @@ Draw2DigitsWhite:
     ld a, e
     jp DrawWhiteDigit
 
+;; PrintStageNumber - Current stage (1..255) in the HUD column, right-aligned
+;; with the scores and without leading zeros
+PrintStageNumber:
+    ld b, HUD_TEXT_X + 9
+    ld c, HUD_STAGE_NUM_Y
+    ld a, (current_stage)
+    ld e, 10                ; Hundreds digit: 10 draws a blank
+    cp 100
+    jr c, .digits
+    ld e, 0
+.hundreds:
+    inc e
+    sub 100
+    cp 100
+    jr nc, .hundreds
+.digits:
+    push af                 ; A = stage mod 100
+    ld a, e
+    push af
+    call DrawWhiteDigit
+    inc b : inc b : inc b
+    pop de                  ; D = hundreds digit
+    pop af
+    cp 10
+    jp nc, Draw2DigitsWhite
+    ld e, a
+    ld a, d
+    cp 10
+    ld a, e
+    jp c, Draw2DigitsWhite  ; 1xx / 2xx: keep the zero in the tens
+    push af
+    ld a, 10
+    call DrawWhiteDigit     ; Blank tens
+    inc b : inc b : inc b
+    pop af
+    jp DrawWhiteDigit
+
 digit_buf:          defs 6, 0
 digit_buf_temp_a:   defb 0
 
@@ -758,10 +802,11 @@ DrawLivesHUD:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; DrawStageHUD - Draw stage ribbons in two rows below the reserve ships
+;; DrawStageHUD - Draw stage ribbons in three rows below the reserve ships
 ;; ----------------------------------------------------------------------------
 DrawStageHUD:
-    ld b, HUD_X : ld c, BADGES_Y : ld d, HUD_W : ld e, BADGES_Y2 + 16 - BADGES_Y
+    call PrintStageNumber
+    ld b, HUD_X : ld c, BADGES_Y : ld d, HUD_W : ld e, BADGES_Y3 + 16 - BADGES_Y
     call ClearBitmapRect
     ld a, BADGES_Y
     ld (badge_draw_y), a
@@ -882,11 +927,11 @@ DrawStageBadgeGroup:
     ld a, (badge_draw_x)
     cp HUD_X
     jr nc, .badge_fits
-    ;; Row full: continue on the second row, or stop if already there.
+    ;; Row full: continue on the next row, or stop after the third.
     ld a, (badge_draw_y)
-    cp BADGES_Y2
+    cp BADGES_Y3
     ret z
-    ld a, BADGES_Y2
+    add a, BADGES_ROW_H
     ld (badge_draw_y), a
     ld a, BYTES_PER_LINE - 9
     ld (badge_draw_x), a
@@ -1396,6 +1441,24 @@ f_r_U:
     defb #08, #04
     defb #08, #04
     defb #08, #04
+    defb #04, #08
+    defb #00, #00
+f_r_A:
+    defb #04, #08
+    defb #08, #04
+    defb #08, #04
+    defb #0C, #0C
+    defb #08, #04
+    defb #08, #04
+    defb #08, #04
+    defb #00, #00
+f_r_T:
+    defb #0C, #0C
+    defb #04, #08
+    defb #04, #08
+    defb #04, #08
+    defb #04, #08
+    defb #04, #08
     defb #04, #08
     defb #00, #00
 f_r_SPACE:
