@@ -26,12 +26,12 @@ start:
     ;; 2. Precompute scanline table spanning Page 2 and Page 3
     call build_line_tab
 
-    ;; 3. Setup CRTC registers for 96x272 overscan
-    call setup_crtc
-
-    ;; 4. All pens black until the title screen is drawn, so leftovers in
-    ;; video RAM from loading never show
+    ;; 3. All pens black until the title screen is drawn, so leftovers in
+    ;; video RAM (or the tape loading screen) never show in overscan
     call SetBlackPalette
+
+    ;; 4. Setup CRTC registers for 96x272 overscan
+    call setup_crtc
 
     ;; 5. Initialize AY-3-8912 PSG Sound Driver
     call SoundInit
