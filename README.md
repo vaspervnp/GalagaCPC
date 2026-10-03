@@ -46,6 +46,14 @@
 
 Τα PDF ξαναφτιάχνονται από τα Markdown με `python tools/make_manuals.py` (απαιτεί το πακέτο `markdown` και Chrome ή Edge).
 
+## Εξώφυλλο κασέτας
+
+![Εξώφυλλο κασέτας](cover-tape.jpg)
+
+Ένθετο κασέτας (J-card) σε πραγματικό μέγεθος σε A4 landscape: flap με οδηγίες φόρτωσης, ράχη, πρόσοψη και εσωτερικό τμήμα που διπλώνει πίσω από την πρόσοψη. Τύπωσε το [PDF](cover-tape.pdf) στο 100%, κόψε στο εξωτερικό περίγραμμα και δίπλωσε στις διακεκομμένες γραμμές. Το εξώφυλλο της δισκέτας βρίσκεται στα [cover-disk.pdf](cover-disk.pdf) / [cover-disk.jpg](cover-disk.jpg).
+
+Ξαναφτιάχνεται με `python tools/make_tape_cover.py` (απαιτεί Pillow και Chrome ή Edge).
+
 ## Build
 
 Από τη ρίζα του repository, εκτελέστε σε Windows:
