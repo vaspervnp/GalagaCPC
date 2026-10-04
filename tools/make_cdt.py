@@ -60,8 +60,9 @@ def turbo_block(data, baud, pause_ms):
             + struct.pack('<I', len(data))[:3] + data)
 
 
-def tape_file(name, ftype, data, load, entry, baud):
-    blocks = bytearray()
+def tape_file(name, ftype, data, load, entry):
+    """The firmware records of one file as (record bytes, pause ms) pairs."""
+    blocks = []
     count = max(1, -(-len(data) // BLOCK))
     for n in range(count):
         chunk = data[n * BLOCK:(n + 1) * BLOCK]
@@ -75,25 +76,30 @@ def tape_file(name, ftype, data, load, entry, baud):
         hdr[23] = 0xFF if n == 0 else 0
         struct.pack_into('<H', hdr, 24, len(data) if ftype != TYPE_BASIC_ASCII else 0)
         struct.pack_into('<H', hdr, 26, entry)
-        blocks += turbo_block(record(SYNC_HEADER, bytes(hdr)), baud, 20)
-        blocks += turbo_block(record(SYNC_DATA, chunk), baud, 2000 if n == count - 1 else 500)
+        blocks.append((record(SYNC_HEADER, bytes(hdr)), 20))
+        blocks.append((record(SYNC_DATA, chunk), 2000 if n == count - 1 else 500))
     return blocks
 
 
-def main():
-    baud = int(sys.argv[1]) if len(sys.argv) > 1 else 2000
+def tape_records():
+    """Every record on the tape: BASIC loader, loading screen, game."""
     loader = ('\r\n'.join(LOADER) + '\r\n').encode('ascii')
     screen = (REPO / 'assets' / 'revive8b.scr').read_bytes()
     game = (REPO / 'build' / 'galaga.bin').read_bytes()
     assert len(screen) == 16384, 'REVIVE8B.SCR must be a raw 16 KB screen'
     assert 0x0600 + len(game) <= 0x8000, 'GALAGA.BIN overlaps the screen'
+    return (tape_file('GALAGA', TYPE_BASIC_ASCII, loader, 0x0170, 0)
+            + tape_file('REVIVE8B.SCR', TYPE_BINARY, screen, 0xC000, 0)
+            + tape_file('GALAGA.BIN', TYPE_BINARY, game, 0x0600, 0x0600))
 
+
+def main():
+    baud = int(sys.argv[1]) if len(sys.argv) > 1 else 2000
     tzx = bytearray(b'ZXTape!\x1A\x01\x14')
     text = b'Galaga CPC - revive8bit 2026'
     tzx += b'\x30' + bytes([len(text)]) + text
-    tzx += tape_file('GALAGA', TYPE_BASIC_ASCII, loader, 0x0170, 0, baud)
-    tzx += tape_file('REVIVE8B.SCR', TYPE_BINARY, screen, 0xC000, 0, baud)
-    tzx += tape_file('GALAGA.BIN', TYPE_BINARY, game, 0x0600, 0x0600, baud)
+    for rec, pause in tape_records():
+        tzx += turbo_block(rec, baud, pause)
     out = REPO / 'build' / 'galaga.cdt'
     out.write_bytes(tzx)
     print(f'wrote {out.relative_to(REPO)} ({len(tzx)} bytes, {baud} baud)')

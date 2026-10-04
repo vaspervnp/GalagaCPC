@@ -62,4 +62,11 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b %ERRORLEVEL%
 )
 
-echo Build successful! The DSK image is in build\galaga.dsk, the tape in build\galaga.cdt.
+REM The same tape as audio, for recording onto a real cassette
+python tools\make_tape_wav.py
+if %ERRORLEVEL% NEQ 0 (
+    echo Could not create the WAV tape audio!
+    exit /b %ERRORLEVEL%
+)
+
+echo Build successful! The DSK image is in build\galaga.dsk, the tape in build\galaga.cdt and build\galaga.wav.

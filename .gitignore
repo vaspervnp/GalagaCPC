@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 *.tmp
 build/highscore_seed.bin
+build/galaga.wav
