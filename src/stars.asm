@@ -48,8 +48,10 @@ UpdateStars:
     ld (hl), 0
 .ge_kept:
 
-    ;; 2. Advance Y by twice the speed, wrapping inside the playfield
+    ;; 2. Advance Y by four times the speed (each star moves every other
+    ;; update, and an update is two frames), wrapping inside the playfield
     ld a, (ix+3)
+    add a, a
     add a, a
     add a, (ix+1)
     jr c, .gy_wrap          ; Passed 255

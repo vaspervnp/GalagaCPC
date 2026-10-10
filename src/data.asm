@@ -79,8 +79,11 @@ explosion_data:
 random_seed:        defb 1
 star_draw_x:        defb 0  ; Screen X of the star being updated
 star_half:          defb 0  ; In play: which half of the stars moves this frame
-move_half:          defb 0  ; Flight step: alternates the 1 / 2 byte sideways step
+irq_count:          defb 0  ; Gate Array interrupts (300 Hz) since the update began
 sway_step:          defw 0  ; Formation sway: table walk direction
+sway_move:          defb 0  ; Formation sway: direction of the current step
+restore_skip_x:     defb 200 ; Docked restore: leave enemies overlapping this
+restore_skip_y:     defb 0   ; sprite position to the later pass (200: none)
 hud_in_column:      defb 0  ; 1 = in-game HUD column, 0 = title screen top HUD
 
 ;; Starfield: 32 Parallax Stars [x, y, color, speed] inside Playfield (X=11..81, Y=34..228)
@@ -174,7 +177,13 @@ attack_timer:           defb 0
 ;; Stage Phase & Entry Wave Variables
 stage_phase:            defb 0  ; 0 = Entry Phase, 1 = Attack Phase
 entry_spawn_idx:        defb 0  ; Enemies spawned in entry (0..stage_enemy_total)
-stage_enemy_total:      defb ENEMY_COUNT ; Active enemies for this stage (16..36, grows by stage)
+stage_enemy_total:      defb ENEMY_COUNT ; Active enemies for this stage (24 or 36)
+;; Entrance pattern of this stage, copied from entry_pattern_tab
+entry_order_ptr:        defw 0  ; Spawn order (slot numbers)
+entry_starts_ptr:       defw 0  ; First spawn index of each entry group
+entry_gap:              defb 0  ; Updates between entry spawns
+entry_pairs:            defb 0  ; 1: enemies fly in side by side
+entry_pattern:          defb 0  ; 0, 1, 2: entrance pattern 1, 2, 3
 entry_spawn_timer:      defb 0  ; Delay between entry spawns
 stage_watchdog:         defb 0  ; Frames with enemies alive but none on screen
 entry_shooter_quota:    defb 0

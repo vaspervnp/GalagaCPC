@@ -50,16 +50,16 @@ InitAttackThreshold:
     jr z, .medium
     cp 2
     jr z, .hard
-    ld a, 55
+    ld a, 28
     jr .store
 .hard:
-    ld a, 75
+    ld a, 38
     jr .store
 .medium:
-    ld a, 100
+    ld a, 50
     jr .store
 .easy:
-    ld a, 130
+    ld a, 65
 .store:
     ld (attack_threshold), a
     ret
@@ -134,7 +134,7 @@ UpdateStageIntro:
     call ClearStageBanner
     ld a, 2
     ld (stage_intro_state), a
-    ld a, 50                    ; 1.0 second (at 50Hz)
+    ld a, 25                    ; 1.0 second
     ld (stage_intro_timer), a
     call DrawPlayerBanner
     ret
@@ -206,7 +206,7 @@ UpdateStageProgression:
     ;; *** ALL ENEMIES DESTROYED! WAVE CLEARED! ***
     ld a, 1
     ld (stage_clear_active), a
-    ld a, 90                ; ~1.8 seconds transition
+    ld a, 45                ; ~1.8 seconds transition
     ld (stage_clear_timer), a
 
     ;; Award 1000 Stage Clear bonus points
@@ -217,7 +217,7 @@ UpdateStageProgression:
     ld a, (stage_clear_timer)
     dec a
     ld (stage_clear_timer), a
-    cp 50
+    cp 25
     jr z, .show_stage_banner
     cp 1
     jr z, .advance_stage
@@ -272,24 +272,24 @@ UpdateStageProgression:
     ld b, a
     xor a
 .attack_step:
-    add a, 15
+    add a, 8
     djnz .attack_step
-    srl a                   ; A = 15 x ramp
+    srl a                   ; A = 8 x ramp
     ld b, a
     ld a, (attack_threshold)
     sub b
     jr c, .hard_attack_floor
-    cp 16
+    cp 8
     jr nc, .store_attack_speed
 .hard_attack_floor:
-    ld a, 16
+    ld a, 8
     jr .store_attack_speed
 .easy_attack_speed:
     ld a, (attack_threshold)
-    sub 15
-    cp 50
+    sub 8
+    cp 25
     jr nc, .store_attack_speed
-    ld a, 50
+    ld a, 25
 .store_attack_speed:
     ld (attack_threshold), a
 

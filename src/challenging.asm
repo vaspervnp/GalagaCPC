@@ -13,7 +13,7 @@ StartChallengingStage:
     xor a
     ld (challenging_hits), a
     ld (challenging_spawn_cnt), a
-    ld a, 30
+    ld a, 15
     ld (challenging_timer), a
 
     ;; Clear all enemies from formation
@@ -84,7 +84,7 @@ UpdateChallengingStage:
     ld a, (challenging_spawn_cnt)
     inc a
     ld (challenging_spawn_cnt), a
-    ld a, 8                 ; 8 frames between spawns
+    ld a, 4                 ; 4 updates between spawns
     ld (challenging_timer), a
 
 .move_wave_enemies:
@@ -108,7 +108,7 @@ UpdateChallengingStage:
     ;; Advance to next wave!
     xor a
     ld (challenging_spawn_cnt), a
-    ld a, 40                ; 40 frames pause before next wave
+    ld a, 20                ; 20 updates pause before next wave
     ld (challenging_timer), a
 
     ld a, (challenging_wave)
@@ -122,7 +122,7 @@ UpdateChallengingStage:
     call StopChallengingMusic
     ld a, 2
     ld (challenging_active), a
-    ld a, 40                ; ~0.8 second pause after music finishes
+    ld a, 20                ; ~0.8 second pause after music finishes
     ld (challenging_timer), a
 
     ;; Check if 40 hits (PERFECT!)
@@ -406,7 +406,7 @@ MoveChallengingEnemies:
     and 16
     jr nz, .w5_slower
     ld a, (ix+2)
-    sub 3
+    sub 6
     jr .w5_chk_l
 .w5_slower:
     call FlightStepX
@@ -477,7 +477,7 @@ MoveChallengingEnemies:
     and 16
     jr nz, .w4_slower
     ld a, (ix+2)
-    add a, 3
+    add a, 6
     jr .w4_chk_r
 .w4_slower:
     call FlightStepX
@@ -489,11 +489,12 @@ MoveChallengingEnemies:
     jr .ch_draw_now
 
 .ch_draw_now:
-    ;; Animated wing flap / sprite alternation every 8 scanlines of flight
+    ;; Animated wing flap / sprite alternation every 16 scanlines of flight
     ld a, (ix+3)
-    srl a
-    srl a
-    srl a
+    rlca
+    rlca
+    rlca
+    rlca
     and 1
     ld (ix+6), a
 

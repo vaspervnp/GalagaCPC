@@ -140,7 +140,7 @@ UpdateMissiles:
     cp MISSILE_KILL_Y
     jr c, .kill_missile
 
-    sub 5                   ; 5 scanlines per frame
+    sub 10                  ; 10 scanlines an update
     ld (ix+2), a
 
     ;; 3. Save old position

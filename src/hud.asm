@@ -139,10 +139,10 @@ BlinkActiveLabel:
     ld a, (hud_blink)
     inc a
     ld (hud_blink), a
-    and 15
+    and 7
     ret nz
     ld a, (hud_blink)
-    and 16
+    and 8
     jr z, ClearActiveLabel
 DrawActiveLabel:
     call ActiveLabelPos
@@ -551,8 +551,8 @@ RefreshPriorityText:
     or a
     jr z, .rpt_check_capture
     ld a, (stage_clear_timer)
-    cp 51
-    jr nc, .rpt_check_capture   ; Not yet showing banner (timer > 50)
+    cp 26
+    jr nc, .rpt_check_capture   ; Not yet showing banner (timer > 25)
     cp 2
     jr c, .rpt_check_capture    ; Banner is being cleared (timer < 2)
 
@@ -2076,7 +2076,8 @@ str_revive8bit_copyright:
 
 ;; Title Screen Strings
 str_title_prompt:
-    defw f_c_P, f_c_R, f_c_E, f_c_S, f_c_S, f_c_SPACE, f_w_1, f_c_SPACE, f_c_O, f_c_R, f_c_SPACE, f_w_2, 0
+    defw f_c_P, f_c_R, f_c_E, f_c_S, f_c_S, f_c_SPACE, f_w_1, f_c_SPACE, f_c_O, f_c_R, f_c_SPACE, f_w_2
+    defw f_c_SPACE, f_c_P, f_c_L, f_c_A, f_c_Y, f_c_E, f_c_R, f_c_S, 0
 
 str_title_difficulty_easy:
     defw f_c_D, f_c_I, f_c_F, f_c_F, f_c_I, f_c_C, f_c_U, f_c_L, f_c_T, f_c_Y, f_c_SPACE

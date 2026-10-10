@@ -19,7 +19,7 @@ start:
 
     ;; Copy disk routines out of the load image into unused low RAM.
     ld hl, disk_reloc_src
-    ld de, HS_DISK_ORG
+    ld de, HS_DISK_CODE
     ld bc, DISK_CODE_SIZE
     ldir
 
@@ -44,8 +44,8 @@ start:
     jp ShowTitleScreen
 
 GameLoop:
-    ;; Wait for VSYNC (50Hz hardware flyback via PPI)
-    call WaitVSync
+    ;; A steady 25 updates a second: one every second VSYNC
+    call WaitFrame25
 
     ;; --- TOP OF FRAME / VBLANK ZONE ---
     ;; Update Enemies FIRST, right after VSYNC, so the formation near the top
@@ -122,7 +122,7 @@ HandleGameOver:
     ld a, (game_over_timer)
     inc a
     ld (game_over_timer), a
-    cp 85                   ; ~1.7 seconds, then always show the results
+    cp 43                   ; ~1.7 seconds, then always show the results
     jp c, GameLoop
 
     ;; Transition to Phase 1: Authentic Results Screen!
@@ -135,7 +135,7 @@ HandleGameOver:
 .results_phase:
     ;; Debounce delay (~1.5s = 75 frames at 50Hz) before accepting restart
     ld a, (restart_debounce)
-    cp 75
+    cp 38
     jr nc, .check_restart_key
     inc a
     ld (restart_debounce), a
@@ -279,7 +279,7 @@ SwitchPlayer:
     ;; "PLAYER n" banner while the formation is held
     ld a, 2
     ld (stage_intro_state), a
-    ld a, 75
+    ld a, 38
     ld (stage_intro_timer), a
     jp DrawPlayerBanner
 
@@ -401,7 +401,7 @@ RestartGame:
     ;; 3. Intro music plays continuously in background
     ld a, 1
     ld (stage_intro_state), a
-    ld a, 105
+    ld a, 53
     ld (stage_intro_timer), a
     call DrawStageBanner
     ret
@@ -435,7 +435,7 @@ RestartGame:
 ;; Disk code is embedded in the load image and relocated to low RAM at boot.
 disk_reloc_src:
     include "disk.asm"
-DISK_CODE_SIZE equ disk_code_end-HS_DISK_ORG
+DISK_CODE_SIZE equ disk_code_end-HS_DISK_CODE
     assert disk_code_end <= #0600
 ;; Once relocated, the load-image copy is free: the scanline table goes there.
 line_tab        equ disk_reloc_src

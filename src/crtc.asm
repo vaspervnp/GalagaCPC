@@ -72,6 +72,18 @@ SetBlackPalette:
 ;; Returns right as VSYNC starts (identical to LoukoumasCPC wait_vsync)
 ;; Destroys AF, BC
 ;; ---------------------------------------------------------------------------
+;; WaitFrame25: Lock the game loop to 25 updates a second. An update starts
+;; on a VSYNC; wait until the next frame has begun (the 7th interrupt after
+;; it), then for the following VSYNC.
+WaitFrame25:
+    ld a, (irq_count)
+    cp 7
+    jr c, WaitFrame25
+    call WaitVSync
+    xor a
+    ld (irq_count), a
+    ret
+
 WaitVSync:
     ld bc, #F500
 .w_off:
