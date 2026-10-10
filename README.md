@@ -2,6 +2,15 @@
 
 Μια υλοποίηση του Galaga για Amstrad CPC, γραμμένη σε Z80 assembly.
 
+## Λήψη
+
+Κατέβασε το παιχνίδι από την [τελευταία έκδοση στο GitHub](https://github.com/vaspervnp/GalagaCPC/releases/latest):
+
+- `galaga.dsk`: δισκέτα (`RUN"galaga.bas`), με αποθήκευση των high scores.
+- `galaga.cdt`: κασέτα για emulator (`RUN"` στον 464, `|TAPE` πρώτα στον 6128).
+- `galaga.wav`: η κασέτα ως ήχος, για ηχογράφηση σε πραγματική κασέτα ή φόρτωση απευθείας σε CPC 464.
+- `cover-disk.pdf` / `cover-tape.pdf`: τα εξώφυλλα για εκτύπωση σε A4 στο 100%.
+
 ## Τεχνικά χαρακτηριστικά
 
 - **Στόχος:** Amstrad CPC 464 / 6128.
