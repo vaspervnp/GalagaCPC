@@ -79,6 +79,8 @@ explosion_data:
 random_seed:        defb 1
 star_draw_x:        defb 0  ; Screen X of the star being updated
 star_half:          defb 0  ; In play: which half of the stars moves this frame
+move_half:          defb 0  ; Flight step: alternates the 1 / 2 byte sideways step
+sway_step:          defw 0  ; Formation sway: table walk direction
 hud_in_column:      defb 0  ; 1 = in-game HUD column, 0 = title screen top HUD
 
 ;; Starfield: 32 Parallax Stars [x, y, color, speed] inside Playfield (X=11..81, Y=34..228)
@@ -141,6 +143,7 @@ current_stage:          defb 1
 attack_threshold:       defb 130 ; Decreases as stages advance
 enemy_fire_freeze:      defb 0  ; Arcade rule: diving boss kill stops enemy firing
 transform_killed:       defb 0  ; Arcade rule: count kills in transform group
+transform_type:         defb 0  ; Alien of the transform in flight (0 = none)
 attack_cycle:           defb 0  ; Arcade attack rotation (0=Bee, 1=Butterfly, 2=Boss, 3=Bee)
 transform_trigger_cnt:  defb 0  ; Cadence counter for Transform Trios
 tractor_trigger_cnt:    defb 0
@@ -167,34 +170,41 @@ sway_timer:             defb 0
 sway_dir:               defb 1
 sway_offset:            defb 0
 attack_timer:           defb 0
-dive_phase:             defb 0
 
 ;; Stage Phase & Entry Wave Variables
 stage_phase:            defb 0  ; 0 = Entry Phase, 1 = Attack Phase
 entry_spawn_idx:        defb 0  ; Enemies spawned in entry (0..stage_enemy_total)
-stage_enemy_total:      defb 28 ; Active enemies for this stage (14..28, grows by stage)
+stage_enemy_total:      defb ENEMY_COUNT ; Active enemies for this stage (16..36, grows by stage)
 entry_spawn_timer:      defb 0  ; Delay between entry spawns
 stage_watchdog:         defb 0  ; Frames with enemies alive but none on screen
 entry_shooter_quota:    defb 0
 entry_shooter_start:    defb 0
 entry_shooter_size:     defb 0
 entry_shooter_left:     defb 0
-entry_shooter_flags:
-    defs ENEMY_COUNT, 0
-
-;; Enemy data structure: 28 enemies x ENEMY_SIZE bytes
-;; [alive, type, x, y, old_x, old_y, anim_frame, base_x, state, hp, base_y, path, dive_speed, dive_speed_phase]
-enemy_data:
-    defs ENEMY_SIZE * ENEMY_COUNT, 0
 player_state_end:
 
 PLAYER_STATE_SIZE equ player_state_end - player_state
 
-;; Inactive player's state lives in an undisplayed gap of video RAM: page 3
-;; uses 13 rows x 96 = 1248 bytes of each 2K raster block, so #C4E0..#C7FF
-;; is never shown or drawn to.
-PLAYER_SWAP_BUF equ PAGE3_BASE + (DISPLAY_ROWS - PAGE2_ROWS) * BYTES_PER_LINE
-    assert PLAYER_STATE_SIZE <= #800 - (DISPLAY_ROWS - PAGE2_ROWS) * BYTES_PER_LINE
+;; Page 3 of video RAM uses 13 rows x 96 = 1248 bytes of each 2K raster
+;; block, so #C4E0..#C7FF, #CCE0..#CFFF, ... are never shown or drawn to.
+VRAM_GAP        equ PAGE3_BASE + (DISPLAY_ROWS - PAGE2_ROWS) * BYTES_PER_LINE
+VRAM_GAP_SIZE   equ #800 - (DISPLAY_ROWS - PAGE2_ROWS) * BYTES_PER_LINE
+
+;; Inactive player's state lives in the first gap.
+PLAYER_SWAP_BUF equ VRAM_GAP
+    assert PLAYER_STATE_SIZE <= VRAM_GAP_SIZE
+
+;; The enemy table is per-player state too, but too large for the load image:
+;; it lives in the second gap, and the inactive player's copy in the third.
+;; Both are cleared by InitEnemies / SelectEntryShooters before use.
+entry_shooter_flags equ VRAM_GAP + #800          ; ENEMY_COUNT bytes, by spawn order
+;; Enemy data structure: ENEMY_COUNT enemies x ENEMY_SIZE bytes
+;; [alive, type, x, y, old_x, old_y, anim_frame, base_x, state, hp, base_y, path, dive_speed, dive_speed_phase]
+enemy_data      equ entry_shooter_flags + ENEMY_COUNT
+ENEMY_STATE     equ entry_shooter_flags
+ENEMY_STATE_SIZE equ ENEMY_COUNT * (ENEMY_SIZE + 1)
+ENEMY_SWAP_BUF  equ VRAM_GAP + #1000
+    assert ENEMY_STATE_SIZE <= VRAM_GAP_SIZE
 
 ;; Offset of a per-player variable inside the inactive player's copy
 OTHER_PLAYER    equ PLAYER_SWAP_BUF - player_state

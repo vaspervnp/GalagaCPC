@@ -7,6 +7,40 @@ stage_clear_timer:      defb 0
 stage_intro_state:      defb 0          ; 0=none, 1=STAGE n, 2=PLAYER n
 stage_intro_timer:      defb 0          ; Countdown timer
 
+;; ----------------------------------------------------------------------------
+;; RampedStage: A = current stage scaled by the difficulty's ramp, capped at
+;; 255: Easy 1x, Medium 1.5x, Hard 2x, Hardest 2.5x. Stage-based difficulty
+;; steps (entry shooters, third bomb, extra bullet) compare against this, so
+;; higher settings reach each step sooner.
+;; Preserves: BC, DE, HL
+;; ----------------------------------------------------------------------------
+RampedStage:
+    push bc
+    push de
+    push hl
+    ld a, (current_stage)
+    ld e, a
+    ld d, 0
+    ld a, (difficulty_level)
+    add a, 2
+    ld b, a                 ; B = 2 x ramp
+    ld hl, 0
+.mul:
+    add hl, de
+    djnz .mul
+    srl h
+    rr l                    ; HL = stage x ramp
+    ld a, h
+    or a
+    ld a, l
+    jr z, .done
+    ld a, 255
+.done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
 ;; Set the first dive-attack interval for the selected difficulty.
 InitAttackThreshold:
     ld a, (difficulty_level)
@@ -228,15 +262,19 @@ UpdateStageProgression:
     ;; Clear "STAGE X" banner
     call ClearStageBanner
 
-    ;; Easy retains its original cadence. Higher tiers accelerate faster and
-    ;; can reach a 16-frame minimum attack interval.
+    ;; Easy retains its original cadence (15 frames shorter per stage).
+    ;; Higher tiers shorten it by 15 x their ramp (22, 30, 37 frames) and can
+    ;; reach a 16-frame minimum attack interval.
     ld a, (difficulty_level)
     or a
     jr z, .easy_attack_speed
+    add a, 2
     ld b, a
-    add a, a
-    add a, b
+    xor a
+.attack_step:
     add a, 15
+    djnz .attack_step
+    srl a                   ; A = 15 x ramp
     ld b, a
     ld a, (attack_threshold)
     sub b

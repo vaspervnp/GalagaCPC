@@ -10,8 +10,9 @@ SpawnEBullet:
     push de
     push bc
 
-    ;; Difficulty sets the maximum number of enemy bullets on screen:
-    ;; Easy=2, Medium=3, Hard=4, Hardest=5, one more from EXTRA_BULLET_STAGE.
+    ;; Maximum number of enemy bullets on screen: Easy 2, one more once the
+    ;; ramped stage reaches EXTRA_BULLET_STAGE. Medium / Hard / Hardest
+    ;; start at 5 / 6 / 7 and gain one every 4 ramped stages up to 9 / 11 / 14.
     ld ix, ebullet_data
     ld b, MAX_EBULLETS
     ld c, 0
@@ -24,11 +25,7 @@ SpawnEBullet:
     ld de, EBULLET_SIZE
     add ix, de
     djnz .count_active_bullets
-    ld a, (current_stage)
-    cp EXTRA_BULLET_STAGE
-    ccf                     ; Carry = 1 from EXTRA_BULLET_STAGE on
-    ld a, (difficulty_level)
-    adc a, 2
+    call EBulletLimit
     cp c
     jr c, .bullet_limit_reached
     jr z, .bullet_limit_reached
@@ -80,58 +77,152 @@ SpawnEBullet:
 .got_target_x:
     sub (ix+1)              ; A = Target_X - Bullet_X (signed)
 
-    ;; Enemy fire remains vertical until stage 40, then always has diagonal drift.
+    ;; Enemy fire is vertical until the difficulty's diagonal stage
+    ;; (Easy 40, Medium 10, Hard 5, Hardest 1), then always drifts sideways.
     ld c, a
+    push hl
+    ld a, (difficulty_level)
+    ld e, a
+    ld d, 0
+    ld hl, diagonal_fire_stage
+    add hl, de
     ld a, (current_stage)
-    cp 40
+    cp (hl)
+    pop hl
     ld a, c
-    jr nc, .stage_40_diagonal
+    jr nc, .diagonal_fire
     xor a
     jr .store_dx
 
-.stage_40_diagonal:
+.diagonal_fire:
+    ;; Aim at the fighter with the same straight bullet, at 15, 20, 25 or 30
+    ;; degrees from vertical, whichever is closest to the fighter's direction.
+    ;; Bullets fall 3 lines a frame and a byte is as wide as 4 lines are
+    ;; tall, so tan(angle) = 4 * |dx| / dy.
+    push hl
+    ld d, 0                 ; D = 1: drift left
     or a
-    jr z, .force_diagonal
-    jp p, .diagonal_right
-    neg
-    cp 17
-    jr c, .dx_gentle_left
-    ld a, -2
-    jr .store_dx
-
-.diagonal_right:
-    cp 17
-    jr c, .dx_gentle_right
-    ld a, 2
-    jr .store_dx
-
-.force_diagonal:
-    ld a, (player_x)
+    jr nz, .aim_side_known
+    ld a, (player_x)        ; Straight below: drift toward the screen centre
     cp PF_X_CENTER
-    jr c, .force_diagonal_left
-    ld a, 1
-    jr .store_dx
-.force_diagonal_left:
-    ld a, -1
+    ld a, 0                 ; |dx| = 0 (flags kept)
+    jr nc, .aim_dist_ready
+    inc d
+    jr .aim_dist_ready
+.aim_side_known:
+    jp p, .aim_dist_ready
+    neg
+    inc d
+.aim_dist_ready:
+    ld h, a
+    ld l, 0                 ; HL = |dx| * 256
+    ld a, (player_y)
+    sub (ix+2)
+    jr c, .aim_dy_min
+    cp 8
+    jr nc, .aim_dy_ok
+.aim_dy_min:
+    ld a, 8
+.aim_dy_ok:
+    ld c, a                 ; C = dy
+    ;; Midpoints between the angles: tan 17.5 / 22.5 / 27.5 degrees = 0.315 /
+    ;; 0.414 / 0.521, i.e. |dx| * 256 against dy * 20 / 27 / 33.
+    ld e, EBULLET_DX_15
+    ld a, 20
+    call .at_least
+    jr nc, .aim_ready
+    ld e, EBULLET_DX_20
+    ld a, 27
+    call .at_least
+    jr nc, .aim_ready
+    ld e, EBULLET_DX_25
+    ld a, 33
+    call .at_least
+    jr nc, .aim_ready
+    ld e, EBULLET_DX_30
+.aim_ready:
+    ld a, e
+    dec d
+    jr nz, .aim_store
+    neg
+.aim_store:
+    pop hl
     jr .store_dx
 
-.dx_gentle_left:
-    ld a, -1
-    jr .store_dx
-
-.dx_gentle_right:
-    ld a, 1
-    jr .store_dx
+;; Carry set if HL >= C * A. Keeps C, DE, HL.
+.at_least:
+    push de
+    push hl
+    ld b, a
+    ld hl, 0
+    ld e, c
+    ld d, 0
+.at_least_mul:
+    add hl, de
+    djnz .at_least_mul
+    ex de, hl               ; DE = dy * A
+    pop hl
+    push hl
+    or a
+    sbc hl, de
+    ccf
+    pop hl
+    pop de
+    ret
 
 .store_dx:
-    ld (ix+6), a            ; dx (-2, -1, 0, 1, 2)
-    xor a
-    ld (ix+7), a            ; phase = 0
+    ld (ix+6), a            ; dx: signed sideways speed, 1/256 byte a frame
+    ld (ix+7), #80          ; fraction of a byte, starting half way
 
     pop bc
     pop de
     pop ix
     ret
+
+;; EBulletLimit: A = enemy bullets allowed on screen now (see SpawnEBullet).
+;; Preserves: BC, DE, HL
+EBulletLimit:
+    push hl
+    push de
+    ld a, (difficulty_level)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, ebullet_limits
+    add hl, de              ; HL -> [start, maximum] for this difficulty
+    or a
+    jr nz, .ramped
+    call RampedStage        ; Easy: 2, then 3 from EXTRA_BULLET_STAGE
+    cp EXTRA_BULLET_STAGE
+    ld a, (hl)
+    jr c, .done
+    inc a
+    jr .done
+.ramped:
+    call RampedStage
+    dec a
+    srl a
+    srl a                   ; One more every 4 ramped stages
+    add a, (hl)
+    inc hl
+    cp (hl)
+    jr c, .done
+    ld a, (hl)              ; Capped at the maximum
+.done:
+    pop de
+    pop hl
+    ret
+
+;; [start, maximum] enemy bullets on screen, Easy..Hardest
+ebullet_limits:
+    defb 2, 3
+    defb 5, 9
+    defb 6, 11
+    defb 7, MAX_EBULLETS
+
+;; First stage with diagonal enemy fire, by difficulty (Easy..Hardest)
+diagonal_fire_stage:
+    defb 40, 10, 5, 1
 
 UpdateEBullets:
     ld ix, ebullet_data
@@ -152,42 +243,28 @@ UpdateEBullets:
     pop bc
 
 .skip_erase_eb:
-    ;; 1. Update horizontal drift
+    ;; 1. Update horizontal drift: dx is added to a fraction of a byte and
+    ;; the bullet moves one byte whenever it carries over.
     ld a, (ix+6)            ; dx
     or a
     jr z, .no_x_drift
-    ld c, a                 ; C = dx
-    inc (ix+7)              ; increment phase
-    ld a, (ix+7)
-    bit 0, a
-    jr nz, .check_fast_drift
-
-    ;; Even frame (phase & 1 == 0): apply step for all non-zero dx
-    bit 7, c
-    jr nz, .drift_left
+    jp m, .drift_left
+    add a, (ix+7)
+    ld (ix+7), a
+    jr nc, .no_x_drift
     inc (ix+1)
     jr .check_x_bounds
 .drift_left:
+    neg
+    add a, (ix+7)
+    ld (ix+7), a
+    jr nc, .no_x_drift
     dec (ix+1)
-    jr .check_x_bounds
-
-.check_fast_drift:
-    ;; Odd frame (phase & 1 == 1): apply extra step only for fast (|dx| == 2)
-    ld a, c
-    cp 2
-    jr z, .drift_fast_right
-    cp -2
-    jr nz, .no_x_drift
-    dec (ix+1)
-    jr .check_x_bounds
-.drift_fast_right:
-    inc (ix+1)
 
 .check_x_bounds:
+    ;; The 2-byte bullet stays inside the playfield (below 0 wraps to 255)
     ld a, (ix+1)
-    cp PLAY_X_MIN
-    jp c, .kill_eb
-    cp PLAY_X_MAX
+    cp PF_X0 + PF_W - 1
     jp nc, .kill_eb
 
 .no_x_drift:

@@ -10,14 +10,40 @@ PLAYER_START_X  equ PF_X_CENTER - 4          ; 32: centred in the playfield
 
 
 EBULLET_SIZE    equ 8
-MAX_EBULLETS    equ 5
+;; Diagonal enemy fire: sideways speed in 1/256 byte a frame for 15, 20,
+;; 25 and 30 degrees from vertical (3 lines a frame; a byte is 4 lines
+;; wide on screen): 256 * 3 * tan(angle) / 4.
+EBULLET_DX_15   equ 51
+EBULLET_DX_20   equ 70
+EBULLET_DX_25   equ 90
+EBULLET_DX_30   equ 111
+MAX_EBULLETS    equ 14                       ; Hardest at its peak
 
-ENEMY_COUNT     equ 28
+ENEMY_COUNT     equ 36                       ; Arcade formation, rows of 8
 ENEMY_SIZE      equ 14
+
+;; Arcade-style formation: 4 Bosses, then two rows of 8 Goei and two rows
+;; of 8 Zako, columns one sprite width apart, entering in 5 waves of 8.
+FORMATION_COLS  equ 8
+FORMATION_X0    equ PF_X0 + 4                ; Column 0; sway keeps 2..62
+FORMATION_DX    equ 8
+ENTRY_WAVE_SIZE equ 8                        ; Wave boundaries are multiples of 8
+STAGE_ENEMIES_MIN  equ 16                    ; Stage 1: the first two waves
+STAGE_ENEMIES_STEP equ 4                     ; Half a wave more per regular stage
+
+;; Larger movement step for everything in flight: 3 lines a frame down or
+;; up, and 1.5 bytes a frame sideways (1 and 2 on alternate frames), so the
+;; flight paths keep their shape at 1.5x the speed.
+FLIGHT_STEP_Y   equ 3
+
+;; From this stage a diving Zako splits into three aliens mid-dive.
+TRANSFORM_STAGE equ 10
+TRANSFORM_Y     equ DEFAULT_PLAYER_Y - 140   ; Scanline where the split happens
+TRANSFORM_SPREAD equ 10                      ; Bytes between the three aliens
 
 ;; Divers stop steering below this scanline and fly straight past the player.
 DIVE_LOCK_Y     equ DEFAULT_PLAYER_Y - 62
-;; Divers drop a bomb at these scanlines (even: divers move 2 lines a frame).
+;; Divers drop a bomb as they cross these scanlines.
 DIVE_FIRE_Y1    equ DEFAULT_PLAYER_Y - 112
 DIVE_FIRE_Y2    equ DEFAULT_PLAYER_Y - 72
 DIVE_FIRE_Y3    equ DEFAULT_PLAYER_Y - 92  ; Third bomb from DIVE_FIRE3_STAGE

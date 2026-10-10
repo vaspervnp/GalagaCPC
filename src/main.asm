@@ -192,6 +192,10 @@ StartNewGame:
     ld de, PLAYER_SWAP_BUF
     ld bc, PLAYER_STATE_SIZE
     ldir
+    ld hl, ENEMY_STATE
+    ld de, ENEMY_SWAP_BUF
+    ld bc, ENEMY_STATE_SIZE
+    ldir
     ret
 
 ;; ----------------------------------------------------------------------------
@@ -202,6 +206,15 @@ SwapPlayerState:
     ld hl, player_state
     ld de, PLAYER_SWAP_BUF
     ld bc, PLAYER_STATE_SIZE
+    call .swap
+    ld hl, ENEMY_STATE
+    ld de, ENEMY_SWAP_BUF
+    ld bc, ENEMY_STATE_SIZE
+    call .swap
+    ld a, (active_player)
+    xor 1
+    ld (active_player), a
+    ret
 .swap:
     ld a, (de)
     push af
@@ -215,9 +228,6 @@ SwapPlayerState:
     ld a, b
     or c
     jr nz, .swap
-    ld a, (active_player)
-    xor 1
-    ld (active_player), a
     ret
 
 ;; OtherPlayerAlive: NZ in a 2-player game while the inactive player has lives.
