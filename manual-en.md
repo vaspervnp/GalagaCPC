@@ -32,19 +32,20 @@ Hold the fire button for repeated shots. While paused, press `H` again to resume
 
 ## Difficulty
 
-The default is **Medium**. Choose **Easy**, **Medium**, **Hard**, or **Hardest** on the title screen with the left/right arrows, `O` / `P`, or the joystick. **Easy** preserves the game's original behavior. From **Medium** onward, each group includes enemies that enter quickly from above and take their formation positions; center and lower-side entry patterns remain in the mix. Higher settings also bring attacks and firing to earlier stages and add more firing enemies. The pressure increases further as you progress through the stages.
+The default is **Medium**. Choose **Easy**, **Medium**, **Hard**, or **Hardest** on the title screen with the left/right arrows, `O` / `P`, or the joystick. **Easy** preserves the game's original behavior. From **Medium** onward, each group includes enemies that enter quickly from above and take their formation positions; center and lower-side entry patterns remain in the mix. Higher settings also bring attacks and firing to earlier stages and add more firing enemies. The pressure increases further as you progress through the stages, and on the higher settings it climbs faster: on Medium, Hard and Hardest the game ramps up 1.5, 2 and 2.5 times as fast as on Easy, so attacks speed up sooner and the stage-based steps below arrive earlier.
 
 ## Stages and enemies
 
-- Regular stages start with 14 enemies and add two on each successive regular stage, up to 28. Bonus stages do not change this count. Entry groups arrive one at a time: the next group starts after the previous group has completed its entry. Destroy every enemy to advance.
+- The formation is laid out as in the arcade: 4 Boss Galagas on top, two rows of 8 butterflies and two rows of 8 bees, 36 enemies in all. They enter in arcade-style waves of 8: butterflies and bees from the top in two streams, the Bosses with butterflies from the lower left, butterflies from the lower right, then bees from the top. Stage 1 brings the first two waves (16 enemies) and each regular stage adds half a wave, so the full formation arrives from stage 8. Bonus stages do not change this count. Each wave starts after the previous one has completed its entry. Destroy every enemy to advance.
 - Enemies already in formation can attack while later groups are still entering. The chance of an attack at each interval increases with the selected difficulty.
 - Enemies that fire while entering have two extra firing opportunities, each with about a 10% chance on Easy, 20% on Medium, 35% on Hard, and 50% on Hardest.
-- The screen allows up to 2 simultaneous enemy shots on Easy, 3 on Medium, 4 on Hard, and 5 on Hardest, plus one more from stage 10 onward.
+- Enemy shots on screen at once: on Easy up to 2, and 3 from stage 10. On Medium, Hard and Hardest the limit starts at 5, 6 and 7 and rises gradually as the stages advance, up to 9, 11 and 14 (reached around stage 10–12).
 - Every fourth stage, starting at stage 3 (3, 7, 11, ...), is a bonus stage. Hit as many targets as possible before it ends.
 - On Easy, one random enemy from each entry group fires on stages 6–11, two on stages 12–17, and three from stage 18 onward. Higher difficulties enable more shooters earlier.
-- Diving enemies drop two bombs, and a third from stage 5 onward.
-- During dives, each enemy randomly chooses its horizontal speed: about one third are 33% faster, one third are 33% slower, and the rest move at normal speed. Faster divers may briefly overshoot to the other side of the player.
-- From stage 40 onward, enemy shots also travel diagonally.
+- Diving enemies drop two bombs, and a third from stage 5 on Easy, 4 on Medium, 3 on Hard and 2 on Hardest.
+- From stage 10, a diving bee may suddenly split into three other aliens on its way down: scorpions on stages 10–13, stingrays on 14–17 and Galaxian flagships from stage 18. Shoot all three for a bonus of 1,000, 2,000 or 3,000 points; any that fly off the bottom of the screen are gone, and so is the bonus.
+- During dives, each enemy randomly chooses its horizontal speed: about one third are 33% faster, one third are 33% slower, and the rest move at normal speed.
+- Enemy shots also travel diagonally from stage 40 on Easy, stage 10 on Medium, stage 5 on Hard, and from the first stage on Hardest. Diagonal shots are aimed at your fighter and come down at 15, 20, 25 or 30 degrees from vertical.
 - Enemy point values are shown on the title screen. Scores vary by enemy type and whether it is destroyed in formation or while attacking.
 
 ![Enemy formation and incoming fire](assets/Screenshots/05_enemy_fire.png)
@@ -98,5 +99,5 @@ The Top 5 scores are saved to the disk and remain available after restarting. Ke
 
 - Move horizontally and keep firing, while watching the position of enemy shots.
 - In bonus stages, focus on hitting as many targets as possible.
-- From stage 40 onward, account for the sideways movement of enemy fire.
+- Once enemy fire turns diagonal (stage 40 on Easy, 10 on Medium, 5 on Hard, from the start on Hardest), account for its sideways movement.
 - Press `H` to pause whenever needed.

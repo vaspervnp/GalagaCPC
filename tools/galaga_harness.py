@@ -149,7 +149,7 @@ class Machine:
         # pick a target: lowest alive enemy
         best = None
         base = S['ENEMY_DATA']
-        for i in range(28):
+        for i in range(self.S['ENEMY_COUNT']):
             e = base + i * 14
             if self.mem[e] and 8 <= self.mem[e + 3] < 252:
                 y = self.mem[e + 3]
@@ -197,7 +197,7 @@ class Machine:
                 print(f'  frame {self.frame}: player {player + 1} stage {stage}', flush=True)
         if self.b('GAME_OVER'):
             return
-        for i in range(28):
+        for i in range(self.S['ENEMY_COUNT']):
             en = self.enemy(i)
             if not en[0]:
                 self.invisible.pop(i, None)
@@ -232,7 +232,7 @@ def dump(m):
              'CAPTURE_DELAY', 'RESPAWN_WAIT', 'CAPTURED_FIGHTER_ACTIVE', 'ENTRY_SPAWN_IDX',
              'STAGE_ENEMY_TOTAL', 'PLAYER_LIVES', 'IS_DUAL_FIGHTER']
     print('   ', ', '.join(f'{n.lower()}={m.b(n)}' for n in names if n in S))
-    for i in range(28):
+    for i in range(m.S['ENEMY_COUNT']):
         en = m.enemy(i)
         if en[0]:
             print(f'    slot {i:2}: alive={en[0]} type={en[1]} x={en[2]} y={en[3]} old=({en[4]},{en[5]}) '

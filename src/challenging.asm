@@ -382,9 +382,9 @@ MoveChallengingEnemies:
     ;; 1. The old sprite is erased just before drawing at the new position,
     ;; so the enemy is never left blank while the raster passes it.
 
-    ;; 2. Move Y down by 2 scanlines
+    ;; 2. Move Y down
     ld a, (ix+3)
-    add a, 2
+    add a, FLIGHT_STEP_Y
     cp SPRITE_Y_LIMIT - 2
     jp nc, .kill_ch_enemy   ; Reached bottom -> exit screen
 
@@ -399,19 +399,22 @@ MoveChallengingEnemies:
     cp 3
     jr z, .move_w3
     cp 4
-    jr z, .move_w4
+    jp z, .move_w4
 
     ;; --- Wave 5: S-curve weave travelling across to the left ---
     ld a, (ix+3)
     and 16
     jr nz, .w5_slower
     ld a, (ix+2)
-    sub 2
+    sub 3
     jr .w5_chk_l
 .w5_slower:
+    call FlightStepX
+    ld c, a
     ld a, (ix+2)
-    dec a
+    sub c
 .w5_chk_l:
+    jp c, .kill_ch_enemy
     cp PLAY_X_MIN
     jp c, .kill_ch_enemy
     ld (ix+2), a
@@ -428,15 +431,18 @@ MoveChallengingEnemies:
     ld a, (ix+10)
     or a
     jr nz, .w1_arc_r
+    call FlightStepX
+    ld c, a
     ld a, (ix+2)
-    dec a
+    sub c
+    jp c, .kill_ch_enemy
     cp PLAY_X_MIN
     jp c, .kill_ch_enemy
     ld (ix+2), a
     jr .ch_draw_now
 .w1_arc_r:
-    ld a, (ix+2)
-    inc a
+    call FlightStepX
+    add a, (ix+2)
     cp PLAY_X_MAX
     jp nc, .kill_ch_enemy
     ld (ix+2), a
@@ -446,8 +452,8 @@ MoveChallengingEnemies:
 
 .move_w2:
     ;; Wave 2: sweep right diagonally
-    ld a, (ix+2)
-    inc a
+    call FlightStepX
+    add a, (ix+2)
     cp PLAY_X_MAX
     jp nc, .kill_ch_enemy
     ld (ix+2), a
@@ -455,8 +461,11 @@ MoveChallengingEnemies:
 
 .move_w3:
     ;; Wave 3: sweep left diagonally
+    call FlightStepX
+    ld c, a
     ld a, (ix+2)
-    dec a
+    sub c
+    jp c, .kill_ch_enemy
     cp PLAY_X_MIN
     jp c, .kill_ch_enemy
     ld (ix+2), a
@@ -468,11 +477,11 @@ MoveChallengingEnemies:
     and 16
     jr nz, .w4_slower
     ld a, (ix+2)
-    add a, 2
+    add a, 3
     jr .w4_chk_r
 .w4_slower:
-    ld a, (ix+2)
-    inc a
+    call FlightStepX
+    add a, (ix+2)
 .w4_chk_r:
     cp PLAY_X_MAX
     jp nc, .kill_ch_enemy

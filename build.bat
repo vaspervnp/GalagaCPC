@@ -14,7 +14,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 REM Assemble the source code using rasm
-"%TOOLS_PATH%\rasm_w64.exe" src\main.asm -s -os build\galaga.sym -ob build\galaga.bin
+"%TOOLS_PATH%\rasm_w64.exe" src\main.asm -s -sq -os build\galaga.sym -ob build\galaga.bin
 
 REM Check for compilation errors
 if %ERRORLEVEL% NEQ 0 (

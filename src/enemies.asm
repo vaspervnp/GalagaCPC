@@ -47,9 +47,11 @@ InitEnemies:
     call PlaySoundStageStart
     ret
 
+;; Stage 1 brings the first two waves; each regular stage adds half a wave
+;; until the full formation from stage 8 (challenging stages are skipped).
 SetStageEnemyTotal:
     ld a, (current_stage)
-    cp 10
+    cp 8
     jr nc, .max_enemy_total
     ld b, a
     srl a
@@ -57,12 +59,13 @@ SetStageEnemyTotal:
     ld c, a
     ld a, b
     sub c
-    dec a
+    dec a                   ; A = regular stages before this one
     add a, a
-    add a, 14
+    add a, a
+    add a, STAGE_ENEMIES_MIN
     jr .store_enemy_total
 .max_enemy_total:
-    ld a, 28
+    ld a, ENEMY_COUNT
 .store_enemy_total:
     ld (stage_enemy_total), a
     ret
@@ -77,12 +80,13 @@ SelectEntryShooters:
     ld (hl), a
     ldir
 
+    ;; Effective stage: ramped stage plus 3 per difficulty tier
     ld a, (difficulty_level)
     ld b, a
     add a, a
     add a, b
     ld b, a
-    ld a, (current_stage)
+    call RampedStage
     add a, b
     jr nc, .effective_stage_ready
     ld a, 255
@@ -110,21 +114,21 @@ SelectEntryShooters:
 .store_quota:
     ld (entry_shooter_quota), a
 
+    ;; One draw per entry wave (spawn indices 0, 8, 16, 24, 32)
     xor a
-    ld b, 4
+.wave_shooters:
+    push af
+    ld b, ENTRY_WAVE_SIZE
+    cp ENEMY_COUNT - ENTRY_WAVE_SIZE + 1
+    jr c, .wave_size_ok
+    ld b, ENEMY_COUNT % ENTRY_WAVE_SIZE
+.wave_size_ok:
     call SelectEntryGroupShooters
-    ld a, 4
-    ld b, 6
-    call SelectEntryGroupShooters
-    ld a, 10
-    ld b, 6
-    call SelectEntryGroupShooters
-    ld a, 16
-    ld b, 6
-    call SelectEntryGroupShooters
-    ld a, 22
-    ld b, 6
-    jp SelectEntryGroupShooters
+    pop af
+    add a, ENTRY_WAVE_SIZE
+    cp ENEMY_COUNT
+    jr c, .wave_shooters
+    ret
 
 ;; Input: A=first enemy index, B=group size.
 SelectEntryGroupShooters:
@@ -329,6 +333,11 @@ UpdateEnemies:
     ret
 .not_stage_intro:
 
+    ;; Sideways flight step alternates 1 and 2 bytes (1.5 a frame)
+    ld a, (move_half)
+    xor 1
+    ld (move_half), a
+
     ld a, (is_challenging_stage)
     or a
     jp nz, UpdateChallengingStage
@@ -416,8 +425,18 @@ UpdateEnemies:
     ld (sway_dir), a
 
 .apply_sway:
-    ;; Apply sway_offset to alive enemies in formation
+    ;; Apply sway_offset to alive enemies in formation. Columns are one
+    ;; sprite width apart, so walk the rows in the direction of travel: each
+    ;; sprite then moves before the neighbour that would overlap it.
     ld ix, enemy_data
+    ld hl, ENEMY_SIZE
+    ld a, b                 ; B = direction of this sway step
+    or a
+    jp m, .sway_order_ready
+    ld ix, enemy_data + (ENEMY_COUNT - 1) * ENEMY_SIZE
+    ld hl, -ENEMY_SIZE
+.sway_order_ready:
+    ld (sway_step), hl
     ld b, ENEMY_COUNT
 .sway_loop:
     ld a, (ix+0)
@@ -446,7 +465,7 @@ UpdateEnemies:
     pop bc
 
 .next_sway:
-    ld de, ENEMY_SIZE
+    ld de, (sway_step)
     add ix, de
     djnz .sway_loop
 
@@ -492,32 +511,27 @@ UpdateEnemies:
     jr z, .try_boss_attack
 
 .try_bee_attack:
-    ;; Check if stage >= 4 for Transform Trio
+    ;; From TRANSFORM_STAGE every second bee attack is a Zako that splits
+    ;; into three aliens on the way down (arcade transform).
     ld a, (current_stage)
-    cp 4
+    cp TRANSFORM_STAGE
     jr c, .regular_bee_dive
-
-    ;; Check if another transform is currently active
+    ld a, (stage_phase)     ; The companions need free slots: attack phase only
+    or a
+    jr z, .regular_bee_dive
     call CheckAnyTransformActive
     jr nz, .regular_bee_dive
-
-    ;; Increment transform trigger counter
     ld a, (transform_trigger_cnt)
     inc a
     ld (transform_trigger_cnt), a
     cp 2
     jr c, .regular_bee_dive
-
-    ;; Check if at least 3 bees in formation
-    call CountBeesInFormation
-    cp 3
+    call CountFreeSlots
+    cp 2
     jr c, .regular_bee_dive
-
-    ;; *** START TRANSFORM TRIO! ***
     xor a
     ld (transform_trigger_cnt), a
-    call StartTransformTrio
-    jp .update_diving
+    call ArmTransform
 
 .regular_bee_dive:
     ;; Pick an alive Bee in formation (Type 0, State 0)
@@ -597,6 +611,16 @@ UpdateEnemies:
     ld (ix+8), 1            ; state = 1 (diving)
     ld (ix+12), 0           ; Choose a fresh horizontal dive speed.
     ld (ix+13), 0
+    ;; An armed transform goes to this diver if it is a Zako
+    ld hl, transform_type
+    bit 7, (hl)
+    jr z, .no_transform_arm
+    res 7, (hl)
+    ld a, (ix+1)
+    or a
+    jr nz, .no_transform_arm
+    set 5, (ix+11)          ; Splits when it crosses TRANSFORM_Y
+.no_transform_arm:
     call PlaySoundDive
 
     ;; Check if enemy is Boss Galaga (Type 2)
@@ -639,15 +663,8 @@ UpdateEnemies:
 
 .update_diving:
     ;; --- 4. Move diving enemies ---
-    ;; Shared 0..2 phase for fractional dive speeds.
-    ld a, (dive_phase)
-    inc a
-    cp 3
-    jr c, .store_dive_phase
-    xor a
-.store_dive_phase:
-    ld (dive_phase), a
-
+    ld hl, transform_type   ; An armed transform lasts one attack only
+    res 7, (hl)
     ld ix, enemy_data
     ld b, ENEMY_COUNT
 .dive_loop:
@@ -699,26 +716,21 @@ UpdateEnemies:
     pop af
     ld (ix+12), a
 .dive_speed_ready:
-    ld d, 1
+    ;; Sideways step: fast 2, normal 1.5 (1 and 2 alternately), slow 1
     ld a, (ix+12)
-    cp 1
-    jr z, .dive_speed_fast_step
-    cp 3
-    jr nz, .dive_speed_move
-    ld a, (dive_phase)
-    or a
-    jr nz, .dive_speed_move
-    ld d, 0                 ; Slow divers skip every third horizontal step.
+    cp 2
+    jr z, .dive_speed_normal_step
+    ld d, 2
+    jr c, .dive_speed_move  ; 1 = fast
+    ld d, 1                 ; 3 = slow
     jr .dive_speed_move
-.dive_speed_fast_step:
-    ld a, (dive_phase)
-    or a
-    jr nz, .dive_speed_move
-    inc d                   ; Fast divers take an extra step every third frame.
+.dive_speed_normal_step:
+    call FlightStepX
+    ld d, a
 .dive_speed_move:
-    ;; 2. Move Y down by 2 scanlines
+    ;; 2. Move Y down
     ld a, (ix+3)
-    add a, 2
+    add a, FLIGHT_STEP_Y
     cp DIVE_WRAP_Y
     jp nc, .loop_to_top     ; Reached bottom -> loop to top
 
@@ -759,39 +771,31 @@ UpdateEnemies:
     add a, a
     add a, a                ; A = lane * 8
     add a, e                ; A = target X
-    ld c, (ix+2)
-    cp c
-    jr z, .dive_x_done
-    jr c, .dive_steer_left
-    ld a, c
-    add a, d                ; Faster divers may overshoot the player's X.
     ld c, a
-    ld a, c
-    cp PLAY_X_MAX + 1
-    jr c, .dive_store_x
-    ld c, PLAY_X_MAX
-    jr .dive_store_x
-.dive_steer_left:
-    ld a, c
-    sub d
-    ld c, a
-    ld a, c
-    cp PLAY_X_MIN
-    jr nc, .dive_store_x
-    ld c, PLAY_X_MIN
-.dive_store_x:
-    ld (ix+2), c
+    ld a, (ix+2)
+    call StepToward
+    ld (ix+2), a
 .dive_x_done:
 
-    ;; 4. Drop bullet at DIVE_FIRE_Y1 and DIVE_FIRE_Y2
-    ld a, (ix+3)
-    cp DIVE_FIRE_Y1
-    jr z, .dive_drop_bomb
-    cp DIVE_FIRE_Y2
-    jr z, .dive_drop_bomb
-    cp DIVE_FIRE_Y3
-    jr nz, .dive_skip_drop
-    ld a, (current_stage)
+    ;; A marked Zako splits into three aliens mid-dive
+    bit 5, (ix+11)
+    jr z, .dive_no_split
+    ld a, TRANSFORM_Y
+    call CrossedY
+    call c, SplitTransform
+.dive_no_split:
+
+    ;; 4. Drop a bomb when crossing DIVE_FIRE_Y1 / Y2 (and Y3 later on)
+    ld a, DIVE_FIRE_Y1
+    call CrossedY
+    jr c, .dive_drop_bomb
+    ld a, DIVE_FIRE_Y2
+    call CrossedY
+    jr c, .dive_drop_bomb
+    ld a, DIVE_FIRE_Y3
+    call CrossedY
+    jr nc, .dive_skip_drop
+    call RampedStage
     cp DIVE_FIRE3_STAGE
     jr c, .dive_skip_drop
 .dive_drop_bomb:
@@ -826,12 +830,15 @@ UpdateEnemies:
     call ClearSprite16x16
     pop bc
 
-    ;; If transform enemy escapes off bottom, group bonus is forfeit!
+    ;; Transformed aliens that escape off the bottom are gone, and so is
+    ;; the group bonus.
     ld a, (ix+1)
     cp 6
     jr c, .no_tr_escape
+    ld (ix+0), 0
     xor a
     ld (transform_killed), a
+    jp .next_dive_slot
 .no_tr_escape:
 
     ;; Wrap around to the top of the playfield
@@ -869,75 +876,30 @@ UpdateEnemies:
     ld (ix+5), a
 .return_y_valid:
 
-    ;; 2. Steer X toward target X (base_x + sway_offset)
+    ;; 2. Fly toward the slot (base_x + sway_offset, base_y)
     ld a, (ix+7)            ; base_x
     ld hl, sway_offset
     add a, (hl)
     ld c, a                 ; target X
-
-    ld a, (ix+2)            ; current X
-    cp c
-    jr z, .ret_chk_y
-    jr c, .ret_inc_x
-    dec a                   ; X > target X: move left
-    cp PLAY_X_MIN
-    jr nc, .ret_x_ok
-    ld a, PLAY_X_MIN
-.ret_x_ok:
-    ld (ix+2), a
-    jr .ret_chk_y
-.ret_inc_x:
-    inc a                   ; X < target X: move right
-    cp PLAY_X_MAX + 1
-    jr c, .ret_x_ok2
-    ld a, PLAY_X_MAX
-.ret_x_ok2:
-    ld (ix+2), a
-
-.ret_chk_y:
-    ;; 3. Steer Y toward base_y (stepping by 1 prevents overshoot)
-    ld a, (ix+10)           ; base_y (target Y)
-    ld c, a
-    ld a, (ix+3)            ; current Y
-    cp c
-    jr z, .ret_at_target_y
-    jr c, .ret_inc_y
-    dec a                   ; Y > base_y: move up
-    cp PF_Y_TOP
-    jr nc, .ret_y_ok
-    ld a, PF_Y_TOP
-.ret_y_ok:
-    ld (ix+3), a
-    jr .ret_draw
-.ret_inc_y:
-    inc a                   ; Y < base_y: move down by 1
-    ld (ix+3), a
-    jr .ret_draw
-
-.ret_at_target_y:
-    ;; Y has reached base_y! Check if X also reached target X
-    ld a, (ix+7)            ; base_x
-    ld hl, sway_offset
-    add a, (hl)
-    ld c, a                 ; target X
+    call FlightStepX
+    ld d, a
     ld a, (ix+2)
+    call StepToward
+    ld (ix+2), a
+    ld e, a
+    ld c, (ix+10)           ; base_y
+    ld d, FLIGHT_STEP_Y
+    ld a, (ix+3)
+    call StepToward
+    ld (ix+3), a
     cp c
+    jr nz, .ret_draw
+    ld a, (ix+7)
+    ld hl, sway_offset
+    add a, (hl)
+    cp e
     jr nz, .ret_draw        ; X not aligned yet
-
-    ;; Both X and Y arrived at formation slot!
     ld (ix+8), 0            ; state = 0 (in formation!)
-    ld a, c
-    ld (ix+2), a            ; snap to exact target X
-    ld a, (ix+10)
-    ld (ix+3), a            ; snap to exact base_y
-
-    ;; If transform enemy (type >= 6), revert to Bee (type 0)
-    ld a, (ix+1)
-    cp 6
-    jr c, .ret_draw
-    ld (ix+1), 0
-    xor a
-    ld (transform_killed), a
 
 .ret_draw:
     call EraseEnemyDeltaIX
@@ -958,6 +920,53 @@ UpdateEnemies:
 
     call UpdateTractorState
     call UpdateCapturedFighter
+    ret
+
+;; ----------------------------------------------------------------------------
+;; Flight helpers for the larger movement step
+;; ----------------------------------------------------------------------------
+
+;; FlightStepX: A = this frame's sideways step (1 or 2: 1.5 on average)
+FlightStepX:
+    ld a, (move_half)
+    inc a
+    ret
+
+;; CrossedY: carry set if this frame's move from (ix+5) to (ix+3) went down
+;; across scanline A (old < A <= new). Changes A only.
+CrossedY:
+    cp (ix+5)
+    jr c, .no
+    jr z, .no
+    cp (ix+3)
+    jr c, .yes
+    jr z, .yes
+.no:
+    or a
+    ret
+.yes:
+    scf
+    ret
+
+;; StepToward: move A toward C by at most D, stopping exactly on C.
+;; Returns A; changes flags only.
+StepToward:
+    cp c
+    ret z
+    jr c, .up
+    sub d
+    jr c, .snap
+    cp c
+    ret nc
+.snap:
+    ld a, c
+    ret
+.up:
+    add a, d
+    jr c, .snap
+    cp c
+    ret c
+    ld a, c
     ret
 
 ;; ----------------------------------------------------------------------------
@@ -1131,7 +1140,8 @@ LaneBit:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; CheckAnyTransformActive: Returns NZ if any transformed enemy is alive
+;; CheckAnyTransformActive: NZ while a transform is under way: a Zako marked
+;; to split (bit 5 of +11) or a transformed alien (type >= 6) is alive.
 ;; ----------------------------------------------------------------------------
 CheckAnyTransformActive:
     ld iy, enemy_data
@@ -1142,94 +1152,128 @@ CheckAnyTransformActive:
     jr z, .chk_tr_next
     ld a, (iy+1)            ; type >= 6?
     cp 6
-    jr c, .chk_tr_next
-    ld a, 1
-    or a
-    ret                     ; NZ: found active transform!
+    jr nc, .chk_tr_found
+    ld a, (iy+8)
+    cp STATE_DIVING
+    jr nz, .chk_tr_next
+    bit 5, (iy+11)
+    jr nz, .chk_tr_found
 .chk_tr_next:
     ld de, ENEMY_SIZE
     add iy, de
     djnz .chk_tr_loop
     xor a                   ; Z: none active
     ret
+.chk_tr_found:
+    or 1                    ; NZ
+    ret
 
-;; ----------------------------------------------------------------------------
-;; CountBeesInFormation: Returns count of alive Bees in formation in A
-;; ----------------------------------------------------------------------------
-CountBeesInFormation:
+;; CountFreeSlots: A = number of unused enemy slots
+CountFreeSlots:
     ld iy, enemy_data
     ld b, ENEMY_COUNT
     ld c, 0
-.cnt_b_loop:
-    ld a, (iy+0)            ; alive?
+.cnt_f_loop:
+    ld a, (iy+0)
     or a
-    jr z, .cnt_b_next
-    ld a, (iy+8)            ; in formation?
-    or a
-    jr nz, .cnt_b_next
-    ld a, (iy+1)            ; type == 0 (Bee)?
-    or a
-    jr nz, .cnt_b_next
+    jr nz, .cnt_f_next
     inc c
-.cnt_b_next:
+.cnt_f_next:
     ld de, ENEMY_SIZE
     add iy, de
-    djnz .cnt_b_loop
+    djnz .cnt_f_loop
     ld a, c
     ret
 
-;; ----------------------------------------------------------------------------
-;; StartTransformTrio: 3 Bees transform into aliens and dive together in formation!
-;; ----------------------------------------------------------------------------
-StartTransformTrio:
-    ;; Determine transform alien type based on stage:
-    ;; Stage 4..6: Type 6 (Sasori) -> 1,000 pts
-    ;; Stage 7..9: Type 7 (Midori Stingray) -> 2,000 pts
-    ;; Stage 10+:  Type 8 (Galboss Flagship) -> 3,000 pts
+;; ArmTransform: choose the alien for this stage; the next Zako to dive
+;; (see .start_dive) is marked to split. Bit 7 of transform_type = armed.
+;; Stages 10-13: Sasori (1,000 bonus), 14-17: Midori (2,000),
+;; 18 on: Galaxian flagship (3,000).
+ArmTransform:
     ld a, (current_stage)
-    cp 7
+    cp TRANSFORM_STAGE + 4
     ld c, 6                 ; Sasori
     jr c, .got_tr_type
-    cp 10
+    cp TRANSFORM_STAGE + 8
     ld c, 7                 ; Midori Stingray
     jr c, .got_tr_type
     ld c, 8                 ; Galboss Flagship
 .got_tr_type:
-    ;; Reset group kill counter
+    ld a, c
+    or #80
+    ld (transform_type), a
+    ret
+
+;; ----------------------------------------------------------------------------
+;; SplitTransform: the marked Zako at IX turns into the stage's alien and two
+;; more appear beside it in free slots; all three keep diving.
+;; Preserves: BC, DE, IX
+;; ----------------------------------------------------------------------------
+SplitTransform:
+    push bc
+    push de
+    res 5, (ix+11)
+    ld a, (transform_type)
+    and #7F
+    ld (ix+1), a
     xor a
     ld (transform_killed), a
+    call EraseEnemyOldIX    ; New sprite: redraw it whole
+    ld a, (ix+2)
+    ld (ix+4), a
+    ld a, (ix+3)
+    ld (ix+5), a
+    ld a, (ix+2)
+    sub TRANSFORM_SPREAD
+    jr c, .left_clamp
+    cp PLAY_X_MIN
+    jr nc, .left_ok
+.left_clamp:
+    ld a, PLAY_X_MIN
+.left_ok:
+    call .companion
+    ld a, (ix+2)
+    add a, TRANSFORM_SPREAD
+    cp PLAY_X_MAX + 1
+    jr c, .right_ok
+    ld a, PLAY_X_MAX
+.right_ok:
+    call .companion
+    call PlaySoundDive
+    pop de
+    pop bc
+    ret
 
-    ;; Find 3 bees in formation and morph them!
+;; A = X of a companion: fill the first free slot (if any) with a copy of
+;; the alien at IX, diving with its own speed and lane.
+.companion:
+    ld c, a
     ld iy, enemy_data
     ld b, ENEMY_COUNT
-    ld d, 3                 ; Need 3 bees
-.find_trio_loop:
+.find_free:
     ld a, (iy+0)
     or a
-    jr z, .next_trio_cand
-    ld a, (iy+8)
-    or a
-    jr nz, .next_trio_cand
-    ld a, (iy+1)
-    or a
-    jr nz, .next_trio_cand
-
-    ;; Found a bee for the trio!
-    ld (iy+1), c            ; Set type to transform alien!
-    ld (iy+8), 1            ; Set state = 1 (diving!)
-    ld (iy+12), 0
-    ld (iy+13), 0
-
-    dec d
-    jr z, .trio_found_all
-.next_trio_cand:
+    jr z, .got_free
     ld de, ENEMY_SIZE
     add iy, de
-    djnz .find_trio_loop
-
-.trio_found_all:
-    call PlaySoundDive
+    djnz .find_free
     ret
+.got_free:
+    push ix
+    pop hl
+    push iy
+    pop de
+    push bc
+    ld bc, ENEMY_SIZE
+    ldir                    ; Copy the alien (type, Y, state, base slot)
+    pop bc
+    ld (iy+2), c
+    ld (iy+4), c
+    ld (iy+9), 1            ; hp
+    ld (iy+11), 0
+    ld (iy+12), 0           ; Picks its own speed and lane
+    ld (iy+13), 0
+    jp DrawEnemyIY
 
 ;; ============================================================================
 ;; Entry Phase Logic: Dynamic 2-Phase Flow (Arcade Authentic)
@@ -1343,10 +1387,10 @@ CheckAndRestoreDockedEnemies:
 ;; Formation rows: first slot, slot count (see entry_enemy_defs)
 formation_row_tab:
     defw enemy_data : defb 4
-    defw enemy_data + 4 * ENEMY_SIZE : defb 6
-    defw enemy_data + 10 * ENEMY_SIZE : defb 6
-    defw enemy_data + 16 * ENEMY_SIZE : defb 6
-    defw enemy_data + 22 * ENEMY_SIZE : defb 6
+    defw enemy_data + 4 * ENEMY_SIZE : defb FORMATION_COLS
+    defw enemy_data + 12 * ENEMY_SIZE : defb FORMATION_COLS
+    defw enemy_data + 20 * ENEMY_SIZE : defb FORMATION_COLS
+    defw enemy_data + 28 * ENEMY_SIZE : defb FORMATION_COLS
 
 ;; EraseEntryEnemyOld: Delta-erase a moving entry enemy, then restore any
 ;; docked enemy that the old sprite overlapped.
@@ -1417,9 +1461,9 @@ UpdateEntryPhase:
 
 .move_entry_flight:
     set 6, (ix+11)
-    ;; Advance Y down by 2 scanlines
+    ;; Advance Y down
     ld a, (ix+3)
-    add a, 2
+    add a, FLIGHT_STEP_Y
     ld (ix+3), a
 
     ;; Check entry path: (ix+11)
@@ -1485,16 +1529,20 @@ UpdateEntryPhase:
     jr .entry_steer_left
 
 .entry_steer_left:
+    call FlightStepX
+    ld c, a
     ld a, (ix+2)
-    dec a
+    sub c
+    jr c, .entry_clamp_left
     cp PLAY_X_MIN
     jr nc, .entry_store_x
+.entry_clamp_left:
     ld a, PLAY_X_MIN
     jr .entry_store_x
 
 .entry_steer_right:
-    ld a, (ix+2)
-    inc a
+    call FlightStepX
+    add a, (ix+2)
     cp PLAY_X_MAX + 1
     jr c, .entry_store_x
     ld a, PLAY_X_MAX
@@ -1514,15 +1562,18 @@ UpdateEntryPhase:
     ld a, (enemy_fire_freeze)
     or a
     jr nz, .entry_no_shot
-    ld a, (ix+3)
-    cp 110 + PF_OLD_DY
-    jr z, .entry_fire
-    cp 150 + PF_OLD_DY
-    jr z, .entry_fire
-    cp 90 + PF_OLD_DY
-    jr z, .entry_extra_fire_check
-    cp 130 + PF_OLD_DY
-    jr nz, .entry_no_shot
+    ld a, 110 + PF_OLD_DY
+    call CrossedY
+    jr c, .entry_fire
+    ld a, 150 + PF_OLD_DY
+    call CrossedY
+    jr c, .entry_fire
+    ld a, 90 + PF_OLD_DY
+    call CrossedY
+    jr c, .entry_extra_fire_check
+    ld a, 130 + PF_OLD_DY
+    call CrossedY
+    jr nc, .entry_no_shot
 .entry_extra_fire_check:
     push bc
     call GetRandomByte
@@ -1586,68 +1637,29 @@ UpdateEntryPhase:
     ld (ix+3), a
     ld (ix+5), a
 .entry_return_y_valid:
-    ;; Steer X toward base_x
-    ld a, (ix+7)            ; base_x
-    ld c, a
-    ld a, (ix+2)            ; current X
-    cp c
-    jr z, .ret_e_chk_y
-    jr c, .ret_e_inc_x
-    dec a
-    cp PLAY_X_MIN
-    jr nc, .ret_e_x_ok
-    ld a, PLAY_X_MIN
-.ret_e_x_ok:
+    ;; Fly toward the formation slot
+    ld c, (ix+7)            ; base_x
+    call FlightStepX
+    ld d, a
+    ld a, (ix+2)
+    call StepToward
     ld (ix+2), a
-    jr .ret_e_chk_y
-.ret_e_inc_x:
-    inc a
-    cp PLAY_X_MAX + 1
-    jr c, .ret_e_x_ok2
-    ld a, PLAY_X_MAX
-.ret_e_x_ok2:
-    ld (ix+2), a
-
-.ret_e_chk_y:
-    ;; Steer Y toward base_y (stepping by 2 for smooth ascending speed)
-    ld a, (ix+10)           ; base_y (target Y: 68, 84, 100)
-    ld c, a
-    ld a, (ix+3)            ; current Y (>= base_y)
-    cp c
-    jr z, .ret_e_at_y
-    jr c, .ret_e_inc_y
-    ;; Y > base_y: ascend towards top formation
-    sub 2
-    cp c
-    jr nc, .ret_e_y_ok
-    ld a, c                 ; snap to target Y if passed
-.ret_e_y_ok:
-    ld (ix+3), a
-    jr .ret_e_draw
-.ret_e_inc_y:
+    ld c, (ix+10)           ; base_y
+    ld d, FLIGHT_STEP_Y
     ld a, (ix+11)
     and #7
     cp 6
     jr nz, .ret_e_step_y
-    ld a, (ix+3)
-    add a, 4
-    cp c
-    jr c, .ret_e_step_y_store
-    ld a, c
-    jr .ret_e_step_y_store
+    ld d, 2 * FLIGHT_STEP_Y ; Quick top route drops straight into its slot
 .ret_e_step_y:
-    ld a, (ix+3)            ; A held the path number here, not Y.
-    inc a
-.ret_e_step_y_store:
+    ld a, (ix+3)
+    call StepToward
     ld (ix+3), a
-    jr .ret_e_draw
-
-.ret_e_at_y:
-    ;; Y reached base_y! Check if X also reached base_x
-    ld a, (ix+7)            ; base_x
-    cp (ix+2)
+    cp c
     jr nz, .ret_e_draw
-
+    ld a, (ix+2)
+    cp (ix+7)
+    jr nz, .ret_e_draw
     ;; Both X and Y reached target slot! Lock into formation grid!
     ld (ix+8), STATE_FORMATION
 
@@ -1745,36 +1757,21 @@ ShouldAttackDuringEntry:
 ;; SpawnEntryEnemy: Spawn 1 enemy for the Entry Swarm
 ;; ----------------------------------------------------------------------------
 SpawnEntryEnemy:
-    ;; 1. Point IX to enemy_data + (entry_spawn_idx * ENEMY_SIZE)
-    ld a, (entry_spawn_idx)
-    ld l, a
-    ld h, 0                 ; HL = idx
-    add hl, hl              ; * 2
-    ld d, h
-    ld e, l                 ; DE = idx * 2
-    add hl, hl              ; * 4
-    add hl, hl              ; * 8
-    add hl, hl              ; * 16
-    or a
-    sbc hl, de              ; * 14 (16-bit safe, up to 27 * 14 = 378)
-    ld de, enemy_data
-    add hl, de              ; HL = enemy_data + (idx * ENEMY_SIZE)
-    push hl
-    pop ix                  ; IX -> enemy slot
+    ;; 1. Point IX to the slot of the next enemy in the spawn order
+    call SpawnSlotIX        ; A = slot number
 
-    ;; 2. Point HL to entry_enemy_defs + (entry_spawn_idx * 7)
-    ld a, (entry_spawn_idx)
+    ;; 2. Point HL to entry_enemy_defs + (slot * 7)
     ld l, a
     ld h, 0                 ; HL = idx
     add hl, hl              ; * 2
     add hl, hl              ; * 4
     add hl, hl              ; * 8
     ld e, a
-    ld d, 0                 ; DE = idx
+    ld d, 0                 ; DE = slot
     or a                    ; clear carry
-    sbc hl, de              ; HL = idx * 7 (16-bit safe)
+    sbc hl, de              ; HL = slot * 7 (16-bit safe)
     ld de, entry_enemy_defs
-    add hl, de              ; HL -> entry_enemy_defs + (idx * 7)
+    add hl, de              ; HL -> entry_enemy_defs + (slot * 7)
 
     ;; 3. Initialize enemy slot
     ld (ix+0), 1            ; alive = 1
@@ -1827,19 +1824,10 @@ SpawnEntryEnemy:
     inc a
     ld (entry_spawn_idx), a
 
-    ;; Check if starting a new entry attack wave (0, 4, 10, 16, or 22)
+    ;; Check if starting a new entry wave (indices 0, 8, 16, 24, 32)
     dec a
-    or a
-    jr z, .check_entry_wave_sfx
-    cp 4
-    jr z, .check_entry_wave_sfx
-    cp 10
-    jr z, .check_entry_wave_sfx
-    cp 16
-    jr z, .check_entry_wave_sfx
-    cp 22
+    and ENTRY_WAVE_SIZE - 1
     jr nz, .done_entry_wave_sfx
-.check_entry_wave_sfx:
     ld a, (music_playing)
     or a
     jr nz, .done_entry_wave_sfx
@@ -1848,13 +1836,7 @@ SpawnEntryEnemy:
 
     ;; Set delay to next spawn
     ld a, (entry_spawn_idx)
-    cp 4
-    jr z, .pause_wave
-    cp 10
-    jr z, .pause_wave
-    cp 16
-    jr z, .pause_wave
-    cp 22
+    and ENTRY_WAVE_SIZE - 1
     jr z, .pause_wave
     ld a, 8                 ; Keep entry rendering bounded on every difficulty.
     ld (entry_spawn_timer), a
@@ -1869,33 +1851,24 @@ SpawnEntryEnemy:
 ;; has docked or been destroyed. Carry is set while any member is still flying.
 WaitForEntryWave:
     ld a, (entry_spawn_idx)
-    cp 4
-    jr z, .first_wave
-    cp 10
-    jr z, .second_wave
-    cp 16
-    jr z, .third_wave
-    cp 22
-    jr z, .fourth_wave
     or a
-    ret
-
-.first_wave:
-    ld ix, enemy_data
-    ld b, 4
-    jr .check_wave
-.second_wave:
-    ld ix, enemy_data + (4 * ENEMY_SIZE)
-    ld b, 6
-    jr .check_wave
-.third_wave:
-    ld ix, enemy_data + (10 * ENEMY_SIZE)
-    ld b, 6
-    jr .check_wave
-.fourth_wave:
-    ld ix, enemy_data + (16 * ENEMY_SIZE)
-    ld b, 6
+    ret z
+    and ENTRY_WAVE_SIZE - 1
+    ret nz                  ; Not at a wave boundary (carry clear)
+    ld a, (entry_spawn_idx)
+    sub ENTRY_WAVE_SIZE
+    ld e, a
+    ld d, 0
+    ld hl, entry_spawn_order
+    add hl, de              ; HL -> slots of the previous wave
+    ld b, ENTRY_WAVE_SIZE
 .check_wave:
+    push hl
+    push bc
+    ld a, (hl)
+    call SlotIX
+    pop bc
+    pop hl
     ld a, (ix+0)
     or a
     jr z, .next_wave_enemy
@@ -1903,13 +1876,38 @@ WaitForEntryWave:
     or a
     jr nz, .wave_still_flying
 .next_wave_enemy:
-    ld de, ENEMY_SIZE
-    add ix, de
+    inc hl
     djnz .check_wave
     or a
     ret
 .wave_still_flying:
     scf
+    ret
+
+;; SpawnSlotIX: IX -> slot of the next enemy to spawn; A = its slot number.
+SpawnSlotIX:
+    ld a, (entry_spawn_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entry_spawn_order
+    add hl, de
+    ld a, (hl)
+;; SlotIX: IX -> enemy_data + A * ENEMY_SIZE. Keeps A; changes DE, HL.
+SlotIX:
+    ld l, a
+    ld h, 0
+    add hl, hl              ; * 2
+    ld d, h
+    ld e, l
+    add hl, hl              ; * 4
+    add hl, hl              ; * 8
+    add hl, hl              ; * 16
+    or a
+    sbc hl, de              ; * 14
+    ld de, enemy_data
+    add hl, de
+    push hl
+    pop ix
     ret
 
 ;; Higher settings mix quick top, center, and lower-side approaches.
@@ -1924,28 +1922,7 @@ SelectDifficultyEntryPath:
 
 .check_top_entry:
     ld a, (entry_spawn_idx)
-    cp 4
-    jr c, .first_wave_index
-    cp 10
-    jr c, .second_wave_index
-    cp 16
-    jr c, .third_wave_index
-    cp 22
-    jr c, .fourth_wave_index
-    sub 22
-    jr .entry_wave_index_ready
-.first_wave_index:
-    or a
-    jr .entry_wave_index_ready
-.second_wave_index:
-    sub 4
-    jr .entry_wave_index_ready
-.third_wave_index:
-    sub 10
-    jr .entry_wave_index_ready
-.fourth_wave_index:
-    sub 16
-.entry_wave_index_ready:
+    and ENTRY_WAVE_SIZE - 1 ; Index within the entry wave
     ld c, a
     ld a, (difficulty_level)
     cp 1
@@ -2029,46 +2006,59 @@ SelectDifficultyEntryPath:
     ret
 
 ;; ----------------------------------------------------------------------------
-;; Entry Phase Enemy Definitions (28 enemies: 4 Bosses, 12 Butterflies, 12 Bees)
+;; Entry Phase Enemy Definitions: the arcade formation of 36 enemies.
+;; Row 0: 4 Boss Galagas over the middle columns; rows 1-2: 8 Goei each;
+;; rows 3-4: 8 Zako each. Slots are numbered row by row (formation_row_tab);
+;; entry_spawn_order gives the order they fly in.
 ;; Format: [type, hp, base_x, base_y, start_x, start_y, entry_path] - 7 bytes each
 ;; ----------------------------------------------------------------------------
 entry_enemy_defs:
-    ;; Positions are written in the pre-column layout (comments too) and moved
-    ;; into the current playfield by PF_OLD_DX / PF_OLD_DY.
-    ;; Wave 1: 4 Boss Galagas (Row 1, Y=52) - Swoop top-right (path 0)
-    defb 2, 2, 27 + PF_OLD_DX, 52 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 0: Boss Galaga 1 (target 27, 52)
-    defb 2, 2, 37 + PF_OLD_DX, 52 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 1: Boss Galaga 2 (target 37, 52)
-    defb 2, 2, 47 + PF_OLD_DX, 52 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 2: Boss Galaga 3 (target 47, 52)
-    defb 2, 2, 57 + PF_OLD_DX, 52 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 3: Boss Galaga 4 (target 57, 52)
+    defb 2, 2, FORMATION_X0 + 2 * FORMATION_DX, FORMATION_Y_MIN + 0 * 16, PLAY_X_MIN, 64, 4     ; Slot 0: Boss, row 0 col 2
+    defb 2, 2, FORMATION_X0 + 3 * FORMATION_DX, FORMATION_Y_MIN + 0 * 16, PLAY_X_MIN, 64, 4     ; Slot 1: Boss, row 0 col 3
+    defb 2, 2, FORMATION_X0 + 4 * FORMATION_DX, FORMATION_Y_MIN + 0 * 16, PLAY_X_MIN, 64, 4     ; Slot 2: Boss, row 0 col 4
+    defb 2, 2, FORMATION_X0 + 5 * FORMATION_DX, FORMATION_Y_MIN + 0 * 16, PLAY_X_MIN, 64, 4     ; Slot 3: Boss, row 0 col 5
+    defb 1, 1, FORMATION_X0 + 0 * FORMATION_DX, FORMATION_Y_MIN + 1 * 16, PLAY_X_MIN, 64, 4     ; Slot 4: Goei, row 1 col 0
+    defb 1, 1, FORMATION_X0 + 1 * FORMATION_DX, FORMATION_Y_MIN + 1 * 16, PLAY_X_MIN, 64, 4     ; Slot 5: Goei, row 1 col 1
+    defb 1, 1, FORMATION_X0 + 2 * FORMATION_DX, FORMATION_Y_MIN + 1 * 16, 54, PF_Y_TOP, 0       ; Slot 6: Goei, row 1 col 2
+    defb 1, 1, FORMATION_X0 + 3 * FORMATION_DX, FORMATION_Y_MIN + 1 * 16, 54, PF_Y_TOP, 0       ; Slot 7: Goei, row 1 col 3
+    defb 1, 1, FORMATION_X0 + 4 * FORMATION_DX, FORMATION_Y_MIN + 1 * 16, 54, PF_Y_TOP, 0       ; Slot 8: Goei, row 1 col 4
+    defb 1, 1, FORMATION_X0 + 5 * FORMATION_DX, FORMATION_Y_MIN + 1 * 16, 54, PF_Y_TOP, 0       ; Slot 9: Goei, row 1 col 5
+    defb 1, 1, FORMATION_X0 + 6 * FORMATION_DX, FORMATION_Y_MIN + 1 * 16, PLAY_X_MIN, 64, 4     ; Slot 10: Goei, row 1 col 6
+    defb 1, 1, FORMATION_X0 + 7 * FORMATION_DX, FORMATION_Y_MIN + 1 * 16, PLAY_X_MIN, 64, 4     ; Slot 11: Goei, row 1 col 7
+    defb 1, 1, FORMATION_X0 + 0 * FORMATION_DX, FORMATION_Y_MIN + 2 * 16, PLAY_X_MAX, 64, 5     ; Slot 12: Goei, row 2 col 0
+    defb 1, 1, FORMATION_X0 + 1 * FORMATION_DX, FORMATION_Y_MIN + 2 * 16, PLAY_X_MAX, 64, 5     ; Slot 13: Goei, row 2 col 1
+    defb 1, 1, FORMATION_X0 + 2 * FORMATION_DX, FORMATION_Y_MIN + 2 * 16, PLAY_X_MAX, 64, 5     ; Slot 14: Goei, row 2 col 2
+    defb 1, 1, FORMATION_X0 + 3 * FORMATION_DX, FORMATION_Y_MIN + 2 * 16, PLAY_X_MAX, 64, 5     ; Slot 15: Goei, row 2 col 3
+    defb 1, 1, FORMATION_X0 + 4 * FORMATION_DX, FORMATION_Y_MIN + 2 * 16, PLAY_X_MAX, 64, 5     ; Slot 16: Goei, row 2 col 4
+    defb 1, 1, FORMATION_X0 + 5 * FORMATION_DX, FORMATION_Y_MIN + 2 * 16, PLAY_X_MAX, 64, 5     ; Slot 17: Goei, row 2 col 5
+    defb 1, 1, FORMATION_X0 + 6 * FORMATION_DX, FORMATION_Y_MIN + 2 * 16, PLAY_X_MAX, 64, 5     ; Slot 18: Goei, row 2 col 6
+    defb 1, 1, FORMATION_X0 + 7 * FORMATION_DX, FORMATION_Y_MIN + 2 * 16, PLAY_X_MAX, 64, 5     ; Slot 19: Goei, row 2 col 7
+    defb 0, 1, FORMATION_X0 + 0 * FORMATION_DX, FORMATION_Y_MIN + 3 * 16, 60, PF_Y_TOP, 2       ; Slot 20: Zako, row 3 col 0
+    defb 0, 1, FORMATION_X0 + 1 * FORMATION_DX, FORMATION_Y_MIN + 3 * 16, 60, PF_Y_TOP, 2       ; Slot 21: Zako, row 3 col 1
+    defb 0, 1, FORMATION_X0 + 2 * FORMATION_DX, FORMATION_Y_MIN + 3 * 16, 4, PF_Y_TOP, 1        ; Slot 22: Zako, row 3 col 2
+    defb 0, 1, FORMATION_X0 + 3 * FORMATION_DX, FORMATION_Y_MIN + 3 * 16, 4, PF_Y_TOP, 1        ; Slot 23: Zako, row 3 col 3
+    defb 0, 1, FORMATION_X0 + 4 * FORMATION_DX, FORMATION_Y_MIN + 3 * 16, 4, PF_Y_TOP, 1        ; Slot 24: Zako, row 3 col 4
+    defb 0, 1, FORMATION_X0 + 5 * FORMATION_DX, FORMATION_Y_MIN + 3 * 16, 4, PF_Y_TOP, 1        ; Slot 25: Zako, row 3 col 5
+    defb 0, 1, FORMATION_X0 + 6 * FORMATION_DX, FORMATION_Y_MIN + 3 * 16, 60, PF_Y_TOP, 2       ; Slot 26: Zako, row 3 col 6
+    defb 0, 1, FORMATION_X0 + 7 * FORMATION_DX, FORMATION_Y_MIN + 3 * 16, 60, PF_Y_TOP, 2       ; Slot 27: Zako, row 3 col 7
+    defb 0, 1, FORMATION_X0 + 0 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 28: Zako, row 4 col 0
+    defb 0, 1, FORMATION_X0 + 1 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 29: Zako, row 4 col 1
+    defb 0, 1, FORMATION_X0 + 2 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 60, PF_Y_TOP, 2       ; Slot 30: Zako, row 4 col 2
+    defb 0, 1, FORMATION_X0 + 3 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 60, PF_Y_TOP, 2       ; Slot 31: Zako, row 4 col 3
+    defb 0, 1, FORMATION_X0 + 4 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 60, PF_Y_TOP, 2       ; Slot 32: Zako, row 4 col 4
+    defb 0, 1, FORMATION_X0 + 5 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 60, PF_Y_TOP, 2       ; Slot 33: Zako, row 4 col 5
+    defb 0, 1, FORMATION_X0 + 6 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 34: Zako, row 4 col 6
+    defb 0, 1, FORMATION_X0 + 7 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 35: Zako, row 4 col 7
+    assert $ - entry_enemy_defs == ENEMY_COUNT * 7
 
-    ;; Wave 2: 6 Goei Butterflies (Row 2, Y=68) - Swoop top-left (path 1)
-    defb 1, 1, 17 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 4: Goei 1 (target 17, 68)
-    defb 1, 1, 27 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 5: Goei 2 (target 27, 68)
-    defb 1, 1, 37 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 6: Goei 3 (target 37, 68)
-    defb 1, 1, 47 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 7: Goei 4 (target 47, 68)
-    defb 1, 1, 57 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 8: Goei 5 (target 57, 68)
-    defb 1, 1, 67 + PF_OLD_DX, 68 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 9: Goei 6 (target 67, 68)
-
-    ;; Wave 3: 6 Goei Butterflies (Row 3, Y=84) - Swoop top-right (path 2)
-    defb 1, 1, 17 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 10: Goei 7 (target 17, 84)
-    defb 1, 1, 27 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 11: Goei 8 (target 27, 84)
-    defb 1, 1, 37 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 12: Goei 9 (target 37, 84)
-    defb 1, 1, 47 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 13: Goei 10 (target 47, 84)
-    defb 1, 1, 57 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 14: Goei 11 (target 57, 84)
-    defb 1, 1, 67 + PF_OLD_DX, 84 + PF_OLD_DY, 72 + PF_OLD_DX, 36 + PF_OLD_DY, 2  ; Slot 15: Goei 12 (target 67, 84)
-
-    ;; Wave 4: 6 Zako Bees (Row 4, Y=100) - Swoop top-left (path 1)
-    defb 0, 1, 17 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 16: Zako 1 (target 17, 100)
-    defb 0, 1, 27 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 17: Zako 2 (target 27, 100)
-    defb 0, 1, 37 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 18: Zako 3 (target 37, 100)
-    defb 0, 1, 47 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 19: Zako 4 (target 47, 100)
-    defb 0, 1, 57 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 20: Zako 5 (target 57, 100)
-    defb 0, 1, 67 + PF_OLD_DX, 100 + PF_OLD_DY, 16 + PF_OLD_DX, 36 + PF_OLD_DY, 1  ; Slot 21: Zako 6 (target 67, 100)
-
-    ;; Wave 5: 6 Zako Bees (Row 5, Y=116) - Swoop top-right (path 0)
-    defb 0, 1, 17 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 22: Zako 7 (target 17, 116)
-    defb 0, 1, 27 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 23: Zako 8 (target 27, 116)
-    defb 0, 1, 37 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 24: Zako 9 (target 37, 116)
-    defb 0, 1, 47 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 25: Zako 10 (target 47, 116)
-    defb 0, 1, 57 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 26: Zako 11 (target 57, 116)
-    defb 0, 1, 67 + PF_OLD_DX, 116 + PF_OLD_DY, 66 + PF_OLD_DX, 36 + PF_OLD_DY, 0  ; Slot 27: Zako 12 (target 67, 116)
+;; Spawn order (slot numbers), five waves of 8 as in the arcade:
+;; 1: 4 Goei + 4 Zako from the top in two streams; 2: the Bosses with
+;; 4 Goei from the lower left; 3: 8 Goei from the lower right; 4: 8 Zako
+;; from the upper right; 5: the last 4 Zako from the upper left.
+entry_spawn_order:
+    defb 6, 22, 7, 23, 8, 24, 9, 25
+    defb 0, 4, 1, 5, 2, 10, 3, 11
+    defb 14, 15, 16, 17, 12, 13, 18, 19
+    defb 20, 21, 26, 27, 30, 31, 32, 33
+    defb 28, 29, 34, 35
+    assert $ - entry_spawn_order == ENEMY_COUNT
