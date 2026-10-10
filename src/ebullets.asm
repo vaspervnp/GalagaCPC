@@ -243,23 +243,36 @@ UpdateEBullets:
     pop bc
 
 .skip_erase_eb:
-    ;; 1. Update horizontal drift: dx is added to a fraction of a byte and
-    ;; the bullet moves one byte whenever it carries over.
+    ;; 1. Update horizontal drift: |dx| is added to a fraction of a byte
+    ;; twice (an update is two frames) and the bullet moves one byte each
+    ;; time it carries over.
     ld a, (ix+6)            ; dx
     or a
     jr z, .no_x_drift
-    jp m, .drift_left
-    add a, (ix+7)
-    ld (ix+7), a
-    jr nc, .no_x_drift
-    inc (ix+1)
-    jr .check_x_bounds
-.drift_left:
+    ld c, a                 ; C: sign of dx
+    jp p, .drift_abs
     neg
+.drift_abs:
+    ld e, a
+    ld d, 0                 ; D = bytes to move
     add a, (ix+7)
+    jr nc, .drift_frac2
+    inc d
+.drift_frac2:
+    add a, e
+    jr nc, .drift_frac_done
+    inc d
+.drift_frac_done:
     ld (ix+7), a
-    jr nc, .no_x_drift
-    dec (ix+1)
+    ld a, d
+    or a
+    jr z, .no_x_drift
+    bit 7, c
+    jr z, .drift_move
+    neg
+.drift_move:
+    add a, (ix+1)
+    ld (ix+1), a
 
 .check_x_bounds:
     ;; The 2-byte bullet stays inside the playfield (below 0 wraps to 255)
@@ -270,7 +283,7 @@ UpdateEBullets:
 .no_x_drift:
     ;; 2. Move down
     ld a, (ix+2)
-    add a, 3                ; 3 scanlines/frame
+    add a, 6                ; 6 scanlines an update
     ld (ix+2), a
     cp EBULLET_KILL_Y       ; Stop at the bottom of the screen (bullet height 9)
     jp nc, .kill_eb

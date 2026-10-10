@@ -110,7 +110,7 @@ UpdateTractorState:
 .handle_tractor_dive:
     ;; Boss dives straight down to TRACTOR_HOVER_Y to emit beam
     ld a, (ix+3)
-    add a, 2
+    add a, 4
     ld (ix+3), a
     cp TRACTOR_HOVER_Y
     jr c, .dive_down_ok
@@ -120,7 +120,7 @@ UpdateTractorState:
     ld (ix+8), STATE_TRACTOR_BEAM
     ld a, 1
     ld (tractor_beam_active), a
-    ld a, 120               ; ~2.4 seconds duration
+    ld a, 60                ; ~2.4 seconds duration
     ld (tractor_timer), a
     ld a, (ix+2)
     ld (tractor_boss_x), a
@@ -229,7 +229,7 @@ UpdateTractorState:
     cp TRACTOR_BEAM_Y
     jr c, .capture_reached_boss
     jr z, .capture_reached_boss
-    sub 2
+    sub 4
     cp TRACTOR_BEAM_Y
     jr nc, .capture_y_ready
     ld a, TRACTOR_BEAM_Y
@@ -294,7 +294,7 @@ CompleteTractorCapture:
     ;; Display "FIGHTER CAPTURED" banner in Cyan
     call DrawFighterCapturedBanner
     call PlayMusicFighterCaptured
-    ld a, 150               ; ~3.0s delay for 21-step capture tune before next ship spawns
+    ld a, 75                ; ~3.0s delay for 21-step capture tune before next ship spawns
     ld (capture_delay), a
     ret
 
@@ -311,16 +311,16 @@ ClearCapturedBanner:
 DrawTractorBeam:
     ld a, (tractor_anim)
     inc a
-    cp 12
+    cp 6
     jr c, .store_anim
     xor a
 .store_anim:
     ld (tractor_anim), a
 
     ld a, (tractor_anim)
-    cp 4
+    cp 2
     jr c, .frame_1
-    cp 8
+    cp 4
     jr c, .frame_2
     ld hl, tractor_beam_frame_3
     jr .draw
@@ -417,7 +417,7 @@ UpdateCapturedFighter:
     ret z
 
     cp 3
-    jr z, .handle_rescue_fall
+    jp z, .handle_rescue_fall
 
     ;; Check Captor Boss Galaga position
     ld ix, (captor_boss_ptr)
@@ -466,26 +466,40 @@ UpdateCapturedFighter:
     call ClearSprite16x16
 .skip_old_erase:
 
-    ;; Position fighter next to Boss (boss_x + 8, boss_y)
-    ld a, (ix+2)
-    add a, 8
-    cp PLAY_X_MAX + 1
-    jr c, .cap_x_ok
-    ld a, PLAY_X_MAX
-.cap_x_ok:
-    ld (captured_fighter_x), a
-    ld (captured_old_x), a
+    ;; Position the fighter right above its Boss (boss_x, boss_y - 16), as
+    ;; in the arcade. While the Boss is too close to the top for that, the
+    ;; fighter is hidden (captured_old_x = 0: nothing on screen).
     ld a, (ix+3)
+    sub 16
+    jr c, .cap_hidden
+    cp PF_Y_TOP
+    jr c, .cap_hidden
     ld (captured_fighter_y), a
     ld (captured_old_y), a
+    ld a, (ix+2)
+    ld (captured_fighter_x), a
+    ld (captured_old_x), a
 
     ;; Draw red captured fighter
-    ld a, (captured_fighter_x)
     ld b, a
     ld a, (captured_fighter_y)
     ld c, a
     ld hl, captured_player_sprite
     call DrawSprite16x16
+
+    ;; A Boss on the move can overlap the fighter's old box: redraw it.
+    ld a, (ix+8)
+    or a
+    ret z
+    jp DrawEnemyIX
+
+.cap_hidden:
+    ld a, (ix+2)
+    ld (captured_fighter_x), a
+    ld a, PF_Y_TOP          ; A rescue fall would start from the top
+    ld (captured_fighter_y), a
+    xor a
+    ld (captured_old_x), a
     ret
 
 .handle_rescue_fall:
@@ -538,11 +552,11 @@ UpdateCapturedFighter:
     ld (captured_fighter_x), a
 
 .rescue_fall_y:
-    ;; Descend Y down toward player_y (2 pixels/frame for smooth, snappy arcade docking)
+    ;; Descend Y down toward player_y (4 lines an update)
     ld a, (player_y)
     ld b, a
     ld a, (captured_fighter_y)
-    add a, 2
+    add a, 4
     ld (captured_fighter_y), a
     cp b
     jr c, .draw_descending_rescue

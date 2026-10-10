@@ -63,23 +63,23 @@ TitleLoop:
     ;; Sound driver tick
     call SoundUpdate
 
-    ;; Blink "PUSH FIRE BUTTON" at X=24, Y=82
+    ;; Blink "PRESS 1 OR 2 PLAYERS" (20 characters) at X=18, Y=82
     ld a, (title_timer)
     inc a
     ld (title_timer), a
     and 32                      ; Toggle visibility every 32 frames (~0.64s)
     jr z, .hide_prompt
 
-    ld b, 30
+    ld b, 18
     ld c, 82
     ld hl, str_title_prompt
     call DrawGlyphString
     jr .check_cycle_mode
 
 .hide_prompt:
-    ld b, 24
+    ld b, 18
     ld c, 82
-    ld d, 48                    ; 16 chars * 3 bytes
+    ld d, 60                    ; 20 chars * 3 bytes
     call ClearTextRect
 
 .check_cycle_mode:

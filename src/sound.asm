@@ -767,6 +767,8 @@ SoundInterruptInit:
 SoundInterrupt:
     push af
     push hl
+    ld hl, irq_count
+    inc (hl)
     ld hl, sound_irq_divider
     inc (hl)
     ld a, (hl)

@@ -11,27 +11,49 @@ CheckCollisions:
     or a
     jp z, .next_m
 
-    ld iy, enemy_data
+    ld a, (ix+1)
+    ld (.mx + 1), a
+    ld a, (ix+2)
+    ld (.my + 1), a
+    ld hl, enemy_data + 2   ; HL -> enemy X
+    ld bc, ENEMY_SIZE
     ld e, ENEMY_COUNT
 .e_loop:
-    ld a, (iy+0)
-    or a
-    jp z, .next_e
-
-    ;; Horizontal overlap check
-    ld a, (ix+1)
-    ld c, (iy+2)
-    sub c
+    ;; Horizontal overlap check first (positions of dead enemies are stale)
+.mx:
+    ld a, 0
+    sub (hl)
     cp 8
-    jp nc, .next_e
+    jr nc, .next_e
 
     ;; Vertical overlap check
-    ld a, (ix+2)
-    ld c, (iy+3)
-    sub c
+    inc hl
+.my:
+    ld a, 0
+    sub (hl)
+    dec hl
     add a, 3
     cp 19
-    jp nc, .next_e
+    jr nc, .next_e
+
+    dec hl
+    dec hl
+    ld a, (hl)              ; alive?
+    inc hl
+    inc hl
+    or a
+    jr nz, .enemy_hit
+.next_e:
+    add hl, bc
+    dec e
+    jp nz, .e_loop
+    jp .enemies_done
+
+.enemy_hit:
+    push hl
+    pop iy
+    dec iy
+    dec iy                  ; IY = the enemy hit
 
     ;; *** HIT ENEMY! ***
     ld hl, (shots_hit)
@@ -159,7 +181,7 @@ CheckCollisions:
 .pts_boss:
     ;; Type 2: Boss Galaga (150 convoy, 400 alone, 800 w/ 1 escort, 1600 w/ 2 escorts)
     ;; Stop enemy firing for a short period (authentic arcade mechanic)
-    ld a, 100
+    ld a, 50
     ld (enemy_fire_freeze), a
 
     ;; If this Boss was holding captured fighter (in formation or diving), RESCUE IT!
@@ -296,16 +318,17 @@ CheckCollisions:
     pop de
     jp .next_m
 
-.next_e:
-    ld bc, ENEMY_SIZE
-    add iy, bc
-    dec e
-    jp nz, .e_loop
-
+.enemies_done:
     ;; Check if missile ix hits captured fighter (if active in formation, escort, or descending)
     ld a, (captured_fighter_active)
     or a
     jr z, .next_m
+    cp 3
+    jr z, .cap_visible
+    ld a, (captured_old_x)
+    or a
+    jr z, .next_m           ; Hidden while its Boss is near the top
+.cap_visible:
 
     ;; Horizontal overlap check
     ld a, (ix+1)            ; missile X

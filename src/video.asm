@@ -108,26 +108,146 @@ GetScreenAddr:
 ;; Input:  B = X (0..88)
 ;;         C = Y (0..255)
 ;;         HL = Pointer to sprite data (128 bytes)
+;; The scanline addresses are POPped from line_tab, so interrupts are off
+;; while the sprite is drawn (about 0.9 ms; the Gate Array keeps the request).
 ;; Preserves: IX, IY, BC
 ;; ---------------------------------------------------------------------------
 DrawSprite16x16:
     push bc
-    push hl
+    ld a, b
+    ld (.ds_x + 1), a
+    ex de, hl                   ; DE = sprite data
     ld l, c
     ld h, 0
     add hl, hl
-    ld de, line_tab
-    add hl, de                  ; HL = &line_tab[Y]
-    ld c, b                     ; C = X
-    ld b, 16                    ; B = lines
+    ld bc, line_tab
+    add hl, bc                  ; HL = &line_tab[Y]
+    di
+    ld (.ds_sp + 1), sp
+    ld sp, hl
+    ex de, hl                   ; HL = sprite data
+    ld bc, 16 * 8               ; LDI clears P/V when BC reaches 0
+.line:
+    pop de
+    ld a, e
+.ds_x:
+    add a, 0
+    ld e, a
+    jr nc, .line_nc
+    inc d
+.line_nc:
+    ldi : ldi : ldi : ldi : ldi : ldi : ldi : ldi
+    jp pe, .line
+.ds_sp:
+    ld sp, 0
+    ei
+    pop bc
+    ret
+
+;; ---------------------------------------------------------------------------
+;; ClearSprite16x16: Erase 16x16 sprite area with black (Pen 0 = #00)
+;; Input:  B = X (0..88)
+;;         C = Y (0..255)
+;; Preserves: IX, IY, BC
+;; ---------------------------------------------------------------------------
+ClearSprite16x16:
+    ld de, #0810                ; 8 bytes x 16 lines
+
+;; ---------------------------------------------------------------------------
+;; ClearSmallRect: Clear D bytes (1..8) x E scanlines (1..16) at (B=X, C=Y).
+;; Like DrawSprite16x16 it POPs the scanline addresses with interrupts off.
+;; Preserves: IX, IY, BC
+;; ---------------------------------------------------------------------------
+ClearSmallRect:
+    push bc
+    ld a, d
+    add a, a                    ; 2 bytes per store
+    ld l, a
+    ld h, 0
+    push de
+    ex de, hl
+    ld hl, .csr_end
+    or a
+    sbc hl, de
+    ld (.csr_jump + 1), hl      ; Enter the run D stores before its end
+    pop de
+    ld a, b
+    ld (.csr_x + 1), a
+    ld l, c
+    ld h, 0
+    add hl, hl
+    ld bc, line_tab
+    add hl, bc                  ; HL = &line_tab[Y]
+    ld d, 0                     ; D = black, E = lines
+    di
+    ld (.csr_sp + 1), sp
+    ld sp, hl
+.csr_row:
+    pop hl
+    ld a, l
+.csr_x:
+    add a, 0
+    ld l, a
+    jr nc, .csr_nc
+    inc h
+.csr_nc:
+    dec e                       ; Z on the last line (the stores keep Z)
+.csr_jump:
+    jp 0
+    repeat 8
+    ld (hl), d
+    inc hl
+    rend
+.csr_end:
+    jp nz, .csr_row
+.csr_sp:
+    ld sp, 0
+    ei
+    pop bc
+    ret
+
+;; ---------------------------------------------------------------------------
+;; DrawBitmapRect: Draw bitmap of D bytes wide x E scanlines high from HL to (B=X, C=Y)
+;; Input:  B = X (0..95)
+;;         C = Y (0..271)
+;;         D = Width in bytes (1..DBR_MAX_WIDTH)
+;;         E = Height in scanlines (1..255)
+;;         HL = Pointer to bitmap data
+;; Each row is copied by an unrolled LDI run entered D steps before its end.
+;; Preserves: IX, IY, BC
+;; ---------------------------------------------------------------------------
+DBR_MAX_WIDTH   equ 36                  ; Title logo
+DrawBitmapRect:
+    push bc
+    push hl
+    ld a, d
+    add a, a                    ; LDI is 2 bytes
+    ld l, a
+    ld h, 0
+    push de
+    ex de, hl
+    ld hl, .dbr_unrolled_end
+    or a
+    sbc hl, de
+    ld (.dbr_jump + 1), hl
+    pop de
+
+    ld a, b                     ; A = X
+    ld l, c
+    ld h, 0
+    add hl, hl
+    ld bc, line_tab
+    add hl, bc                  ; HL = &line_tab[Y]
+    ld c, a                     ; C = X
+    ld b, e                     ; B = lines
     push hl
     push bc
     exx
     pop bc                      ; B' = lines, C' = X
     pop hl                      ; HL' = line table pointer
     exx
-    pop hl                      ; HL = sprite data
-.line:
+    pop hl                      ; HL = bitmap data
+.dbr_row:
     exx
     ld a, (hl)
     inc hl
@@ -141,107 +261,15 @@ DrawSprite16x16:
     dec b                       ; Z on the last line (LDI keeps Z)
     exx
     pop de
-    ldi : ldi : ldi : ldi : ldi : ldi : ldi : ldi
-    jp nz, .line
+.dbr_jump:
+    jp 0
+    repeat DBR_MAX_WIDTH
+    ldi
+    rend
+.dbr_unrolled_end:
+    jp nz, .dbr_row
     pop bc
     ret
-
-;; ---------------------------------------------------------------------------
-;; ClearSprite16x16: Erase 16x16 sprite area with black (Pen 0 = #00)
-;; Input:  B = X (0..88)
-;;         C = Y (0..255)
-;; Preserves: IX, IY, BC
-;; ---------------------------------------------------------------------------
-ClearSprite16x16:
-    push ix
-    push bc
-    ld e, c
-    ld d, 0
-    sla e
-    rl d                        ; DE = Y * 2 (16-bit safe for Y up to 271)
-    ld ix, line_tab
-    add ix, de
-    ld c, 16
-.clr_loop:
-    ld e, (ix+0)
-    ld d, (ix+1)
-    inc ix
-    inc ix
-    ld a, b
-    add a, e
-    ld e, a
-    jr nc, .clr_no_c
-    inc d
-.clr_no_c:
-    ex de, hl
-    xor a
-    ld (hl), a : inc hl : ld (hl), a : inc hl
-    ld (hl), a : inc hl : ld (hl), a : inc hl
-    ld (hl), a : inc hl : ld (hl), a : inc hl
-    ld (hl), a : inc hl : ld (hl), a
-    dec c
-    jr nz, .clr_loop
-    pop bc
-    pop ix
-    ret
-
-;; ---------------------------------------------------------------------------
-;; DrawBitmapRect: Draw bitmap of D bytes wide x E scanlines high from HL to (B=X, C=Y)
-;; Input:  B = X (0..95)
-;;         C = Y (0..271)
-;;         D = Width in bytes (1..96)
-;;         E = Height in scanlines (1..272)
-;;         HL = Pointer to bitmap data
-;; Preserves: IX, IY, BC
-;; ---------------------------------------------------------------------------
-DrawBitmapRect:
-    push ix
-    push bc
-    ld a, e
-    ld (.dbr_lines), a
-    ld a, d
-    ld (.dbr_width), a
-
-    ld e, c
-    ld d, 0
-    sla e
-    rl d                        ; DE = Y * 2 (16-bit safe)
-    ld ix, line_tab
-    add ix, de                  ; IX = pointer to line_tab[Y]
-
-.dbr_row:
-    ld e, (ix+0)
-    ld d, (ix+1)
-    inc ix
-    inc ix
-    ld a, b
-    add a, e
-    ld e, a
-    jr nc, .dbr_nc
-    inc d
-.dbr_nc:
-    push bc
-    ld a, (.dbr_width)
-    ld b, a
-.dbr_col:
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    djnz .dbr_col
-    pop bc
-
-    ld a, (.dbr_lines)
-    dec a
-    ld (.dbr_lines), a
-    jr nz, .dbr_row
-
-    pop bc
-    pop ix
-    ret
-
-.dbr_lines: defb 0
-.dbr_width: defb 0
 
 ;; ClearBitmapRect: Clear a rectangle to Pen 0.
 ;; Input: B=X byte, C=Y scanline, D=width bytes (1..CBR_MAX_WIDTH),

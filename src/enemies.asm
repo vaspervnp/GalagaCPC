@@ -47,12 +47,13 @@ InitEnemies:
     call PlaySoundStageStart
     ret
 
-;; Stage 1 brings the first two waves; each regular stage adds half a wave
-;; until the full formation from stage 8 (challenging stages are skipped).
+;; Whole entry groups only: the first two regular stages bring 24 enemies,
+;; the full formation (36) follows from the third regular stage (stage 4;
+;; challenging stages are skipped). Also picks the entrance pattern as in
+;; the arcade: 1 and 2 on stages 1 and 2, then 1, 2, 3 between challenging
+;; stages.
 SetStageEnemyTotal:
     ld a, (current_stage)
-    cp 8
-    jr nc, .max_enemy_total
     ld b, a
     srl a
     srl a
@@ -60,14 +61,60 @@ SetStageEnemyTotal:
     ld a, b
     sub c
     dec a                   ; A = regular stages before this one
+    push af
+    cp 2
+    jr c, .pattern_ready
+    sub 2
+.pattern_mod3:
+    cp 3
+    jr c, .pattern_ready
+    sub 3
+    jr .pattern_mod3
+.pattern_ready:
+    ld l, a
     add a, a
     add a, a
-    add a, STAGE_ENEMIES_MIN
-    jr .store_enemy_total
-.max_enemy_total:
-    ld a, ENEMY_COUNT
-.store_enemy_total:
+    add a, a
+    sub l                   ; * 7
+    ld e, a
+    ld d, 0
+    ld hl, entry_pattern_tab
+    add hl, de
+    ld de, entry_order_ptr
+    ld bc, 7
+    ldir
+    pop af
+    cp 3
+    jr c, .size_ready
+    ld a, 3
+.size_ready:
+    ld e, a
+    ld d, 0
+    ld hl, stage_enemy_sizes
+    add hl, de
+    ld a, (hl)
     ld (stage_enemy_total), a
+    ret
+
+stage_enemy_sizes:
+    defb 24, 24, ENEMY_COUNT, ENEMY_COUNT
+
+;; EntryWaveOf: A = spawn index -> C = first index of its entry wave and
+;; B = the wave's size; Z set if A is the first enemy of the wave.
+;; Changes HL.
+EntryWaveOf:
+    ld hl, (entry_starts_ptr)
+.next:
+    ld c, (hl)
+    inc hl
+    cp (hl)
+    jr nc, .next            ; A is in a later wave
+    push af
+    ld a, (hl)
+    sub c
+    ld b, a
+    pop af
+    cp c
     ret
 
 ;; Easy uses stages 10/20/30 for 1/2/3 shooters; higher difficulties
@@ -114,18 +161,17 @@ SelectEntryShooters:
 .store_quota:
     ld (entry_shooter_quota), a
 
-    ;; One draw per entry wave (spawn indices 0, 8, 16, 24, 32)
+    ;; One draw per entry wave
     xor a
 .wave_shooters:
     push af
-    ld b, ENTRY_WAVE_SIZE
-    cp ENEMY_COUNT - ENTRY_WAVE_SIZE + 1
-    jr c, .wave_size_ok
-    ld b, ENEMY_COUNT % ENTRY_WAVE_SIZE
-.wave_size_ok:
+    call EntryWaveOf        ; C = wave start, B = wave size
+    ld a, c
     call SelectEntryGroupShooters
     pop af
-    add a, ENTRY_WAVE_SIZE
+    call EntryWaveOf
+    ld a, c
+    add a, b                ; Next wave
     cp ENEMY_COUNT
     jr c, .wave_shooters
     ret
@@ -333,10 +379,18 @@ UpdateEnemies:
     ret
 .not_stage_intro:
 
-    ;; Sideways flight step alternates 1 and 2 bytes (1.5 a frame)
-    ld a, (move_half)
-    xor 1
-    ld (move_half), a
+    ;; Count down the fire cooldowns (see FireFromIX)
+    ld hl, enemy_data + 14
+    ld de, ENEMY_SIZE
+    ld b, ENEMY_COUNT
+.fire_cooldown:
+    ld a, (hl)
+    or a
+    jr z, .fire_cooldown_next
+    dec (hl)
+.fire_cooldown_next:
+    add hl, de
+    djnz .fire_cooldown
 
     ld a, (is_challenging_stage)
     or a
@@ -365,48 +419,28 @@ UpdateEnemies:
     inc a
 
     ld (flap_timer), a
-    cp 18
+    cp 9
     jr c, .check_sway
 
     xor a
     ld (flap_timer), a
     ld a, (global_anim)
     xor 1
-    ld (global_anim), a
-
-    ;; Redraw all alive enemies in formation with new wing frame
-    ld ix, enemy_data
-    ld b, ENEMY_COUNT
-.flap_loop:
-    ld a, (ix+0)
-    or a
-    jr z, .next_flap
-    ld a, (ix+8)            ; only if in formation (state==0)
-    or a
-    jr nz, .next_flap
-    ld a, (global_anim)
-    ld (ix+6), a
-    push bc
-    call DrawEnemyIX
-    pop bc
-.next_flap:
-    ld de, ENEMY_SIZE
-    add ix, de
-    djnz .flap_loop
+    ld (global_anim), a     ; Docked enemies pick it up when their row sways
 
 .check_sway:
-    ;; --- 2. Check Formation Sway Timer ---
+    ;; --- 2. Formation sway: one row per update, so a sway step of the
+    ;; whole formation is spread over FORMATION_ROWS updates ---
     ld a, (sway_timer)
     inc a
-    ld (sway_timer), a
-    cp 10
-    jr c, .check_dive_trigger
-
+    cp FORMATION_ROWS
+    jr c, .sway_row
     xor a
     ld (sway_timer), a
 
-    ;; Update sway_offset (-2 to +2)
+    ;; Next sway step: update sway_offset (-2 to +2)
     ld a, (sway_dir)
+    ld (sway_move), a
     ld b, a
     ld a, (sway_offset)
     add a, b
@@ -423,21 +457,43 @@ UpdateEnemies:
     jr nz, .apply_sway
     ld a, 1
     ld (sway_dir), a
-
 .apply_sway:
-    ;; Apply sway_offset to alive enemies in formation. Columns are one
-    ;; sprite width apart, so walk the rows in the direction of travel: each
-    ;; sprite then moves before the neighbour that would overlap it.
-    ld ix, enemy_data
-    ld hl, ENEMY_SIZE
-    ld a, b                 ; B = direction of this sway step
+    xor a
+.sway_row:
+    ld (sway_timer), a
+
+    ;; Move the docked enemies of row A to base_x + sway_offset. Columns are
+    ;; one sprite width apart, so walk the row in the direction of travel:
+    ;; each sprite then moves before the neighbour that would overlap it.
+    ld l, a
+    add a, a
+    add a, l
+    ld e, a
+    ld d, 0
+    ld hl, formation_row_tab
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld b, (hl)              ; B = slots in the row
+    push de
+    pop ix                  ; IX = first slot
+    ld de, ENEMY_SIZE
+    ld a, (sway_move)
     or a
     jp m, .sway_order_ready
-    ld ix, enemy_data + (ENEMY_COUNT - 1) * ENEMY_SIZE
-    ld hl, -ENEMY_SIZE
+    push bc
+    dec b
+    jr z, .sway_at_last
+.sway_to_last:
+    add ix, de
+    djnz .sway_to_last
+.sway_at_last:
+    pop bc
+    ld de, -ENEMY_SIZE
 .sway_order_ready:
-    ld (sway_step), hl
-    ld b, ENEMY_COUNT
+    ld (sway_step), de
 .sway_loop:
     ld a, (ix+0)
     or a
@@ -459,6 +515,8 @@ UpdateEnemies:
     ld (ix+2), c
     call EraseEnemyDeltaIX
     ld (ix+4), c
+    ld a, (global_anim)
+    ld (ix+6), a            ; Wing frame
 
     push bc
     call DrawEnemyIX
@@ -716,13 +774,13 @@ UpdateEnemies:
     pop af
     ld (ix+12), a
 .dive_speed_ready:
-    ;; Sideways step: fast 2, normal 1.5 (1 and 2 alternately), slow 1
+    ;; Sideways step: fast 4, normal 3, slow 2
     ld a, (ix+12)
     cp 2
     jr z, .dive_speed_normal_step
-    ld d, 2
+    ld d, 4
     jr c, .dive_speed_move  ; 1 = fast
-    ld d, 1                 ; 3 = slow
+    ld d, 2                 ; 3 = slow
     jr .dive_speed_move
 .dive_speed_normal_step:
     call FlightStepX
@@ -731,6 +789,7 @@ UpdateEnemies:
     ;; 2. Move Y down
     ld a, (ix+3)
     add a, FLIGHT_STEP_Y
+    jp c, .loop_to_top
     cp DIVE_WRAP_Y
     jp nc, .loop_to_top     ; Reached bottom -> loop to top
 
@@ -802,13 +861,7 @@ UpdateEnemies:
     ld a, (enemy_fire_freeze)
     or a
     jr nz, .dive_skip_drop  ; Freeze active: cannot fire!
-    push bc
-    push ix
-    ld b, (ix+2)
-    ld c, (ix+3)
-    call SpawnEBullet
-    pop ix
-    pop bc
+    call FireFromIX
 .dive_skip_drop:
 
     ;; 5. Erase the uncovered strip, update old coordinates, draw
@@ -928,8 +981,7 @@ UpdateEnemies:
 
 ;; FlightStepX: A = this frame's sideways step (1 or 2: 1.5 on average)
 FlightStepX:
-    ld a, (move_half)
-    inc a
+    ld a, 3
     ret
 
 ;; CrossedY: carry set if this frame's move from (ix+5) to (ix+3) went down
@@ -1009,7 +1061,7 @@ EraseEnemyDeltaIX:
     ld d, 8
     ld b, (ix+4)
     ld c, (ix+5)
-    call ClearBitmapRect
+    call ClearSmallRect
     jr .horizontal
 .moved_up:
     neg
@@ -1019,7 +1071,7 @@ EraseEnemyDeltaIX:
     ld a, (ix+3)
     add a, 16
     ld c, a
-    call ClearBitmapRect
+    call ClearSmallRect
 
 .horizontal:
     ld a, (ix+2)
@@ -1030,7 +1082,7 @@ EraseEnemyDeltaIX:
     ld e, 16
     ld b, (ix+4)
     ld c, (ix+5)
-    call ClearBitmapRect
+    call ClearSmallRect
     jr .done
 .moved_left:
     neg
@@ -1040,7 +1092,7 @@ EraseEnemyDeltaIX:
     add a, 8
     ld b, a
     ld c, (ix+5)
-    call ClearBitmapRect
+    call ClearSmallRect
 .done:
     pop bc
     ret
@@ -1292,8 +1344,26 @@ CheckAndRestoreDockedEnemies:
     ret nc                  ; Below every formation row: nothing to restore
     ld (.old_y + 1), a
     push bc
+    ld a, (restore_skip_x)
+    ld (.skip_x + 1), a
+    ld a, (restore_skip_y)
+    ld (.skip_y + 1), a
     ld a, (ix+4)
     ld (.old_x + 1), a
+
+    ;; Column nearest the footprint: (old_x - FORMATION_X0 - sway_offset
+    ;; + 4) / 8. Only it and its two neighbours can overlap.
+    ld c, a
+    ld a, (sway_offset)
+    ld b, a
+    ld a, c
+    sub b
+    add a, 4 - FORMATION_X0
+    rrca
+    rrca
+    rrca
+    and #1F
+    ld (.near_col + 1), a
 
     ;; Docked enemies sit on fixed rows 16 lines apart (slot -> row), so
     ;; only the row at or above the footprint and the one below can overlap.
@@ -1316,7 +1386,8 @@ CheckAndRestoreDockedEnemies:
     pop bc
     ret
 
-;; A = formation row: test that row's slots. Preserves C.
+;; A = formation row: test the row's slots in the three columns around the
+;; footprint. Preserves C.
 .check_row:
     ld l, a
     add a, a
@@ -1330,7 +1401,44 @@ CheckAndRestoreDockedEnemies:
     ld d, (hl)
     inc hl
     ld b, (hl)              ; B = slots in the row
-    ex de, hl               ; HL = first slot
+    ;; Slot k of a row sits in column k + (8 - B) / 2 (the 4 Bosses are
+    ;; centred), so the first candidate slot is near_col - (8 - B) / 2 - 1.
+    ld a, FORMATION_COLS
+    sub b
+    rra
+    ld l, a
+.near_col:
+    ld a, 0
+    sub l
+    dec a                   ; A = first candidate slot (may be negative)
+    ld h, 3                 ; H = candidates
+    or a
+    jp p, .cand_start
+    add a, h                ; Left of the row: fewer candidates from slot 0
+    ret z
+    ret m
+    ld h, a
+    xor a
+.cand_start:
+    cp b
+    ret nc                  ; Right of the row
+    ld l, a
+    ld a, b
+    sub l                   ; Slots from the first candidate to the row's end
+    cp h
+    jr nc, .cand_count
+    ld h, a
+.cand_count:
+    ld b, h                 ; B = candidates
+    ld a, l
+    ex de, hl               ; HL = first slot of the row
+    or a
+    jr z, .card_loop
+    ld de, ENEMY_SIZE
+.cand_skip:
+    add hl, de
+    dec a
+    jr nz, .cand_skip
 .card_loop:
     ld a, (hl)              ; alive?
     or a
@@ -1364,7 +1472,26 @@ CheckAndRestoreDockedEnemies:
     or a
     jr nz, .card_skip
 
-    ;; Overlap! Redraw this docked enemy
+    ;; Overlap! Unless the sprite at restore_skip_x/y also covers it (the
+    ;; restore after drawing redraws it then), redraw this docked enemy.
+    pop hl
+    push hl
+    inc hl
+    inc hl
+    ld a, (hl)              ; x
+.skip_x:
+    sub 0
+    add a, 7
+    cp 15
+    jr nc, .card_redraw
+    inc hl
+    ld a, (hl)              ; y
+.skip_y:
+    sub 0
+    add a, 15
+    cp 31
+    jr c, .card_skip
+.card_redraw:
     pop hl
     push hl
     push ix
@@ -1402,7 +1529,16 @@ EraseEntryEnemyOld:
     ret c
     cp SPRITE_Y_LIMIT
     ret nc
-    jp CheckAndRestoreDockedEnemies
+    ;; Docked enemies the new sprite overlaps are redrawn by the restore pass
+    ;; after every mover has drawn (pass 2 of UpdateEntryPhase).
+    ld a, (ix+2)
+    ld (restore_skip_x), a
+    ld a, (ix+3)
+    ld (restore_skip_y), a
+    call CheckAndRestoreDockedEnemies
+    ld a, 200
+    ld (restore_skip_x), a
+    ret
 
 ;; ----------------------------------------------------------------------------
 ;; UpdateEntryPhase: Manage Entry Swarm phase of standard combat stages
@@ -1413,7 +1549,7 @@ UpdateEntryPhase:
     ld a, (flap_timer)
     inc a
     ld (flap_timer), a
-    cp 18
+    cp 9
     jr c, .entry_chk_spawn
     xor a
     ld (flap_timer), a
@@ -1437,6 +1573,39 @@ UpdateEntryPhase:
     jr nz, .entry_spawns_done
 
     call SpawnEntryEnemy
+
+    ;; Pattern 2: the next enemy flies in beside this one, on its inner side.
+    ld a, (entry_pairs)
+    or a
+    jr z, .entry_spawns_done
+    ld a, (entry_spawn_idx)
+    call EntryWaveOf
+    sub c
+    rra
+    jr nc, .entry_spawns_done ; Pair complete (waves have even sizes)
+    push ix
+    call SpawnEntryEnemy
+    pop iy                  ; IY = leader, IX = its partner
+    call EraseEnemyOldIX    ; Its own start position
+    ld a, (iy+11)
+    xor (ix+11)
+    and #07
+    xor (ix+11)
+    ld (ix+11), a           ; The leader's path, its own flags
+    ld a, (iy+8)
+    ld (ix+8), a
+    ld a, (iy+3)
+    ld (ix+3), a
+    ld (ix+5), a
+    ld a, (iy+2)
+    ld c, FORMATION_DX
+    cp PF_X_CENTER
+    jr c, .pair_x
+    ld c, -FORMATION_DX
+.pair_x:
+    add a, c
+    ld (ix+2), a
+    ld (ix+4), a
 
 .entry_spawns_done:
     ;; ------------------------------------------------------------------------
@@ -1600,13 +1769,7 @@ UpdateEntryPhase:
     pop bc
     jr .entry_no_shot
 .entry_fire:
-    push bc
-    push ix
-    ld b, (ix+2)
-    ld c, (ix+3)
-    call SpawnEBullet
-    pop ix
-    pop bc
+    call FireFromIX
 .entry_no_shot:
     ;; Erase the uncovered strip, update old coordinates, draw at new position
     call EraseEntryEnemyOld
@@ -1650,7 +1813,7 @@ UpdateEntryPhase:
     and #7
     cp 6
     jr nz, .ret_e_step_y
-    ld d, 2 * FLIGHT_STEP_Y ; Quick top route drops straight into its slot
+    ld d, FLIGHT_STEP_Y + 2 ; Quick top route drops straight into its slot
 .ret_e_step_y:
     ld a, (ix+3)
     call StepToward
@@ -1791,6 +1954,18 @@ SpawnEntryEnemy:
     ld (ix+5), a
     ld a, (hl)              ; entry_path
     ld (ix+11), a
+    ;; Patterns 2 and 3 bring the first wave in from the upper left only.
+    ld a, (entry_pattern)
+    or a
+    jr z, .entry_path_ready
+    ld a, (entry_spawn_idx)
+    cp 8
+    jr nc, .entry_path_ready
+    ld (ix+2), 4
+    ld (ix+4), 4
+    ld (ix+11), 1
+.entry_path_ready:
+    ld a, (ix+11)
     call SelectDifficultyEntryPath
     ld (ix+11), a
     push hl
@@ -1824,9 +1999,9 @@ SpawnEntryEnemy:
     inc a
     ld (entry_spawn_idx), a
 
-    ;; Check if starting a new entry wave (indices 0, 8, 16, 24, 32)
+    ;; Check if starting a new entry wave
     dec a
-    and ENTRY_WAVE_SIZE - 1
+    call EntryWaveOf
     jr nz, .done_entry_wave_sfx
     ld a, (music_playing)
     or a
@@ -1836,14 +2011,14 @@ SpawnEntryEnemy:
 
     ;; Set delay to next spawn
     ld a, (entry_spawn_idx)
-    and ENTRY_WAVE_SIZE - 1
+    call EntryWaveOf
     jr z, .pause_wave
-    ld a, 8                 ; Keep entry rendering bounded on every difficulty.
+    ld a, (entry_gap)
     ld (entry_spawn_timer), a
     ret
 
 .pause_wave:
-    ld a, 22                ; Pause before the next group can enter.
+    ld a, 11                ; Pause before the next group can enter.
     ld (entry_spawn_timer), a
     ret
 
@@ -1853,15 +2028,14 @@ WaitForEntryWave:
     ld a, (entry_spawn_idx)
     or a
     ret z
-    and ENTRY_WAVE_SIZE - 1
+    call EntryWaveOf
     ret nz                  ; Not at a wave boundary (carry clear)
-    ld a, (entry_spawn_idx)
-    sub ENTRY_WAVE_SIZE
-    ld e, a
+    dec a
+    call EntryWaveOf        ; C, B = the previous wave
+    ld e, c
     ld d, 0
-    ld hl, entry_spawn_order
+    ld hl, (entry_order_ptr)
     add hl, de              ; HL -> slots of the previous wave
-    ld b, ENTRY_WAVE_SIZE
 .check_wave:
     push hl
     push bc
@@ -1884,26 +2058,44 @@ WaitForEntryWave:
     scf
     ret
 
+;; FireFromIX: Drop one bullet from the enemy at IX, unless it already
+;; fired within the last ENEMY_FIRE_COOLDOWN updates (2 seconds).
+;; Preserves: BC, IX
+FireFromIX:
+    ld a, (ix+14)
+    or a
+    ret nz
+    ld (ix+14), ENEMY_FIRE_COOLDOWN
+    push bc
+    push ix
+    ld b, (ix+2)
+    ld c, (ix+3)
+    call SpawnEBullet
+    pop ix
+    pop bc
+    ret
+
 ;; SpawnSlotIX: IX -> slot of the next enemy to spawn; A = its slot number.
 SpawnSlotIX:
     ld a, (entry_spawn_idx)
     ld e, a
     ld d, 0
-    ld hl, entry_spawn_order
+    ld hl, (entry_order_ptr)
     add hl, de
     ld a, (hl)
 ;; SlotIX: IX -> enemy_data + A * ENEMY_SIZE. Keeps A; changes DE, HL.
 SlotIX:
     ld l, a
     ld h, 0
-    add hl, hl              ; * 2
     ld d, h
     ld e, l
+    add hl, hl              ; * 2
     add hl, hl              ; * 4
     add hl, hl              ; * 8
     add hl, hl              ; * 16
     or a
-    sbc hl, de              ; * 14
+    sbc hl, de              ; * 15
+    assert ENEMY_SIZE == 15
     ld de, enemy_data
     add hl, de
     push hl
@@ -1922,7 +2114,8 @@ SelectDifficultyEntryPath:
 
 .check_top_entry:
     ld a, (entry_spawn_idx)
-    and ENTRY_WAVE_SIZE - 1 ; Index within the entry wave
+    call EntryWaveOf
+    sub c                   ; Index within the entry wave
     ld c, a
     ld a, (difficulty_level)
     cp 1
@@ -2043,22 +2236,50 @@ entry_enemy_defs:
     defb 0, 1, FORMATION_X0 + 7 * FORMATION_DX, FORMATION_Y_MIN + 3 * 16, 60, PF_Y_TOP, 2       ; Slot 27: Zako, row 3 col 7
     defb 0, 1, FORMATION_X0 + 0 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 28: Zako, row 4 col 0
     defb 0, 1, FORMATION_X0 + 1 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 29: Zako, row 4 col 1
-    defb 0, 1, FORMATION_X0 + 2 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 60, PF_Y_TOP, 2       ; Slot 30: Zako, row 4 col 2
+    defb 0, 1, FORMATION_X0 + 2 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 30: Zako, row 4 col 2
     defb 0, 1, FORMATION_X0 + 3 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 60, PF_Y_TOP, 2       ; Slot 31: Zako, row 4 col 3
     defb 0, 1, FORMATION_X0 + 4 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 60, PF_Y_TOP, 2       ; Slot 32: Zako, row 4 col 4
-    defb 0, 1, FORMATION_X0 + 5 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 60, PF_Y_TOP, 2       ; Slot 33: Zako, row 4 col 5
+    defb 0, 1, FORMATION_X0 + 5 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 33: Zako, row 4 col 5
     defb 0, 1, FORMATION_X0 + 6 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 34: Zako, row 4 col 6
     defb 0, 1, FORMATION_X0 + 7 * FORMATION_DX, FORMATION_Y_MIN + 4 * 16, 4, PF_Y_TOP, 1        ; Slot 35: Zako, row 4 col 7
     assert $ - entry_enemy_defs == ENEMY_COUNT * 7
 
-;; Spawn order (slot numbers), five waves of 8 as in the arcade:
-;; 1: 4 Goei + 4 Zako from the top in two streams; 2: the Bosses with
-;; 4 Goei from the lower left; 3: 8 Goei from the lower right; 4: 8 Zako
-;; from the upper right; 5: the last 4 Zako from the upper left.
+;; Entrance patterns, as in the arcade: [spawn order, group starts, spawn
+;; gap, pairs, pattern]. Pattern 1 brings two waves at a time from both
+;; sides in single file; 2 one wave at a time, side by side, starting on the
+;; left; 3 one wave at a time in a single long line.
+entry_pattern_tab:
+    defw entry_spawn_order, entry_wave_starts : defb ENTRY_SPAWN_GAP_2, 0, 0
+    defw entry_order_single, entry_starts_single : defb ENTRY_SPAWN_GAP, 1, 1
+    defw entry_order_single, entry_starts_single : defb ENTRY_SPAWN_GAP, 0, 2
+
+;; Pattern 1 spawn order (slot numbers), in arcade-style waves of 6 to 8
+;; that fly in two at a time, interleaved so both streams enter together:
+;; group 1: 4 Goei + 4 Zako from the top in two streams;
+;; group 2: the Bosses with 4 Goei from the lower left, alongside 8 Goei
+;; from the lower right;
+;; group 3: 6 Zako from the upper right, alongside 6 Zako from the upper left.
 entry_spawn_order:
+    defb 6, 22, 7, 23, 8, 24, 9, 25
+    defb 0, 14, 4, 15, 1, 16, 5, 17
+    defb 2, 12, 10, 13, 3, 18, 11, 19
+    defb 20, 30, 21, 33, 26, 29, 27, 34, 31, 28, 32, 35
+    assert $ - entry_spawn_order == ENEMY_COUNT
+
+;; First spawn index of each entry group, then the end (and a sentinel).
+;; Stage sizes (stage_enemy_sizes) always end on one of these.
+entry_wave_starts:
+    defb 0, 8, 24, ENEMY_COUNT, 255
+
+;; Patterns 2 and 3: the same waves one at a time - from the upper left, the
+;; Bosses with Goei from the lower left, Goei from the lower right, then Zako
+;; from the upper right and the upper left.
+entry_order_single:
     defb 6, 22, 7, 23, 8, 24, 9, 25
     defb 0, 4, 1, 5, 2, 10, 3, 11
     defb 14, 15, 16, 17, 12, 13, 18, 19
-    defb 20, 21, 26, 27, 30, 31, 32, 33
-    defb 28, 29, 34, 35
-    assert $ - entry_spawn_order == ENEMY_COUNT
+    defb 20, 21, 26, 27, 31, 32
+    defb 30, 33, 29, 34, 28, 35
+    assert $ - entry_order_single == ENEMY_COUNT
+entry_starts_single:
+    defb 0, 8, 16, 24, 30, ENEMY_COUNT, 255

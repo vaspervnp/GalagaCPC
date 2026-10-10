@@ -60,16 +60,16 @@ UpdateExplosions:
     ld a, (ix+3)
     inc a
     ld (ix+3), a
-    cp 25
+    cp 13
     jr nc, .finish_exp
 
     push bc
+    cp 4
+    jr c, .frame1           ; 1..3: Initial burst
     cp 7
-    jr c, .frame1           ; 1..6: Initial burst
-    cp 13
-    jr c, .frame2           ; 7..12: Expanding ring
-    cp 19
-    jr c, .frame3           ; 13..18: Full burst
+    jr c, .frame2           ; 4..6: Expanding ring
+    cp 10
+    jr c, .frame3           ; 7..9: Full burst
     ld hl, explosion_4      ; 19..24: Fading particles
     jr .draw_exp
 .frame1:

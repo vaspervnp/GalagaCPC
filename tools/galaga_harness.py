@@ -150,7 +150,7 @@ class Machine:
         best = None
         base = S['ENEMY_DATA']
         for i in range(self.S['ENEMY_COUNT']):
-            e = base + i * 14
+            e = base + i * self.S['ENEMY_SIZE']
             if self.mem[e] and 8 <= self.mem[e + 3] < 252:
                 y = self.mem[e + 3]
                 if best is None or y > best[1]:
@@ -168,8 +168,8 @@ class Machine:
             self.keys[5] &= ~0x80
 
     def enemy(self, i):
-        e = self.S['ENEMY_DATA'] + i * 14
-        return list(self.mem[e:e + 14])
+        e = self.S['ENEMY_DATA'] + i * self.S['ENEMY_SIZE']
+        return list(self.mem[e:e + self.S['ENEMY_SIZE']])
 
     def check(self):
         S = self.S

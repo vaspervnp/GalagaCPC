@@ -24,10 +24,12 @@ HS_SAVE_FAILED    equ 0
 HS_SAVE_PROTECTED equ 1
 HS_SAVE_NO_DISK   equ 2
 
-    org HS_DISK_ORG, disk_reloc_src
+;; The 512-byte sector buffer sits at HS_DISK_ORG; only the code after it
+;; is part of the load image.
+HS_DISK_BUFFER    equ HS_DISK_ORG
+HS_DISK_CODE      equ HS_DISK_ORG + 512
 
-HS_DISK_BUFFER:
-    defs 512, 0
+    org HS_DISK_CODE, disk_reloc_src
 
 ;; Load only a valid, checksummed table; defaults remain intact on any failure.
 HighScoreLoad:

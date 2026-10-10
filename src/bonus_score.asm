@@ -157,7 +157,7 @@ TriggerBonusScore:
     ld (bonus_score_old_y), a
 
     ;; 5. Initialize active timer: 16 frames duration
-    ld a, 16
+    ld a, 8
     ld (bonus_score_timer), a
 
     ;; 6. Draw initial bonus score sprite immediately!
@@ -191,10 +191,7 @@ UpdateBonusScore:
     ld (bonus_score_timer), a
     ret z                   ; Expired after 16 frames!
 
-    ;; 3. Float 1 pixel upward every 2 frames:
-    ;; At timer = 14, 12, 10, 8, 6, 4, 2 (when bit 0 is 0), move Y up by 1!
-    bit 0, a
-    jr nz, .no_float_up
+    ;; 3. Float 1 line upward every update
     ld hl, bonus_score_y
     dec (hl)
 .no_float_up:

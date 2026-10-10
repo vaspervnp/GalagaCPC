@@ -10,9 +10,9 @@ PLAYER_START_X  equ PF_X_CENTER - 4          ; 32: centred in the playfield
 
 
 EBULLET_SIZE    equ 8
-;; Diagonal enemy fire: sideways speed in 1/256 byte a frame for 15, 20,
-;; 25 and 30 degrees from vertical (3 lines a frame; a byte is 4 lines
-;; wide on screen): 256 * 3 * tan(angle) / 4.
+;; Diagonal enemy fire: sideways speed in 1/256 byte per 50 Hz frame for
+;; 15, 20, 25 and 30 degrees from vertical (3 lines a frame; a byte is 4
+;; lines wide on screen): 256 * 3 * tan(angle) / 4. Applied twice an update.
 EBULLET_DX_15   equ 51
 EBULLET_DX_20   equ 70
 EBULLET_DX_25   equ 90
@@ -20,21 +20,22 @@ EBULLET_DX_30   equ 111
 MAX_EBULLETS    equ 14                       ; Hardest at its peak
 
 ENEMY_COUNT     equ 36                       ; Arcade formation, rows of 8
-ENEMY_SIZE      equ 14
+ENEMY_SIZE      equ 15                       ; +14: fire cooldown (updates)
+ENEMY_FIRE_COOLDOWN equ 50                   ; One round per enemy every 2 s
 
 ;; Arcade-style formation: 4 Bosses, then two rows of 8 Goei and two rows
-;; of 8 Zako, columns one sprite width apart, entering in 5 waves of 8.
+;; of 8 Zako, columns one sprite width apart, entering in waves of 8, 8, 8,
+;; 6 and 6 in three entrance patterns (entry_pattern_tab).
+ENTRY_SPAWN_GAP equ 6                        ; Updates between spawns in one stream
+ENTRY_SPAWN_GAP_2 equ 4                      ; Two streams at once (pattern 1)
 FORMATION_COLS  equ 8
 FORMATION_X0    equ PF_X0 + 4                ; Column 0; sway keeps 2..62
 FORMATION_DX    equ 8
-ENTRY_WAVE_SIZE equ 8                        ; Wave boundaries are multiples of 8
-STAGE_ENEMIES_MIN  equ 16                    ; Stage 1: the first two waves
-STAGE_ENEMIES_STEP equ 4                     ; Half a wave more per regular stage
 
-;; Larger movement step for everything in flight: 3 lines a frame down or
-;; up, and 1.5 bytes a frame sideways (1 and 2 on alternate frames), so the
-;; flight paths keep their shape at 1.5x the speed.
-FLIGHT_STEP_Y   equ 3
+;; The game runs at a steady 25 updates a second (WaitFrame25). Everything
+;; in flight moves 6 lines a update down or up and 3 bytes sideways
+;; (FlightStepX), which keeps the flight paths' shape.
+FLIGHT_STEP_Y   equ 6
 
 ;; From this stage a diving Zako splits into three aliens mid-dive.
 TRANSFORM_STAGE equ 10
@@ -58,11 +59,11 @@ TRACTOR_BEAM_Y  equ TRACTOR_HOVER_Y + 16
 TRACTOR_BEAM_H  equ 64
 
 ;; Stage watchdog: remove enemies that stay outside the playfield this long.
-STAGE_WATCHDOG_FRAMES equ 250
+STAGE_WATCHDOG_FRAMES equ 125
 
 ;; After losing a life, wait at least this long (and until every attacking
 ;; enemy is back in formation) before the next fighter appears.
-RESPAWN_MIN_WAIT equ 100
+RESPAWN_MIN_WAIT equ 50
 
 ;; Each active diver aims at its own lane; lanes are one sprite width apart
 ;; and centred on the player, so divers never share an attack path.
@@ -78,7 +79,7 @@ STAR_GAME_DX    equ -10                      ; Table X 11..81 -> playfield 1..71
 STAR_GAME_Y_END equ SPRITE_Y_LIMIT
 
 ;; Projectile limits
-MISSILE_KILL_Y  equ PF_Y_TOP + 5             ; Missile removed before passing the top
+MISSILE_KILL_Y  equ PF_Y_TOP + 10            ; Missile removed before passing the top
 EBULLET_KILL_Y  equ SPRITE_Y_LIMIT - 2       ; Enemy bullet removed near the bottom
 
 ;; Challenging stage results text, centred in the playfield

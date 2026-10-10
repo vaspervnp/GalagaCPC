@@ -37,9 +37,10 @@ ReadInput:
     bit CTL_LEFT, a
     jr z, .check_right
     ld a, (player_x)
-    cp PLAY_X_MIN
-    jr c, .check_right
-    dec a
+    sub 2
+    jr c, .check_fire
+    cp PLAY_X_MIN - 1
+    jr c, .check_fire
     ld (player_x), a
     jr .check_fire
 
@@ -54,18 +55,18 @@ ReadInput:
 
     ;; Single Fighter right limit: X <= PLAY_X_MAX
     ld a, (player_x)
-    cp PLAY_X_MAX
+    add a, 2
+    cp PLAY_X_MAX + 2
     jr nc, .check_fire
-    inc a
     ld (player_x), a
     jr .check_fire
 
 .check_right_dual:
     ;; Dual Fighter right limit: X <= PLAY_X_MAX - 8
     ld a, (player_x)
-    cp PLAY_X_MAX - 8
+    add a, 2
+    cp PLAY_X_MAX - 8 + 2
     jr nc, .check_fire
-    inc a
     ld (player_x), a
 
 .check_fire:
@@ -176,7 +177,7 @@ UpdatePlayer:
     ld a, (player_invincible_timer)
     or a
     jr z, .draw_single_ship
-    bit 1, a
+    bit 0, a
     ret nz                  ; Skip draw on flicker frame
 
 .draw_single_ship:
@@ -210,7 +211,7 @@ UpdatePlayer:
     ld a, (player_invincible_timer)
     or a
     jr z, .draw_dual_ships
-    bit 1, a
+    bit 0, a
     ret nz
 
 .draw_dual_ships:
@@ -375,7 +376,7 @@ IsPlayerAbsent:
     ret
 
 RespawnPlayer:
-    ld a, 100               ; 2 seconds invincibility (100 frames at 50Hz)
+    ld a, 50                ; 2 seconds invincibility
     ld (player_invincible_timer), a
     ld a, PLAYER_START_X
     ld (player_x), a
