@@ -110,7 +110,7 @@ UpdateTractorState:
 .handle_tractor_dive:
     ;; Boss dives straight down to TRACTOR_HOVER_Y to emit beam
     ld a, (ix+3)
-    add a, 4
+    add a, 2
     ld (ix+3), a
     cp TRACTOR_HOVER_Y
     jr c, .dive_down_ok

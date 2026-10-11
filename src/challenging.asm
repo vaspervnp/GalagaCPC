@@ -84,7 +84,7 @@ UpdateChallengingStage:
     ld a, (challenging_spawn_cnt)
     inc a
     ld (challenging_spawn_cnt), a
-    ld a, 4                 ; 4 updates between spawns
+    ld a, 8                 ; 8 updates between spawns
     ld (challenging_timer), a
 
 .move_wave_enemies:
@@ -406,7 +406,7 @@ MoveChallengingEnemies:
     and 16
     jr nz, .w5_slower
     ld a, (ix+2)
-    sub 6
+    sub 3
     jr .w5_chk_l
 .w5_slower:
     call FlightStepX
@@ -477,7 +477,7 @@ MoveChallengingEnemies:
     and 16
     jr nz, .w4_slower
     ld a, (ix+2)
-    add a, 6
+    add a, 3
     jr .w4_chk_r
 .w4_slower:
     call FlightStepX
@@ -489,12 +489,11 @@ MoveChallengingEnemies:
     jr .ch_draw_now
 
 .ch_draw_now:
-    ;; Animated wing flap / sprite alternation every 16 scanlines of flight
+    ;; Animated wing flap / sprite alternation every 8 scanlines of flight
     ld a, (ix+3)
-    rlca
-    rlca
-    rlca
-    rlca
+    srl a
+    srl a
+    srl a
     and 1
     ld (ix+6), a
 

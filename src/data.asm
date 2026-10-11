@@ -80,6 +80,7 @@ random_seed:        defb 1
 star_draw_x:        defb 0  ; Screen X of the star being updated
 star_half:          defb 0  ; In play: which half of the stars moves this frame
 irq_count:          defb 0  ; Gate Array interrupts (300 Hz) since the update began
+move_half:          defb 0  ; Flight step: alternates the 1 / 2 byte sideways step
 sway_step:          defw 0  ; Formation sway: table walk direction
 sway_move:          defb 0  ; Formation sway: direction of the current step
 restore_skip_x:     defb 200 ; Docked restore: leave enemies overlapping this

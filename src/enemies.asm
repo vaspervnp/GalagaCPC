@@ -392,6 +392,11 @@ UpdateEnemies:
     add hl, de
     djnz .fire_cooldown
 
+    ;; Sideways flight step alternates 1 and 2 bytes (1.5 an update)
+    ld a, (move_half)
+    xor 1
+    ld (move_half), a
+
     ld a, (is_challenging_stage)
     or a
     jp nz, UpdateChallengingStage
@@ -774,13 +779,13 @@ UpdateEnemies:
     pop af
     ld (ix+12), a
 .dive_speed_ready:
-    ;; Sideways step: fast 4, normal 3, slow 2
+    ;; Sideways step: fast 2, normal 1.5 (1 and 2 alternately), slow 1
     ld a, (ix+12)
     cp 2
     jr z, .dive_speed_normal_step
-    ld d, 4
+    ld d, 2
     jr c, .dive_speed_move  ; 1 = fast
-    ld d, 2                 ; 3 = slow
+    ld d, 1                 ; 3 = slow
     jr .dive_speed_move
 .dive_speed_normal_step:
     call FlightStepX
@@ -981,7 +986,8 @@ UpdateEnemies:
 
 ;; FlightStepX: A = this frame's sideways step (1 or 2: 1.5 on average)
 FlightStepX:
-    ld a, 3
+    ld a, (move_half)
+    inc a
     ret
 
 ;; CrossedY: carry set if this frame's move from (ix+5) to (ix+3) went down
@@ -1813,7 +1819,7 @@ UpdateEntryPhase:
     and #7
     cp 6
     jr nz, .ret_e_step_y
-    ld d, FLIGHT_STEP_Y + 2 ; Quick top route drops straight into its slot
+    ld d, 2 * FLIGHT_STEP_Y ; Quick top route drops straight into its slot
 .ret_e_step_y:
     ld a, (ix+3)
     call StepToward
