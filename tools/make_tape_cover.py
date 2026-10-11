@@ -155,7 +155,7 @@ p {{ font-size: 2.05mm; line-height: 1.35; margin-top: 1mm; color: #e8ecff; }}
       <h2>PILOT THE LAST LINE OF DEFENCE.</h2>
       <p>Blast through alien formations, dodge dive attacks and rescue your captured fighter
       for double firepower. Reach the challenging stages and chase the high score!</p>
-      <div class="shot"><img src="{shot}"><ul><li>28-ENEMY WAVES</li><li>CHALLENGING STAGES</li>
+      <div class="shot"><img src="{shot}"><ul><li>36-ENEMY FORMATION</li><li>CHALLENGING STAGES</li>
       <li>CAPTURE &amp; RESCUE</li><li>1 OR 2 PLAYERS</li><li>4 DIFFICULTIES</li></ul></div>
       <h3>LOADING</h3>
       <div class="load">CPC 464: <code>RUN"</code> + ENTER, then PLAY and any key.<br>

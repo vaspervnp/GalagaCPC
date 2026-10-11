@@ -26,16 +26,16 @@ ENEMY_FIRE_COOLDOWN equ 50                   ; One round per enemy every 2 s
 ;; Arcade-style formation: 4 Bosses, then two rows of 8 Goei and two rows
 ;; of 8 Zako, columns one sprite width apart, entering in waves of 8, 8, 8,
 ;; 6 and 6 in three entrance patterns (entry_pattern_tab).
-ENTRY_SPAWN_GAP equ 6                        ; Updates between spawns in one stream
-ENTRY_SPAWN_GAP_2 equ 4                      ; Two streams at once (pattern 1)
+ENTRY_SPAWN_GAP equ 8                        ; Updates between spawns in one stream
+ENTRY_SPAWN_GAP_2 equ 5                      ; Two streams at once (pattern 1)
 FORMATION_COLS  equ 8
 FORMATION_X0    equ PF_X0 + 4                ; Column 0; sway keeps 2..62
 FORMATION_DX    equ 8
 
-;; The game runs at a steady 25 updates a second (WaitFrame25). Everything
-;; in flight moves 6 lines a update down or up and 3 bytes sideways
-;; (FlightStepX), which keeps the flight paths' shape.
-FLIGHT_STEP_Y   equ 6
+;; The game runs at a steady 25 updates a second (WaitFrame25). Enemies in
+;; flight move 3 lines an update down or up and 1.5 bytes sideways (1 and 2
+;; on alternate updates, FlightStepX), which keeps the flight paths' shape.
+FLIGHT_STEP_Y   equ 3
 
 ;; From this stage a diving Zako splits into three aliens mid-dive.
 TRANSFORM_STAGE equ 10
