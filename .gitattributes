@@ -1,0 +1,4 @@
+# Shell scripts run in WSL / Linux from this checkout: keep them LF
+*.sh text eol=lf
+tools/linux/AppRun text eol=lf
+tools/linux/*.desktop text eol=lf

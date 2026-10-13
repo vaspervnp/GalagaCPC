@@ -1,0 +1,24 @@
+#!/bin/sh
+# Galaga CPC for Linux: the AppImage's entry point.
+#
+# The emulator (Caprice32, GPL), its ROMs and the game's disk are in payload/. On the
+# first run they are copied to ~/.local/share/GalagaCPC/<id of the payload> - the
+# AppImage itself is read-only, and the disk must be writable to keep the high scores;
+# a new version unpacks beside the old one - then Caprice32 starts with the disk in
+# drive A and types RUN"GALAGA. Arguments are passed on to Caprice32 (e.g. -a "..." to
+# type something else, which replaces RUN"GALAGA).
+set -e
+HERE=$(dirname "$(readlink -f "$0")")
+DIR=${XDG_DATA_HOME:-$HOME/.local/share}/GalagaCPC/$(cat "$HERE/payload/.id")
+if [ ! -e "$DIR/.unpacked" ]; then
+    rm -rf "$DIR"                               # a half-finished earlier attempt
+    mkdir -p "$DIR"
+    cp -R "$HERE/payload/." "$DIR/"
+    chmod -R u+w "$DIR"
+    touch "$DIR/.unpacked"
+fi
+cd "$DIR"
+for arg in "$@"; do
+    [ "$arg" = -a ] && exec ./cap32 --cfg_file="$DIR/cap32.cfg" "$@" "$DIR/galaga.dsk"
+done
+exec ./cap32 --cfg_file="$DIR/cap32.cfg" -a 'run"galaga' "$@" "$DIR/galaga.dsk"
