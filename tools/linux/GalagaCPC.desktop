@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Galaga CPC
+Comment=Galaga for the Amstrad CPC, with the emulator that runs it
+Exec=AppRun
+Icon=galagacpc
+Categories=Game;ArcadeGame;
+Terminal=false

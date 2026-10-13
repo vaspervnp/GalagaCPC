@@ -67,6 +67,18 @@
 
 Ξαναφτιάχνεται με `python tools/make_tape_cover.py` (απαιτεί Pillow και Chrome ή Edge).
 
+## Windows
+
+Μετά το `build.bat`, το `python tools\make_windows.py` φτιάχνει το `build\win\GalagaCPC.exe`: ένα αρχείο 6,5 MB με το παιχνίδι και έναν emulator Amstrad CPC μέσα του (το Windows build του Caprice32, GPLv2, με τις ROM του CPC). Με διπλό κλικ, την πρώτη φορά αποσυμπιέζεται στο `%LOCALAPPDATA%\GalagaCPC\<hash>` (δεν εγκαθίσταται τίποτα· ένα νέο build αποσυμπιέζεται δίπλα στο παλιό) και ξεκινά τον Caprice32 ως 6128 με τη δισκέτα στο drive A, πληκτρολογώντας `RUN"galaga`: η οθόνη REVIVE8BIT και μετά το παιχνίδι. Παράθυρο 1152×810, χωρίς μετρητή FPS, παγώνει όταν το παράθυρο δεν είναι ενεργό· F2 πλήρης οθόνη, F10 έξοδος. Τα high scores μένουν μόνο αν σωθεί η δισκέτα από το μενού του F1 (ο emulator ρωτά και στην έξοδο).
+
+Το `build\win\GalagaCPC-win64.zip` προσθέτει τα εγχειρίδια, ένα `README.txt` με οδηγίες και τις άδειες. Ο launcher (`tools\windows\Launcher.cs`) μεταγλωττίζεται με το `csc.exe` του .NET Framework που έχουν όλα τα Windows 10/11· ο Caprice32 κατεβαίνει μία φορά στο `build\win\`. Ό,τι ορίσματα δοθούν στο exe περνούν στον Caprice32 (το `-a` αντικαθιστά το `RUN"galaga`).
+
+## Linux
+
+Το ίδιο για Linux: μετά το `build.bat`, το `bash tools/make_linux.sh` (σε WSL ή Linux, χωρίς root) φτιάχνει το `build/linux/GalagaCPC-x86_64.AppImage`, ένα αρχείο 7 MB με τον Caprice32, τις ROM και τη δισκέτα. Την πρώτη φορά αντιγράφει τα αρχεία στο `~/.local/share/GalagaCPC/<id>` (η δισκέτα πρέπει να είναι εγγράψιμη για τα high scores) και ξεκινά όπως στα Windows, με τις ίδιες ρυθμίσεις. Το `build/linux/GalagaCPC-linux-x86_64.tar.gz` προσθέτει τα εγχειρίδια, ένα `README.txt` και τις άδειες.
+
+Ο Caprice32 δεν έχει έκδοση για Linux, οπότε το script τον μεταγλωττίζει από τον κώδικα, στο ίδιο commit με το Windows build (Φεβρουάριος 2025), μαζί με τα SDL2, FreeType, libpng και zlib. Ο compiler είναι ο clang του Zig με στόχο glibc 2.31, ώστε να τρέχει σε διανομές από το 2020 και μετά· το SDL2 φορτώνει μόνο του X11, PulseAudio και ALSA, οπότε το εκτελέσιμο χρειάζεται μόνο τη βιβλιοθήκη της C. Ο compiler, οι πηγές και τα headers (πακέτα `-dev` του Ubuntu, αποσυμπιεσμένα, όχι εγκατεστημένα) κατεβαίνουν μία φορά στο `~/.cache/galagacpc-linux`, με ελεγμένα SHA-256.
+
 ## Build
 
 Από τη ρίζα του repository, εκτελέστε σε Windows:
